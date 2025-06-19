@@ -1,5 +1,7 @@
 # FEROX
 
+![FEROX Logo](FEROX.png)
+
 Fitness-focused web application skeleton with Node.js, Express, and MongoDB.
 
 ## Setup
@@ -8,6 +10,11 @@ Fitness-focused web application skeleton with Node.js, Express, and MongoDB.
    ```bash
    npm install
    ```
+
+Optional Python utilities:
+```bash
+pip install -r requirements.txt
+```
 2. Create a `.env` file with `MONGO_URI` and `JWT_SECRET`.
 3. Run the server:
    ```bash
