@@ -13,6 +13,8 @@ header {
   align-items: center;
 }
 
+.logo { width: 50px; height: auto; }
+
 nav a {
   margin: 0 0.5rem;
   color: #FFFFFF;
