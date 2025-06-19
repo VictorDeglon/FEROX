@@ -6,6 +6,8 @@
   <title>FEROX</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-+nG7qAB58+Vz5zsxFrqOeCzvY4xXHzkwmo7aX6ixkmKsgNHYsYAGP82LPgAvFp8ZUBKbjsggq09NdXBJgkzHBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <header>
@@ -18,7 +20,24 @@
       <a href="#badges">Badges</a>
     </nav>
   </header>
-  <main id="app"></main>
+  <main id="app">
+    <section id="home" class="container">
+      <h2>Welcome to FEROX</h2>
+      <p>Track your workouts, monitor progress and earn badges.</p>
+    </section>
+    <section id="workouts" class="container">
+      <h2>Workouts</h2>
+      <div id="workoutList" class="grid"></div>
+    </section>
+    <section id="progress" class="container">
+      <h2>Progress</h2>
+      <canvas id="progressChart" height="120"></canvas>
+    </section>
+    <section id="badges" class="container">
+      <h2>Badges</h2>
+      <div id="badgeList" class="badges"></div>
+    </section>
+  </main>
   <script src="scripts.js"></script>
 </body>
 </html>
