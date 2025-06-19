@@ -1,0 +1,33 @@
+body {
+  background: #0A0A0A;
+  color: #FFFFFF;
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+}
+
+header {
+  padding: 1rem;
+  background: #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+nav a {
+  margin: 0 0.5rem;
+  color: #FFFFFF;
+  text-decoration: none;
+}
+
+button, .btn {
+  background: #B30000;
+  border: none;
+  padding: 0.5rem 1rem;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: box-shadow 0.3s ease;
+}
+
+button:hover, .btn:hover {
+  box-shadow: 0 0 10px #B30000;
+}
