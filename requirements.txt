@@ -1,0 +1,3 @@
+# Python dependencies (optional)
+# This project primarily uses Node.js. These packages are for development helpers.
+requests>=2.31
