@@ -12,9 +12,11 @@ async function loadWorkouts() {
     container.innerHTML = plans
       .map(
         (p) => `
-        <div class="card">
+        <div class="card" onclick="location.href='workout.html?id=${p._id}'">
           <h3>${p.name}</h3>
-          <p>${p.focusArea}</p>
+          <p>${p.type || ''}</p>
+          <p>${p.duration ? p.duration + ' min' : ''}</p>
+          <p>${p.difficulty || ''}</p>
         </div>`
       )
       .join('');

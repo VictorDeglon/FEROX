@@ -3,6 +3,7 @@ const router = express.Router();
 const controller = require('../controllers/workoutController');
 
 router.get('/', controller.getAll);
+router.get('/:id', controller.getOne);
 router.post('/', controller.create);
 
 module.exports = router;
