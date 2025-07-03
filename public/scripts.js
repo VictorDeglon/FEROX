@@ -1,7 +1,7 @@
-document.addEventListener('DOMContentLoaded', () => {
-  loadWorkouts();
-  loadProgress();
-  loadBadges();
+document.addEventListener("DOMContentLoaded", () => {
+  if (document.getElementById("workoutList")) loadWorkouts();
+  if (document.getElementById("progressChart")) loadProgress();
+  if (document.getElementById("badgeList")) loadBadges();
 });
 
 async function loadWorkouts() {
@@ -12,7 +12,7 @@ async function loadWorkouts() {
     container.innerHTML = plans
       .map(
         (p) => `
-        <div class="card" onclick="location.href='workout.html?id=${p._id}'">
+        <div class="card" onclick="location.href='workoutDetail.html?id=${p._id}'">
           <h3>${p.name}</h3>
           <p>${p.type || ''}</p>
           <p>${p.duration ? p.duration + ' min' : ''}</p>
@@ -42,7 +42,10 @@ async function loadProgress() {
           },
         ],
       },
-      options: { plugins: { legend: { position: 'bottom' } } },
+      options: {
+        plugins: { legend: { position: 'bottom' } },
+        maintainAspectRatio: false,
+      },
     });
   } catch (err) {
     new Chart(ctx, {
@@ -56,6 +59,7 @@ async function loadProgress() {
           },
         ],
       },
+      options: { maintainAspectRatio: false },
     });
   }
 }
