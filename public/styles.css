@@ -127,6 +127,7 @@ textarea {
 
 canvas {
   max-width: 300px;
+  max-height: 300px;
   margin: 0 auto;
   display: block;
 }
@@ -153,4 +154,52 @@ button:hover, .btn:hover {
   main {
     width: 95%;
   }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale {
+  animation: scaleIn 0.6s ease both;
+}
+
+.profile-card {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 1rem;
+  background: #111;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+}
+
+.profile-card img {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-details h2 {
+  margin-top: 0;
+}
+
+.profile-stats {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.profile-stats div {
+  background: #222;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
 }

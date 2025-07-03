@@ -1,7 +1,14 @@
 const Progress = require('../models/Progress');
 
 exports.get = async (req, res) => {
-  const progress = await Progress.findOne({ userId: req.params.userId });
+  let progress = await Progress.findOne({ userId: req.params.userId });
+  if (!progress) {
+    progress = {
+      streaks: 0,
+      hoursTrained: 0,
+      focusDistribution: { Strength: 1, Cardio: 1, Mobility: 1 },
+    };
+  }
   res.json(progress);
 };
 

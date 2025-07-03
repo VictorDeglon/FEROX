@@ -12,7 +12,7 @@ async function loadWorkouts() {
     container.innerHTML = plans
       .map(
         (p) => `
-        <div class="card" onclick="location.href='workoutDetail.html?id=${p._id}'">
+        <div class="card animate-scale" onclick="location.href='workoutDetail.html?id=${p._id}'">
           <h3>${p.name}</h3>
           <p>${p.type || ''}</p>
           <p>${p.duration ? p.duration + ' min' : ''}</p>
@@ -25,13 +25,15 @@ async function loadWorkouts() {
   }
 }
 
+let chartInstance;
 async function loadProgress() {
   const ctx = document.getElementById('progressChart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
   try {
     const res = await fetch('/api/progress/demo');
     const data = await res.json();
     const dist = data.focusDistribution || { Strength: 1, Cardio: 1, Mobility: 1 };
-    new Chart(ctx, {
+    chartInstance = new Chart(ctx, {
       type: 'doughnut',
       data: {
         labels: Object.keys(dist),
@@ -44,11 +46,11 @@ async function loadProgress() {
       },
       options: {
         plugins: { legend: { position: 'bottom' } },
-        maintainAspectRatio: false,
+        maintainAspectRatio: true,
       },
     });
   } catch (err) {
-    new Chart(ctx, {
+    chartInstance = new Chart(ctx, {
       type: 'doughnut',
       data: {
         labels: ['Strength', 'Cardio', 'Mobility'],
@@ -59,7 +61,7 @@ async function loadProgress() {
           },
         ],
       },
-      options: { maintainAspectRatio: false },
+      options: { maintainAspectRatio: true },
     });
   }
 }
@@ -72,7 +74,7 @@ async function loadBadges() {
     container.innerHTML = badges
       .map(
         (b) => `
-        <div class="badge ${b.isEarned ? 'earned' : ''}">
+        <div class="badge ${b.isEarned ? 'earned' : ''} animate-scale">
           <i class="fa-solid fa-dumbbell"></i>
           <span>${b.name}</span>
         </div>`
