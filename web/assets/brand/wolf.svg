@@ -1,27 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="FEROX wolf mark">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="FEROX">
   <defs>
-    <linearGradient id="fxEmber" x1="8" y1="4" x2="118" y2="126" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FF8A3D"/>
-      <stop offset=".42" stop-color="#FF3D2E"/>
-      <stop offset="1" stop-color="#C40F2E"/>
+    <linearGradient id="fxEmber" x1="18" y1="10" x2="118" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF8A3D"/><stop offset=".45" stop-color="#FF3D2E"/><stop offset="1" stop-color="#C40F2E"/>
     </linearGradient>
     <clipPath id="fxHead" clipPathUnits="userSpaceOnUse">
-      <path clip-rule="evenodd" d="
-        M12 10 L40 48 L64 34 L88 48 L116 10 L110 56 L112 80 L92 98 L78 112 L64 126 L50 112 L36 98 L16 80 L18 56 Z
-        M19 26 L37 48 L24 49 Z
-        M109 26 L91 48 L104 49 Z
-        M28 61 L51 72 L48 80 L30 72 Z
-        M100 61 L77 72 L80 80 L98 72 Z
-        M58 86 L70 86 L64 94 Z
-        M52 99 L64 107 L76 99 L76 105 L64 113 L52 105 Z"/>
+      <path clip-rule="evenodd" d="M48 12 L64 40 L74 10 L87 38 L99 44 L114 50 L123 57 L117 65 L105 64 L110 76 L98 72 L104 86 L88 80 L80 94 L64 97 L69 114 L50 106 L44 121 L30 102 L20 109 L16 86 L26 68 L22 56 L33 44 L38 26 Z M82 44 L96 49 L94 56 L82 51 Z"/>
     </clipPath>
   </defs>
   <g clip-path="url(#fxHead)">
     <rect width="128" height="128" fill="url(#fxEmber)"/>
-    <path d="M64 34 L88 48 L116 10 L110 56 L112 80 L92 98 L78 112 L64 126 L50 112 L36 98 L16 80 L18 56 Z" fill="#000" opacity="0"/>
-    <path d="M64 34 L88 48 L116 10 L110 56 L112 80 L92 98 L78 112 L64 126 Z" fill="#000" opacity=".2"/>
-    <path d="M64 34 L40 48 L12 10 L18 56 L16 80 L36 98 L50 112 L64 126 Z" fill="#fff" opacity=".1"/>
-    <path d="M48 78 L80 78 L78 112 L64 126 L50 112 Z" fill="#000" opacity=".18"/>
-    <path d="M12 10 L40 48 L24 49 L19 26 Z" fill="#fff" opacity=".14"/>
+    <path d="M64 40 L74 10 L87 38 L99 44 L114 50 L123 57 L117 65 L105 64 L110 76 L98 72 L104 86 L88 80 L80 94 L64 97 L69 114 L50 106 L44 121 L62 98 Z" fill="#000" opacity=".15"/>
+    <path d="M48 12 L64 40 L62 98 L44 121 L30 102 L20 109 L16 86 L26 68 L22 56 L33 44 L38 26 Z" fill="#fff" opacity=".08"/>
+    <path d="M52 21 L64 40 L55 40 Z" fill="#000" opacity=".32"/>
+    <path d="M74 10 L87 38 L76 36 Z" fill="#000" opacity=".32"/>
+    <path d="M99 44 L114 50 L123 57 L117 65 L105 64 L97 55 Z" fill="#000" opacity=".13"/>
+    <circle cx="114" cy="57" r="2.5" fill="#000" opacity=".45"/>
   </g>
 </svg>

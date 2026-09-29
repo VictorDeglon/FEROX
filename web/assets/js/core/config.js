@@ -11,7 +11,7 @@
  */
 export const CONFIG = {
   appName: 'FEROX',
-  tagline: 'Train like a wolf.',
+  tagline: 'Train. Track. Progress.',
 
   // Replace with your own — ends in `.apps.googleusercontent.com`.
   googleClientId: 'REPLACE_ME.apps.googleusercontent.com',

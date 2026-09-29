@@ -123,7 +123,7 @@ class Auth extends EventTarget {
   }
 
   /** No-credential path: data stays on this device. */
-  signInAsGuest(name = 'Guest Wolf') {
+  signInAsGuest(name = 'Guest') {
     this.#set({ token: null, verified: false, user: { id: 'guest', name, email: '', picture: '', provider: 'guest' } });
   }
 

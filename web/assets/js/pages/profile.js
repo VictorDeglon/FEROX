@@ -77,8 +77,9 @@ function render(el) {
                 <button class="btn btn-sm btn-block" id="signOut">${icon('logout')}<span>Sign out</span></button>
               </div>`
             : `<div class="stack" style="gap:12px">
-                <p class="muted" style="font-size:.86rem">You're using FEROX as a guest. Sign in with Google
-                  to put a name and face on your profile.</p>
+                <p class="muted" style="font-size:.86rem">You're using FEROX as a guest — no account,
+                  nothing sent anywhere, and your whole log saved on this device. Sign in with Google
+                  only if you want a name and picture on your profile.</p>
                 <div id="gBtn"></div>
                 ${googleReady() ? '' : `<p class="dim" style="font-size:.76rem">
                   Google Sign-In needs a client id — see <code>docs/google-oauth-setup.md</code>.</p>`}

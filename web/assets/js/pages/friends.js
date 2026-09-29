@@ -1,4 +1,4 @@
-/** Friends — the pack leaderboard. */
+/** Friends — the training leaderboard. */
 import { store } from '../core/store.js';
 import { bootPage, esc, num, toast, modal, confirmDialog, avatarHtml, initials } from '../core/ui.js';
 import { icon } from '../core/icons.js';
@@ -98,7 +98,7 @@ function render(el) {
             Friends are stored on this device while FEROX runs without a server. Connect the API
             and the same list syncs across devices — nothing else about this page changes.</p>
           <p class="dim" style="font-size:.78rem;margin-top:10px">
-            Add three friends to unlock the <strong>Pack Leader</strong> medal.</p>
+            Add three friends to unlock the <strong>Training Partners</strong> medal.</p>
         </div>
       </div>
     </section>`;

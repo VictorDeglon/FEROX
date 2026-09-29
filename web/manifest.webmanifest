@@ -1,7 +1,7 @@
 {
   "name": "FEROX — Training Tracker",
   "short_name": "FEROX",
-  "description": "Free workout, diet and progress tracker. Records, medals and a leaderboard for your pack.",
+  "description": "Free workout, diet and progress tracker. Log training and meals, track progress, earn medals.",
   "start_url": "dashboard.html",
   "scope": ".",
   "display": "standalone",

@@ -4,6 +4,8 @@ import { bootPage, esc, num, kcal, pct, relDate, toast, modal } from '../core/ui
 import { icon } from '../core/icons.js';
 import { ring, heatmap, lineChart } from '../core/chart.js';
 import { ROUTINES, MEDALS, byId } from '../core/seed.js';
+import { seasonById, currentSlot, formatWindow, nextEnd, daysBetween, slotProgress } from '../core/seasons.js';
+import { seasonIcon } from '../core/season-icons.js';
 import { logSessionFlow } from './_log.js';
 
 const view = await bootPage({
@@ -32,7 +34,7 @@ function render(el) {
 
   el.innerHTML = `
     <section class="grid grid-4">
-      ${tile('Streak', s.streak, 'days', s.streak >= 3 ? `Best ${s.bestStreak}` : 'Keep it alive', 'flame')}
+      ${tile('Streak', s.streak, 'days', s.streak >= 3 ? `Best ${s.bestStreak}` : 'Keep it going', 'flame', s.streak > 0)}
       ${tile('This week', weekSessions, `/ ${goals.sessionsPerWeek}`, weekSessions >= goals.sessionsPerWeek ? 'Target hit' : `${goals.sessionsPerWeek - weekSessions} to go`, 'calendar')}
       ${tile('Volume today', num(todayVolume), 'kg', today.length ? `${today.length} session${today.length > 1 ? 's' : ''}` : 'Nothing yet', 'dumbbell')}
       ${tile('Medals', d.medals.length, `/ ${MEDALS.length}`, `${MEDALS.length - d.medals.length} to unlock`, 'medal')}
@@ -72,6 +74,8 @@ function render(el) {
       </div>
 
       <div class="stack" style="gap:16px">
+        ${seasonCard()}
+
         <div class="card card-pad-lg" style="background:var(--surf-1);position:relative;overflow:hidden">
           <p class="eyebrow">Up next</p>
           <h3 style="font-size:1.3rem;margin:6px 0 4px">${esc(suggestion.name)}</h3>
@@ -116,15 +120,51 @@ function render(el) {
   el.querySelectorAll('.medal-disc svg').forEach(sv => { sv.style.width = '24px'; sv.style.height = '24px'; });
 }
 
-function tile(label, value, unit, note, ico) {
-  return `<div class="card">
+/** The block you are in right now, and what you committed to it. */
+function seasonCard() {
+  const slot = currentSlot();
+  const season = seasonById(store.data.seasons?.[slot.id] ?? '');
+  const left = daysBetween(new Date(), nextEnd(slot));
+
+  if (!season) {
+    return `<div class="card card-pad-lg">
+      <div class="card-head"><h3>${esc(slot.name)}</h3><a class="card-link" href="seasons.html">Seasons →</a></div>
+      <p class="muted" style="font-size:.86rem">No season picked for this block.
+        ${left} day${left === 1 ? '' : 's'} of it left.</p>
+      <a class="btn btn-sm btn-block" href="seasons.html" style="margin-top:12px">${icon('plus')}<span>Pick a season</span></a>
+    </div>`;
+  }
+
+  const pctDone = Math.round(slotProgress(slot) * 100);
+  return `<div class="card card-pad-lg glow-edge" style="--season:${season.accent};--glow-color:${season.accent}">
+    <div class="card-head">
+      <h3 class="row" style="gap:7px"><i class="glow-dot" style="--glow-color:${season.accent}"></i>This block</h3>
+      <a class="card-link" href="seasons.html">Seasons →</a>
+    </div>
+    <div class="row" style="gap:13px;align-items:center">
+      <span class="season-art" style="--season:${season.accent}">${seasonIcon(season)}</span>
+      <div class="grow" style="min-width:0">
+        <strong style="font-family:var(--font-display);font-size:1.05rem">${esc(season.name)}</strong>
+        <p class="dim" style="font-size:.76rem;margin-top:2px">${esc(season.goal)}</p>
+      </div>
+    </div>
+    <div class="bar" style="margin-top:14px">
+      <i style="width:${pctDone}%;background:linear-gradient(90deg,${season.accent},${season.accent2})"></i>
+    </div>
+    <p class="dim" style="font-size:.72rem;margin-top:7px">
+      ${esc(formatWindow(slot))} · ${left} day${left === 1 ? '' : 's'} to go</p>
+  </div>`;
+}
+
+function tile(label, value, unit, note, ico, live = false) {
+  return `<div class="card${live ? ' tile-live' : ''}">
     <div class="row-between" style="align-items:flex-start">
       <div class="stat">
         <span class="stat-label">${esc(label)}</span>
         <span class="stat-value">${esc(value)}<span class="stat-unit">${esc(unit)}</span></span>
         <span class="dim" style="font-size:.76rem">${esc(note)}</span>
       </div>
-      <span style="color:var(--ember);opacity:.7;width:20px">${icon(ico)}</span>
+      <span class="tile-ico" style="color:var(--ember);opacity:${live ? 1 : .7};width:20px;border-radius:var(--r-pill)">${icon(ico)}</span>
     </div>
   </div>`;
 }
