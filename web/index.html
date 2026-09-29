@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FEROX — Free workout, diet and progress tracker</title>
+<meta name="description" content="FEROX is a free training app: log workouts, track your diet, watch your numbers climb, set personal records and earn medals. No subscription, no ads, your data stays yours.">
+<meta name="theme-color" content="#07080A">
+<link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/brand/favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="canonical" href="https://victordeglon.github.io/FEROX/">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="FEROX — Train like a wolf">
+<meta property="og:description" content="Free workout, diet and progress tracking. Records, medals and a leaderboard for your pack.">
+<meta property="og:image" content="assets/brand/logo.svg">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="assets/css/ferox.css">
+</head>
+<body>
+<div class="site">
+
+  <header class="site-head">
+    <a class="brand" href="./" aria-label="FEROX home">
+      <span style="color:var(--ember)" id="headMark"></span>
+      <span class="brand-word">Ferox</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#medals">Medals</a>
+      <a href="#free">Free forever</a>
+    </nav>
+    <div class="grow"></div>
+    <button class="btn btn-ghost btn-icon" id="themeBtn" aria-label="Toggle colour theme"></button>
+    <a class="btn btn-primary btn-sm" href="#start">Start training</a>
+  </header>
+
+  <!-- hero ---------------------------------------------------------------->
+  <section class="section hero">
+    <div class="section-inner hero-grid">
+      <div class="stack reveal" style="gap:20px">
+        <span class="chip chip-ember" style="width:max-content">
+          <i class="chip-dot"></i>Free forever · no account required
+        </span>
+        <h1>Train like<br>a <span class="ember-text">wolf</span>.</h1>
+        <p class="lede">
+          Log every set, every meal and every kilo. FEROX turns the work into numbers you
+          can actually read — streaks, personal records, medals and a leaderboard for your pack.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary btn-lg" href="#start">Start training</a>
+          <a class="btn btn-lg" href="#features">See what's inside</a>
+        </div>
+        <div class="hero-proof">
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">20+</span><span class="stat-label">Exercises</span></div>
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">12</span><span class="stat-label">Medals</span></div>
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">0</span><span class="stat-label">Ads or fees</span></div>
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">100%</span><span class="stat-label">Your data</span></div>
+        </div>
+      </div>
+
+      <div class="hero-art reveal" aria-hidden="true">
+        <div class="card card-pad-lg" style="display:grid;gap:16px">
+          <div class="row-between">
+            <div>
+              <p class="eyebrow">Today</p>
+              <h3 style="font-size:1.25rem;margin-top:3px">Push Day</h3>
+            </div>
+            <span class="chip chip-ember">12 day streak</span>
+          </div>
+          <div id="heroRing"></div>
+          <div class="stack" style="gap:9px" id="heroBars"></div>
+        </div>
+        <div class="card float-1" style="padding:14px">
+          <p class="eyebrow">New record</p>
+          <p style="font-family:var(--font-display);font-weight:800;font-size:1.3rem;margin-top:4px">
+            102.5<span class="stat-unit">kg × 5</span></p>
+          <p class="dim" style="font-size:.74rem">Deadlift · est. 1RM 119 kg</p>
+        </div>
+        <div class="card float-2" style="padding:14px;display:flex;gap:11px;align-items:center">
+          <div class="medal-disc" style="width:44px;height:44px" id="heroMedal"></div>
+          <div>
+            <p style="font-family:var(--font-display);font-weight:700;font-size:.86rem">Week of Fangs</p>
+            <p class="dim" style="font-size:.72rem">Medal unlocked</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- features ------------------------------------------------------------>
+  <section class="section" id="features" style="background:var(--surf-1);border-block:1px solid var(--line)">
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <p class="eyebrow">Everything in one place</p>
+        <h2>The whole picture, not just the gym.</h2>
+        <p class="muted">Most trackers do one thing and charge you for the rest. FEROX does the lot, for nothing.</p>
+      </div>
+      <div class="grid grid-3" id="featureGrid"></div>
+    </div>
+  </section>
+
+  <!-- how ----------------------------------------------------------------->
+  <section class="section" id="how">
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <p class="eyebrow">How it works</p>
+        <h2>Three steps, then just train.</h2>
+      </div>
+      <div class="grid grid-3" id="stepGrid"></div>
+    </div>
+  </section>
+
+  <!-- medals -------------------------------------------------------------->
+  <section class="section" id="medals" style="background:var(--surf-1);border-block:1px solid var(--line)">
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <p class="eyebrow">Earn them</p>
+        <h2>Twelve medals. None of them are given away.</h2>
+        <p class="muted">They unlock from what you actually do — streaks, tonnage, records, consistency at the table.</p>
+      </div>
+      <div class="grid grid-4 reveal" id="medalGrid"></div>
+    </div>
+  </section>
+
+  <!-- free ---------------------------------------------------------------->
+  <section class="section" id="free">
+    <div class="section-inner grid grid-2" style="gap:clamp(28px,5vw,56px);align-items:center">
+      <div class="stack reveal" style="gap:16px">
+        <p class="eyebrow">Free forever</p>
+        <h2>No subscription. No ads. No data harvesting.</h2>
+        <p class="muted">
+          FEROX runs entirely in your browser. Your training log lives on your device and never
+          touches a server unless you choose to run one yourself — the code for that is in the
+          same repository, open for anyone to read.
+        </p>
+        <ul class="stack" style="gap:10px;list-style:none;padding:0;margin-top:4px" id="freeList"></ul>
+      </div>
+      <div class="card card-pad-lg reveal" style="display:grid;gap:14px">
+        <p class="eyebrow">Your data</p>
+        <pre style="background:var(--surf-3);border-radius:var(--r-md);padding:14px;overflow-x:auto;font-size:.76rem;line-height:1.6;color:var(--text-2);margin:0"><code>{
+  "sessions": [
+    { "date": "2026-09-29",
+      "name": "Push Day",
+      "entries": [
+        { "ex": "bench",
+          "sets": [{ "reps": 5, "weight": 92.5 }] }
+      ] }
+  ],
+  "medals": ["m-first", "m-streak7"]
+}</code></pre>
+        <p class="dim" style="font-size:.8rem">One button exports all of it as plain JSON. Import it anywhere.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- start --------------------------------------------------------------->
+  <section class="section" id="start">
+    <div class="section-inner">
+      <div class="cta-band reveal">
+        <span style="color:var(--ember);width:60px" id="ctaMark"></span>
+        <h2 style="max-width:16ch">Your first session is one click away.</h2>
+        <p class="muted" style="max-width:48ch">
+          Sign in with Google to put your name on it, or jump straight in as a guest —
+          everything works either way.
+        </p>
+        <div class="stack" style="gap:12px;width:min(320px,100%);margin-top:6px">
+          <div id="googleHost"></div>
+          <button class="btn btn-lg btn-block" id="guestBtn">Continue as guest</button>
+        </div>
+        <p class="dim" style="font-size:.76rem;max-width:44ch" id="authNote"></p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-foot">
+    <div class="section-inner">
+      <div class="row" style="gap:10px">
+        <span style="color:var(--ember);width:22px" id="footMark"></span>
+        <span>FEROX · free training tracker</span>
+      </div>
+      <div class="row wrap" style="gap:20px">
+        <a href="https://github.com/VictorDeglon/FEROX" rel="noopener">Source on GitHub</a>
+        <a href="dashboard.html">Open the app</a>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script type="module" src="assets/js/pages/landing.js"></script>
+<script>
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>

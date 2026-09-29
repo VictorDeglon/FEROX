@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="FEROX">
+  <path fill="currentColor" fill-rule="evenodd" d="
+    M12 10 L40 48 L64 34 L88 48 L116 10 L110 56 L112 80 L92 98 L78 112 L64 126 L50 112 L36 98 L16 80 L18 56 Z
+    M19 26 L37 48 L24 49 Z
+    M109 26 L91 48 L104 49 Z
+    M28 61 L51 72 L48 80 L30 72 Z
+    M100 61 L77 72 L80 80 L98 72 Z
+    M58 86 L70 86 L64 94 Z
+    M52 99 L64 107 L76 99 L76 105 L64 113 L52 105 Z"/>
+</svg>

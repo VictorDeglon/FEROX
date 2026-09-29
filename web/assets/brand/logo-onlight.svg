@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 392 128" role="img" aria-label="FEROX">
+<defs>
+  <linearGradient id="fxEmber" x1="8" y1="4" x2="118" y2="126" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#FF8A3D"/>
+    <stop offset=".42" stop-color="#FF3D2E"/>
+    <stop offset="1" stop-color="#C40F2E"/>
+  </linearGradient>
+  <clipPath id="fxHead" clipPathUnits="userSpaceOnUse">
+    <path clip-rule="evenodd" d="
+      M12 10 L40 48 L64 34 L88 48 L116 10 L110 56 L112 80 L92 98 L78 112 L64 126 L50 112 L36 98 L16 80 L18 56 Z
+      M19 26 L37 48 L24 49 Z
+      M109 26 L91 48 L104 49 Z
+      M28 61 L51 72 L48 80 L30 72 Z
+      M100 61 L77 72 L80 80 L98 72 Z
+      M58 86 L70 86 L64 94 Z
+      M52 99 L64 107 L76 99 L76 105 L64 113 L52 105 Z"/>
+  </clipPath>
+</defs>
+<g clip-path="url(#fxHead)">
+  <rect width="128" height="128" fill="url(#fxEmber)"/>
+  <path d="M64 34 L88 48 L116 10 L110 56 L112 80 L92 98 L78 112 L64 126 L50 112 L36 98 L16 80 L18 56 Z" fill="#000" opacity="0"/>
+  <path d="M64 34 L88 48 L116 10 L110 56 L112 80 L92 98 L78 112 L64 126 Z" fill="#000" opacity=".2"/>
+  <path d="M64 34 L40 48 L12 10 L18 56 L16 80 L36 98 L50 112 L64 126 Z" fill="#fff" opacity=".1"/>
+  <path d="M48 78 L80 78 L78 112 L64 126 L50 112 Z" fill="#000" opacity=".18"/>
+  <path d="M12 10 L40 48 L24 49 L19 26 Z" fill="#fff" opacity=".14"/>
+</g>
+  <g transform="translate(158 35) scale(.58)"><path fill="#0E1014" fill-rule="evenodd" d="M0 0H62V22H22V39H56V61H22V100H0Z M76 0H138V22H98V39H132V61H98V78H138V100H76Z M152 0H218V56H200L218 100H193L175 56H174V100H152Z M174 22H196V34H174Z M246 0H284L298 14V86L284 100H246L232 86V14Z M254 26L258 22H272L276 26V74L272 78H258L254 74Z M312 0H338L345 26L352 0H378L358 50L378 100H352L345 74L338 100H312L332 50Z"/></g>
+</svg>
