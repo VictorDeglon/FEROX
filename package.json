@@ -1,22 +1,24 @@
 {
   "name": "ferox",
-  "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node app.js"
+  "version": "2.0.0",
+  "private": true,
+  "description": "FEROX \u2014 a free workout, nutrition and progress tracker. Static-first, with an optional API.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Victor Deglon",
+  "engines": {
+    "node": ">=20"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "scripts": {
+    "dev": "node --watch server/index.js",
+    "start": "node server/index.js",
+    "web": "node server/static.js",
+    "test": "node --test test/*.test.js",
+    "check": "node --check server/index.js && node scripts/check-web.js"
+  },
   "dependencies": {
-    "bcrypt": "^6.0.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.16.0"
+    "google-auth-library": "^10.4.0",
+    "jsonwebtoken": "^9.0.2"
   }
 }

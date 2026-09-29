@@ -1,0 +1,16 @@
+{
+  "name": "FEROX — Training Tracker",
+  "short_name": "FEROX",
+  "description": "Free workout, diet and progress tracker. Records, medals and a leaderboard for your pack.",
+  "start_url": "dashboard.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07080A",
+  "theme_color": "#07080A",
+  "categories": ["health", "fitness", "lifestyle"],
+  "icons": [
+    { "src": "assets/brand/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/brand/maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
