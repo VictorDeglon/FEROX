@@ -17,6 +17,7 @@
 
 | | |
 |---|---|
+| **Seasons** | Eight structured training seasons across four blocks of the year. Greek Fire through summer, Winter Fire through winter, FEROX Recomp any month you like — each with its own animated icon, calorie approach and time split. |
 | **Workouts** | Six ready-made routines or build your own. Sets, reps and weight captured per exercise, with live volume as you go. |
 | **Diet tracker** | A food database across four meals a day, with a live macro ring against your calorie, protein, carb and fat targets. |
 | **Progress** | Volume, bodyweight, calories and training focus charted over 14, 30 or 90 days, plus a consistency heatmap. |
@@ -26,6 +27,10 @@
 
 Dark and light themes, a mobile tab bar, offline support via a service worker,
 and one-click JSON export of everything you have logged.
+
+**No account needed.** Use it as a guest and the whole thing runs offline with
+your log saved on the device. Google sign-in is optional and only adds a name
+and picture to your profile.
 
 ## Running it
 
@@ -86,7 +91,7 @@ session token.
 ## Development
 
 ```bash
-npm test         # 24 suites: catalogue integrity, chart escaping, API contract
+npm test         # 36 suites: catalogue integrity, the season calendar, chart escaping, API contract
 npm run check    # syntax check + verifies every local link in web/ resolves
 ```
 

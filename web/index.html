@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FEROX — Free workout, diet and progress tracker</title>
-<meta name="description" content="FEROX is a free training app: log workouts, track your diet, watch your numbers climb, set personal records and earn medals. No subscription, no ads, your data stays yours.">
+<meta name="description" content="FEROX is a free training app: log workouts, track your diet, follow structured seasons, set personal records and earn medals. No subscription, no ads, your data stays yours.">
 <meta name="theme-color" content="#07080A">
 <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/brand/favicon.svg">
@@ -12,8 +12,8 @@
 <link rel="canonical" href="https://victordeglon.github.io/FEROX/">
 
 <meta property="og:type" content="website">
-<meta property="og:title" content="FEROX — Train like a wolf">
-<meta property="og:description" content="Free workout, diet and progress tracking. Records, medals and a leaderboard for your pack.">
+<meta property="og:title" content="FEROX — Train. Track. Progress.">
+<meta property="og:description" content="Free workout and nutrition tracking. Log training and meals, watch your numbers move, set records and earn medals.">
 <meta property="og:image" content="assets/brand/logo.svg">
 <meta name="twitter:card" content="summary_large_image">
 
@@ -46,13 +46,14 @@
         <span class="chip chip-ember" style="width:max-content">
           <i class="chip-dot"></i>Free forever · no account required
         </span>
-        <h1>Train like<br>a <span class="ember-text">wolf</span>.</h1>
+        <h1>Train.<br>Track.<br><span class="ember-text">Progress.</span></h1>
         <p class="lede">
-          Log every set, every meal and every kilo. FEROX turns the work into numbers you
-          can actually read — streaks, personal records, medals and a leaderboard for your pack.
+          Log your sessions and your meals, follow a structured season, and watch the
+          numbers move. Streaks, personal records and medals — with none of the
+          subscription nonsense.
         </p>
         <div class="hero-cta">
-          <a class="btn btn-primary btn-lg" href="#start">Start training</a>
+          <a class="btn btn-primary btn-lg glow-cta" href="#start">Start training</a>
           <a class="btn btn-lg" href="#features">See what's inside</a>
         </div>
         <div class="hero-proof">
@@ -84,7 +85,7 @@
         <div class="card float-2" style="padding:14px;display:flex;gap:11px;align-items:center">
           <div class="medal-disc" style="width:44px;height:44px" id="heroMedal"></div>
           <div>
-            <p style="font-family:var(--font-display);font-weight:700;font-size:.86rem">Week of Fangs</p>
+            <p style="font-family:var(--font-display);font-weight:700;font-size:.86rem">Seven Day Streak</p>
             <p class="dim" style="font-size:.72rem">Medal unlocked</p>
           </div>
         </div>
@@ -162,15 +163,17 @@
   <section class="section" id="start">
     <div class="section-inner">
       <div class="cta-band reveal">
-        <span style="color:var(--ember);width:60px" id="ctaMark"></span>
+        <span class="glow-aura" style="color:var(--ember);width:60px" id="ctaMark"></span>
         <h2 style="max-width:16ch">Your first session is one click away.</h2>
         <p class="muted" style="max-width:48ch">
-          Sign in with Google to put your name on it, or jump straight in as a guest —
-          everything works either way.
+          Sign in with Google to put a name on your profile, or skip it entirely and
+          use FEROX as a guest. Every feature works either way.
         </p>
         <div class="stack" style="gap:12px;width:min(320px,100%);margin-top:6px">
           <div id="googleHost"></div>
-          <button class="btn btn-lg btn-block" id="guestBtn">Continue as guest</button>
+          <button class="btn btn-lg btn-block glow-hover" id="guestBtn">Use as guest — no account</button>
+          <p class="dim" style="font-size:.76rem;text-align:center;margin-top:-4px">
+            Nothing is sent anywhere. Your log saves on this device and works offline.</p>
         </div>
         <p class="dim" style="font-size:.76rem;max-width:44ch" id="authNote"></p>
       </div>

@@ -20,11 +20,12 @@ that follows you between devices. It must never become required.
 ```
 web/                     the app — this is what GitHub Pages serves
   index.html             landing page
-  {dashboard,workouts,nutrition,progress,records,medals,friends,profile}.html
+  {dashboard,workouts,nutrition,progress,seasons,records,medals,friends,profile}.html
   404.html  sw.js  manifest.webmanifest  .nojekyll
   assets/brand/          logo.svg, wolf.svg, mark.svg, favicon.svg, maskable.svg
   assets/css/ferox.css   the whole design system, token-driven
-  assets/js/core/        config, store, auth, ui, chart, icons, seed
+  assets/js/core/        config, store, auth, ui, chart, icons, seed,
+                         seasons (the training year), season-icons (animated SVG)
   assets/js/pages/       one module per page + _log.js (shared session editor)
 server/                  optional Express API
   index.js               app + static host        static.js  no-API dev server
@@ -49,9 +50,10 @@ docs/google-oauth-setup.md
   the same UI run against local storage, the API, or a future native shell.
 - **Escape anything interpolated into HTML** with `esc()` from `core/ui.js`.
   Pages build markup with template strings, so this is the XSS boundary.
-- **Module-level `const`s used by `render()` must be declared above the
-  `bootPage()` call.** `bootPage` renders synchronously, so a const below it is
-  in the temporal dead zone. This has bitten the project once already.
+- **Declare module-level `const`s above the `bootPage()` call.** `bootPage`
+  now defers its first paint to a macrotask precisely so a const below it is not
+  read while still in the temporal dead zone — but keeping declarations above the
+  call is clearer, and it is how every page is written.
 
 ## Commands
 
@@ -76,7 +78,8 @@ One document per athlete, defined in `core/store.js` (`emptyData()`):
   meals:    [{ id, date, meal, foodId, name, qty, kcal, p, c, f }],
   weights:  [{ date, kg }],
   medals:   ['m-first', ...],
-  friends:  [{ id, name, handle, streak, sessions, volume, medals }] }
+  friends:  [{ id, name, handle, streak, sessions, volume, medals }],
+  seasons:  { summer: 'greek-fire', winter: 'winter-fire', ... } }
 ```
 
 Everything else — streaks, volume, personal records, medal eligibility, the
@@ -99,6 +102,26 @@ The server imports the same file, so it is the single source of truth.
   the files to `SHELL` in `sw.js`.
 - **A chart:** add a pure string-builder to `core/chart.js`. It must escape its
   labels and return a sensible message for empty input — both are tested.
+- **A season:** add it to `SEASONS` in `core/seasons.js` with the blocks it is
+  eligible for, an accent pair, and an `icon` that exists in
+  `core/season-icons.js`. Tests assert every field is present, the time split
+  totals 100, the icon renders with an animated part, and gradient ids stay
+  unique. A season eligible for all four blocks is treated as year-round.
+
+## Seasons
+
+The year is four blocks — spring and autumn are two months, summer and winter
+are four. A season's calendar window is *derived* from the blocks it lists in
+`slots`, so dates and eligibility cannot drift apart. `FEROX Recomp` lists all
+four, which is exactly what makes it the year-round default.
+
+A test asserts the four blocks tile all 365 days with no gap and no overlap, so
+`currentSlot()` always resolves. The winter block wraps the new year (Nov 1 →
+Mar 1); `slotContains` handles that and is tested on both sides of the wrap.
+
+Season icons are animated SVGs. Their keyframes live in `ferox.css` under
+`.fx-*`, never inline, so the global `prefers-reduced-motion` block switches
+every one of them off in one place. The same applies to the `.glow-*` effects.
 
 ## Auth
 

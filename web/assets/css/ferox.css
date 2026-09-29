@@ -43,13 +43,38 @@
   --shadow-2: 0 8px 24px -8px rgb(0 0 0 / .6);
   --shadow-3: 0 24px 64px -16px rgb(0 0 0 / .7);
 
+  /* type scale — one fluid ramp, 320px to 1600px viewport ---------------- */
+  --step--2: clamp(0.69rem, 0.67rem + 0.10vw, 0.75rem);
+  --step--1: clamp(0.80rem, 0.77rem + 0.16vw, 0.89rem);
+  --step-0:  clamp(0.94rem, 0.90rem + 0.20vw, 1.06rem);
+  --step-1:  clamp(1.13rem, 1.06rem + 0.33vw, 1.33rem);
+  --step-2:  clamp(1.35rem, 1.24rem + 0.53vw, 1.78rem);
+  --step-3:  clamp(1.62rem, 1.45rem + 0.83vw, 2.37rem);
+  --step-4:  clamp(1.94rem, 1.68rem + 1.28vw, 3.16rem);
+  --step-5:  clamp(2.33rem, 1.94rem + 1.93vw, 4.21rem);
+
+  /* spacing scale — same idea, so rhythm holds at every width ------------ */
+  --sp-3xs: clamp(0.25rem, 0.24rem + 0.04vw, 0.28rem);
+  --sp-2xs: clamp(0.44rem, 0.42rem + 0.10vw, 0.53rem);
+  --sp-xs:  clamp(0.63rem, 0.60rem + 0.14vw, 0.75rem);
+  --sp-s:   clamp(0.88rem, 0.83rem + 0.20vw, 1.06rem);
+  --sp-m:   clamp(1.31rem, 1.25rem + 0.31vw, 1.59rem);
+  --sp-l:   clamp(1.75rem, 1.66rem + 0.41vw, 2.13rem);
+  --sp-xl:  clamp(2.63rem, 2.49rem + 0.62vw, 3.19rem);
+  --sp-2xl: clamp(3.50rem, 3.32rem + 0.82vw, 4.25rem);
+
   /* geometry ----------------------------------------------------------- */
   --r-sm: 8px;  --r-md: 12px; --r-lg: 18px; --r-xl: 26px; --r-pill: 999px;
-  --sidebar: 248px;
+  --sidebar: clamp(212px, 18vw, 264px);
   --topbar: 64px;
   --tabbar: 64px;
   --gutter: clamp(16px, 4vw, 40px);
   --maxw: 1240px;
+
+  /* glow ---------------------------------------------------------------- */
+  --glow-ember: 0 0 0 1px color-mix(in srgb, var(--ember) 26%, transparent),
+                0 0 22px -4px color-mix(in srgb, var(--ember) 55%, transparent),
+                0 0 60px -18px color-mix(in srgb, var(--ember) 70%, transparent);
 
   --font-display: 'Archivo', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
@@ -86,7 +111,7 @@ html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 400 15px/1.55 var(--font-body);
+  font: 400 var(--step-0)/1.6 var(--font-body);
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   overflow-wrap: break-word;
@@ -98,13 +123,15 @@ a { color: inherit; text-decoration: none; }
 [hidden] { display: none !important; }
 
 h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 800; line-height: 1.1; letter-spacing: -.02em; }
-h1 { font-size: clamp(2rem, 1.2rem + 3.2vw, 3.6rem); }
-h2 { font-size: clamp(1.4rem, 1.1rem + 1.2vw, 2rem); }
-h3 { font-size: 1.06rem; letter-spacing: -.01em; }
+h1 { font-size: var(--step-5); }
+h2 { font-size: var(--step-3); }
+h3 { font-size: var(--step-1); letter-spacing: -.01em; }
+h4 { font-size: var(--step-0); }
+small { font-size: var(--step--1); }
 
 /* utilities ---------------------------------------------------------- */
 .eyebrow {
-  font-family: var(--font-display); font-weight: 700; font-size: .68rem;
+  font-family: var(--font-display); font-weight: 700; font-size: var(--step--2);
   letter-spacing: .16em; text-transform: uppercase; color: var(--text-3);
 }
 .muted { color: var(--text-2); }
@@ -182,8 +209,12 @@ h3 { font-size: 1.06rem; letter-spacing: -.01em; }
 .card-link { color: var(--text-3); font-size: .8rem; font-weight: 600; }
 .card-link:hover { color: var(--ember); }
 
-.card-interactive { cursor: pointer; transition: transform .18s var(--ease), border-color .18s, box-shadow .18s; }
-.card-interactive:hover { transform: translateY(-3px); border-color: var(--line-hi); box-shadow: var(--shadow-2); }
+.card-interactive { cursor: pointer; transition: transform .18s var(--ease), border-color .18s, box-shadow .22s; }
+.card-interactive:hover, .card-interactive:focus-visible {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--ember) 40%, var(--line));
+  box-shadow: var(--shadow-2), 0 0 26px -12px var(--ember-ring);
+}
 
 /* pills / chips ------------------------------------------------------ */
 .chip {
@@ -330,6 +361,13 @@ h3 { font-size: 1.06rem; letter-spacing: -.01em; }
 .stat-delta.up { color: var(--ok); }
 .stat-delta.down { color: var(--bad); }
 
+/* A tile that is currently "on" — a running streak, a live block. */
+.tile-live {
+  border-color: color-mix(in srgb, var(--ember) 34%, var(--line));
+  box-shadow: 0 0 24px -14px var(--ember-ring);
+}
+.tile-live .tile-ico { animation: glow-cta 3.2s ease-in-out infinite; }
+
 /* progress bars / rings --------------------------------------------- */
 .bar { height: 8px; border-radius: var(--r-pill); background: var(--surf-3); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: inherit; background: var(--ember-grad); transition: width .6s var(--ease); }
@@ -375,6 +413,10 @@ table.data td:first-child, table.data th:first-child { padding-left: 2px; }
 .medal.earned .medal-disc {
   background: var(--ember-grad); border-color: transparent; color: #fff;
   box-shadow: 0 8px 26px -10px var(--ember-ring);
+  animation: medal-glow 3.8s ease-in-out infinite;
+}
+@keyframes medal-glow {
+  50% { box-shadow: 0 8px 34px -8px color-mix(in srgb, var(--ember) 85%, transparent); }
 }
 .medal.earned:hover .medal-disc { transform: scale(1.06) rotate(-4deg); }
 .medal-name { font-family: var(--font-display); font-weight: 700; font-size: .84rem; }
@@ -488,3 +530,188 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
 .reveal.in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } }
+
+/* ==========================================================================
+   Glow
+   One ember glow, driven by --glow-color so a season can retint it. Every
+   animation here is switched off by the reduced-motion block at the top.
+   ========================================================================== */
+
+.glow {
+  --glow-color: var(--ember);
+  position: relative;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--glow-color) 22%, transparent),
+    0 0 26px -6px color-mix(in srgb, var(--glow-color) 50%, transparent);
+}
+
+/* A soft bloom behind an element. Sits under content, ignores pointer events. */
+.glow-aura { position: relative; isolation: isolate; }
+.glow-aura::before {
+  content: '';
+  position: absolute; inset: -22%;
+  background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--glow-color, var(--ember)) 34%, transparent), transparent 66%);
+  filter: blur(18px);
+  opacity: .55;
+  z-index: -1;
+  pointer-events: none;
+  animation: glow-breathe 4.5s ease-in-out infinite;
+}
+
+/* A hairline that lights up along the top edge of a card. */
+.glow-edge { position: relative; overflow: hidden; }
+.glow-edge::after {
+  content: '';
+  position: absolute; inset: 0 0 auto 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glow-color, var(--ember)), transparent);
+  opacity: .6;
+  animation: glow-sweep 5s ease-in-out infinite;
+}
+
+/* Hover lift that gains a glow rather than just a shadow. */
+.glow-hover { transition: transform .22s var(--ease), box-shadow .28s var(--ease), border-color .22s; }
+.glow-hover:hover, .glow-hover:focus-visible {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--glow-color, var(--ember)) 45%, var(--line));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--glow-color, var(--ember)) 30%, transparent),
+    0 12px 40px -14px color-mix(in srgb, var(--glow-color, var(--ember)) 65%, transparent);
+}
+
+/* Pulsing dot, for "this block is live right now". */
+.glow-dot {
+  position: relative; display: inline-block;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--glow-color, var(--ember));
+  flex: none;
+}
+.glow-dot::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: 50%;
+  background: inherit;
+  animation: glow-ripple 2s ease-out infinite;
+}
+
+.btn-primary.glow-cta { animation: glow-cta 3.2s ease-in-out infinite; }
+
+@keyframes glow-breathe { 50% { opacity: .85; transform: scale(1.04); } }
+@keyframes glow-sweep   { 0%, 100% { opacity: .15; } 50% { opacity: .75; } }
+@keyframes glow-ripple  { to { transform: scale(3.2); opacity: 0; } }
+@keyframes glow-cta {
+  50% { box-shadow: 0 8px 34px -8px color-mix(in srgb, var(--ember) 85%, transparent); }
+}
+
+/* ==========================================================================
+   Season icons
+   Keyframes for the animated SVGs in core/season-icons.js.
+   ========================================================================== */
+
+.season-icon { width: 100%; height: 100%; display: block; overflow: visible; }
+
+.fx-flicker      { animation: fx-flicker 2.6s ease-in-out infinite; }
+.fx-flicker-core { animation: fx-flicker-core 1.7s ease-in-out infinite; }
+.fx-slow         { animation-duration: 6s; }
+.fx-ember        { animation: fx-ember 3.4s ease-out infinite; animation-delay: var(--d, 0s); opacity: 0; }
+.fx-drift        { animation: fx-drift 4s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.fx-spin         { animation: fx-spin 9s linear infinite; }
+.fx-rewind       { animation: fx-rewind 4.5s cubic-bezier(.7, 0, .3, 1) infinite; }
+.fx-stack        { animation: fx-stack 3.4s ease-out infinite; animation-delay: var(--d, 0s); }
+.fx-trace        { animation: fx-trace 2.6s linear infinite; }
+.fx-cross        { animation: fx-cross 3.6s ease-in-out infinite; }
+.fx-pulse-soft   { animation: fx-pulse-soft 2.4s ease-in-out infinite; }
+
+@keyframes fx-flicker {
+  0%, 100% { transform: scale(1) skewX(0deg); }
+  30%      { transform: scale(1.05, .97) skewX(2deg); }
+  60%      { transform: scale(.97, 1.04) skewX(-2deg); }
+}
+@keyframes fx-flicker-core { 0%, 100% { transform: scaleY(1); opacity: .85; } 50% { transform: scaleY(.82); opacity: 1; } }
+@keyframes fx-ember {
+  0%       { opacity: 0; transform: translateY(0) scale(1); }
+  15%      { opacity: .9; }
+  100%     { opacity: 0; transform: translateY(-16px) scale(.4); }
+}
+@keyframes fx-drift  { 0%, 100% { opacity: .3; transform: translate(0, 0); } 50% { opacity: 1; transform: translate(-2px, 3px); } }
+@keyframes fx-spin   { to { transform: rotate(360deg); } }
+@keyframes fx-rewind { 0%, 12% { transform: rotate(0deg); } 55%, 100% { transform: rotate(-360deg); } }
+@keyframes fx-stack {
+  0%, 8%  { transform: translateY(7px); opacity: 0; }
+  22%, 78% { transform: translateY(0); opacity: 1; }
+  100%    { transform: translateY(7px); opacity: 0; }
+}
+@keyframes fx-trace { to { stroke-dashoffset: -100; } }
+@keyframes fx-cross {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(38px, 0); }
+}
+@keyframes fx-pulse-soft { 50% { transform: scale(1.18); opacity: .75; } }
+
+/* ==========================================================================
+   Seasons UI
+   ========================================================================== */
+
+.season-card {
+  --glow-color: var(--season, var(--ember));
+  display: grid; gap: var(--sp-s);
+  padding: var(--sp-m);
+  background: var(--surf-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  position: relative; overflow: hidden;
+}
+.season-card::before {
+  content: '';
+  position: absolute; inset: -60% -20% auto -20%; height: 150%;
+  background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--season) 16%, transparent), transparent 62%);
+  pointer-events: none;
+}
+.season-card > * { position: relative; }
+.season-card.is-picked { border-color: color-mix(in srgb, var(--season) 55%, var(--line)); }
+
+.season-art {
+  width: clamp(44px, 9vw, 60px); aspect-ratio: 1; flex: none;
+  display: grid; place-items: center;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--season) 14%, transparent);
+  padding: 9px;
+}
+.season-art-lg { width: clamp(64px, 14vw, 92px); padding: 13px; border-radius: var(--r-lg); }
+
+.season-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 11px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--season) 16%, transparent);
+  color: var(--season);
+  font-size: var(--step--2); font-weight: 700; white-space: nowrap;
+}
+[data-theme='light'] .season-chip { color: color-mix(in srgb, var(--season) 72%, #000); }
+
+/* The four blocks of the year, as a strip. */
+.year-strip { display: grid; gap: var(--sp-2xs); grid-template-columns: 1fr 2fr 1fr 2fr; }
+@media (max-width: 700px) { .year-strip { grid-template-columns: 1fr 1fr; } }
+
+.slot-card {
+  --glow-color: var(--season, var(--line-hi));
+  display: grid; gap: var(--sp-xs);
+  padding: var(--sp-s);
+  background: var(--surf-1); border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  text-align: left; cursor: pointer; width: 100%;
+  transition: border-color .2s, box-shadow .25s, transform .2s var(--ease);
+}
+.slot-card:hover { transform: translateY(-2px); border-color: var(--line-hi); }
+.slot-card.is-now {
+  border-color: color-mix(in srgb, var(--season, var(--ember)) 50%, var(--line));
+  box-shadow: 0 0 22px -10px color-mix(in srgb, var(--season, var(--ember)) 70%, transparent);
+}
+.slot-empty {
+  display: grid; place-items: center; gap: 6px;
+  min-height: 84px; border: 1px dashed var(--line-hi); border-radius: var(--r-md);
+  color: var(--text-3); font-size: var(--step--1);
+}
+.slot-empty svg { width: 20px; height: 20px; }
+
+/* Icons dropped into a button or chip inherit the text size rather than
+   stretching to fill, which is what an unsized inline <svg> otherwise does. */
+.season-chip svg, .chip svg { width: 13px; height: 13px; flex: none; }
+.slot-card svg:not(.season-icon) { width: 18px; height: 18px; }

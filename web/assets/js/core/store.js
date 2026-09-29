@@ -33,6 +33,7 @@ function emptyData() {
     weights: [],    // { date, kg }
     medals: [],     // earned medal ids
     friends: [],
+    seasons: {},    // { [slotId]: seasonId } — the training year, see core/seasons.js
   };
 }
 
@@ -128,6 +129,7 @@ class Store extends EventTarget {
     for (const k of ['sessions', 'meals', 'weights', 'medals', 'friends']) {
       if (!Array.isArray(d[k])) d[k] = [];
     }
+    if (!d.seasons || typeof d.seasons !== 'object' || Array.isArray(d.seasons)) d.seasons = {};
     d.version = 2;
     return d;
   }
@@ -177,6 +179,16 @@ class Store extends EventTarget {
       if (patch.goals) d.profile.goals = { ...d.profile.goals, ...patch.goals };
     });
   }
+
+  /** Commit a season to a block, or pass null to empty it. */
+  setSeason(slotId, seasonId) {
+    return this.commit(d => {
+      if (seasonId) d.seasons[slotId] = seasonId;
+      else delete d.seasons[slotId];
+    });
+  }
+  /** Replace the whole year at once. */
+  setSeasons(map) { return this.commit(d => { d.seasons = { ...map }; }); }
 
   addFriend(friend) { return this.commit(d => { d.friends.push({ id: uid(), ...friend }); }); }
   removeFriend(id) { return this.commit(d => { d.friends = d.friends.filter(f => f.id !== id); }); }
@@ -387,7 +399,9 @@ function seedDemo(data) {
   }
 
   data.friends = DEMO_FRIENDS.map(f => ({ ...f }));
-  data.profile.name = 'Guest Wolf';
+  // A plausible starting year, so the Seasons page is not four empty boxes.
+  data.seasons = { summer: 'greek-fire', autumn: 'bridge', winter: 'winter-fire' };
+  data.profile.name = 'Guest';
   data.profile.handle = 'guest';
   return data;
 }

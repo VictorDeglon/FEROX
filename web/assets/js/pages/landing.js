@@ -54,12 +54,13 @@ document.getElementById('heroBars').innerHTML = [
 
 /* features --------------------------------------------------------------- */
 const FEATURES = [
+  ['calendar', 'FEROX Seasons', 'Eight structured seasons across four blocks of the year. Greek Fire through the summer, Winter Fire through the winter, or FEROX Recomp any month you like.'],
   ['dumbbell', 'Workout logging', 'Six ready-made routines or build your own. Reps, weight and volume captured set by set, in seconds between working sets.'],
   ['apple', 'Diet tracker', 'A food database, four meals a day and a live macro ring. See exactly how far you are from your calorie and protein targets.'],
   ['chart', 'Progress that reads clearly', 'Volume, bodyweight, calories and training focus, charted over 14, 30 or 90 days. No vanity metrics.'],
   ['target', 'Personal records', 'Every lift tracked for its best set, with an estimated one-rep max and a trend line you can actually follow.'],
   ['medal', 'Medals worth having', 'Twelve of them, earned from streaks, tonnage, records and hitting your macros. They unlock themselves.'],
-  ['users', 'Your pack', 'A leaderboard for streaks, sessions, volume and medals. Being fourth is a great reason to train tomorrow.'],
+  ['users', 'Friends and leaderboard', 'Compare streaks, sessions, volume and medals with the people you train with. Being fourth is a great reason to train tomorrow.'],
 ];
 document.getElementById('featureGrid').innerHTML = FEATURES.map(([ico, title, body]) => `
   <article class="feature card card-pad-lg reveal">

@@ -119,9 +119,10 @@ const NAV = [
   { href: 'workouts.html',  label: 'Workouts', ico: 'dumbbell', tab: true },
   { href: 'nutrition.html', label: 'Nutrition',ico: 'apple',    tab: true },
   { href: 'progress.html',  label: 'Progress', ico: 'chart',    tab: true },
-  { group: 'Pack' },
+  { href: 'seasons.html',   label: 'Seasons',  ico: 'calendar', tab: true },
+  { group: 'More' },
   { href: 'records.html',   label: 'Records',  ico: 'target' },
-  { href: 'medals.html',    label: 'Medals',   ico: 'medal',    tab: true },
+  { href: 'medals.html',    label: 'Medals',   ico: 'medal' },
   { href: 'friends.html',   label: 'Friends',  ico: 'users' },
   { href: 'profile.html',   label: 'Profile',  ico: 'user' },
 ];
@@ -213,7 +214,7 @@ export function mountShell({ title, actions = '' }) {
 
   const chip = shell.querySelector('#userChip');
   const syncUser = () => {
-    const u = auth.user ?? { name: 'Guest Wolf', provider: 'guest' };
+    const u = auth.user ?? { name: 'Guest', provider: 'guest' };
     chip.innerHTML = `${avatarHtml(u, 'avatar avatar-sm')}
       <div style="min-width:0;line-height:1.25">
         <div style="font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name)}</div>
@@ -240,7 +241,13 @@ export async function bootPage({ title, actions = '' }, render) {
   view.innerHTML = `<div class="grid grid-3">${'<div class="skel" style="height:118px"></div>'.repeat(3)}</div>`;
   await store.init({ token: auth.token });
   const draw = () => { try { render(view); } catch (err) { console.error(err); view.innerHTML = errorCard(err); } };
-  store.onChange(draw);
+
+  // Later store changes repaint synchronously, but the FIRST paint is deferred
+  // to a macrotask. A page module sits suspended at `await bootPage(...)`, so
+  // rendering inline would run render() before the module's own `const`s are
+  // initialised — every one of them would be in the temporal dead zone.
+  store.addEventListener('change', draw);
+  setTimeout(draw, 0);
   return view;
 }
 

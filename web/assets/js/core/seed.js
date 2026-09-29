@@ -33,7 +33,7 @@ export const EXERCISES = [
 export const ROUTINES = [
   {
     id: 'r-push', name: 'Push Day', focus: 'Chest', minutes: 55, level: 'Intermediate',
-    blurb: 'Heavy pressing up top, isolation to finish. The bread and butter.',
+    blurb: 'Heavy pressing first, isolation to finish. The staple upper-body day.',
     blocks: [
       { ex: 'bench', sets: 4, reps: 6 }, { ex: 'incline-db', sets: 3, reps: 10 },
       { ex: 'ohp', sets: 3, reps: 8 }, { ex: 'lateral', sets: 3, reps: 15 },
@@ -51,7 +51,7 @@ export const ROUTINES = [
   },
   {
     id: 'r-legs', name: 'Leg Day', focus: 'Legs', minutes: 60, level: 'Advanced',
-    blurb: 'Squat, hinge, and enough volume to make stairs interesting.',
+    blurb: 'Squat and hinge patterns with the volume to actually drive growth.',
     blocks: [
       { ex: 'squat', sets: 5, reps: 5 }, { ex: 'rdl', sets: 3, reps: 8 },
       { ex: 'frontsquat', sets: 3, reps: 8 }, { ex: 'plank', sets: 3, reps: 60 },
@@ -67,7 +67,7 @@ export const ROUTINES = [
   },
   {
     id: 'r-condition', name: 'Conditioning Blast', focus: 'Full body', minutes: 25, level: 'Intermediate',
-    blurb: 'Short, nasty, and over before you can talk yourself out of it.',
+    blurb: 'High intensity, low duration. In and out in twenty-five minutes.',
     blocks: [
       { ex: 'kb-swing', sets: 5, reps: 20 }, { ex: 'burpee', sets: 5, reps: 12 },
       { ex: 'row-erg', sets: 1, reps: 2 },
@@ -111,21 +111,21 @@ export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
  * `tier` drives nothing but presentation ordering.
  */
 export const MEDALS = [
-  { id: 'm-first',    name: 'First Blood',   icon: 'bolt',     tier: 1, hint: 'Log your first session',        test: s => s.sessions >= 1 },
-  { id: 'm-streak3',  name: 'Three Deep',    icon: 'flame',    tier: 1, hint: 'Train 3 days in a row',         test: s => s.bestStreak >= 3 },
-  { id: 'm-streak7',  name: 'Week of Fangs', icon: 'flame',    tier: 2, hint: 'Train 7 days in a row',         test: s => s.bestStreak >= 7 },
-  { id: 'm-streak30', name: 'Alpha Month',   icon: 'shield',   tier: 3, hint: 'Train 30 days in a row',        test: s => s.bestStreak >= 30 },
-  { id: 'm-ten',      name: 'Double Digits', icon: 'dumbbell', tier: 1, hint: 'Log 10 sessions',               test: s => s.sessions >= 10 },
-  { id: 'm-fifty',    name: 'Pack Veteran',  icon: 'medal',    tier: 2, hint: 'Log 50 sessions',               test: s => s.sessions >= 50 },
-  { id: 'm-vol10k',   name: 'Ten Tonne',     icon: 'scale',    tier: 2, hint: 'Lift 10,000 kg of total volume', test: s => s.volume >= 10000 },
-  { id: 'm-vol100k',  name: 'Hundred Tonne', icon: 'trophy',   tier: 3, hint: 'Lift 100,000 kg of total volume', test: s => s.volume >= 100000 },
+  { id: 'm-first',    name: 'First Session',  icon: 'bolt',     tier: 1, hint: 'Log your first session',        test: s => s.sessions >= 1 },
+  { id: 'm-streak3',  name: 'Three in a Row', icon: 'flame',    tier: 1, hint: 'Train 3 days in a row',         test: s => s.bestStreak >= 3 },
+  { id: 'm-streak7',  name: 'Seven Day Streak', icon: 'flame', tier: 2, hint: 'Train 7 days in a row',         test: s => s.bestStreak >= 7 },
+  { id: 'm-streak30', name: 'Thirty Day Streak', icon: 'shield', tier: 3, hint: 'Train 30 days in a row',        test: s => s.bestStreak >= 30 },
+  { id: 'm-ten',      name: 'Ten Sessions',  icon: 'dumbbell', tier: 1, hint: 'Log 10 sessions',               test: s => s.sessions >= 10 },
+  { id: 'm-fifty',    name: 'Fifty Sessions', icon: 'medal',   tier: 2, hint: 'Log 50 sessions',               test: s => s.sessions >= 50 },
+  { id: 'm-vol10k',   name: '10 Tonnes',     icon: 'scale',    tier: 2, hint: 'Lift 10,000 kg of total volume', test: s => s.volume >= 10000 },
+  { id: 'm-vol100k',  name: '100 Tonnes',    icon: 'trophy',   tier: 3, hint: 'Lift 100,000 kg of total volume', test: s => s.volume >= 100000 },
   { id: 'm-pr5',      name: 'Record Setter', icon: 'target',   tier: 2, hint: 'Set 5 personal records',        test: s => s.prs >= 5 },
-  { id: 'm-macro',    name: 'Macro Monk',    icon: 'apple',    tier: 2, hint: 'Hit your calorie target 7 days', test: s => s.macroDays >= 7 },
-  { id: 'm-early',    name: 'Dawn Patrol',   icon: 'sun',      tier: 1, hint: 'Log a session before 07:00',     test: s => s.earlyBird },
-  { id: 'm-pack',     name: 'Pack Leader',   icon: 'users',    tier: 2, hint: 'Add 3 friends',                 test: s => s.friends >= 3 },
+  { id: 'm-macro',    name: 'Macro Precision', icon: 'apple',  tier: 2, hint: 'Hit your calorie target 7 days', test: s => s.macroDays >= 7 },
+  { id: 'm-early',    name: 'Early Session', icon: 'sun',      tier: 1, hint: 'Log a session before 07:00',     test: s => s.earlyBird },
+  { id: 'm-pack',     name: 'Training Partners', icon: 'users', tier: 2, hint: 'Add 3 friends',                 test: s => s.friends >= 3 },
 ];
 
-/** Friends shown in guest/demo mode so the social surface isn't an empty box. */
+/** Friends shown in guest mode so the social surface isn't an empty box. */
 export const DEMO_FRIENDS = [
   { id: 'fr-1', name: 'Sam Okafor',   handle: 'sam_lifts',  streak: 12, sessions: 84, volume: 142300, medals: 7 },
   { id: 'fr-2', name: 'Lena Fischer', handle: 'lenaf',      streak: 5,  sessions: 61, volume: 98400,  medals: 5 },
