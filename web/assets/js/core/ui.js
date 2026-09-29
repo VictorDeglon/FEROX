@@ -256,6 +256,23 @@ function errorCard(err) {
     <p class="muted" style="margin-top:8px;font-size:.88rem">${esc(err.message)}</p></div>`;
 }
 
+/**
+ * Resolve to the first of `srcs` that actually loads, or null if none do.
+ * Lets optional art (the generated mascot) be referenced without ever shipping
+ * a broken <img> — nothing is added to the DOM until a file is confirmed there.
+ */
+export function firstImage(srcs) {
+  return srcs.reduce(
+    (chain, src) => chain.then(found => found ?? new Promise(res => {
+      const img = new Image();
+      img.onload = () => res(src);
+      img.onerror = () => res(null);
+      img.src = src;
+    })),
+    Promise.resolve(null),
+  );
+}
+
 /** Fade-in-on-scroll for the landing page. */
 export function revealOnScroll(selector = '.reveal') {
   const els = [...document.querySelectorAll(selector)];

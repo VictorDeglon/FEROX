@@ -32,7 +32,9 @@ server/                  optional Express API
   config.js  lib/{auth,store}.js  routes/{auth,data}.js
 test/                    node:test suites (no runner to install)
 scripts/check-web.js     link checker for web/
+scripts/add-mascot.js    wires a generated mascot image into the app
 docs/google-oauth-setup.md
+docs/mascot-prompts.md   image-gen prompts matched to the brand palette
 ```
 
 ## Conventions
@@ -122,6 +124,19 @@ Mar 1); `slotContains` handles that and is tested on both sides of the wrap.
 Season icons are animated SVGs. Their keyframes live in `ferox.css` under
 `.fx-*`, never inline, so the global `prefers-reduced-motion` block switches
 every one of them off in one place. The same applies to the `.glow-*` effects.
+
+## Brand art
+
+`web/assets/brand/` holds the SVG mark in five forms. It is responsible for the
+nav bar, favicon, tab bar and anything under ~48px.
+
+A raster **mascot** is optional art and lives alongside it. Add one with
+`node scripts/add-mascot.js <image>` — it copies the file in, makes a WebP,
+registers both in the service worker and bumps the cache. The landing and 404
+pages probe for it at runtime via `firstImage()` in `core/ui.js`, so there is
+never a broken `<img>` when no mascot has been added. Use it big and sparingly;
+never swap it in for the SVG at small sizes. Prompts that match the palette are
+in `docs/mascot-prompts.md`.
 
 ## Auth
 

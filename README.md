@@ -91,6 +91,10 @@ session token.
 ## Development
 
 ```bash
+node scripts/add-mascot.js <image>   # wire a generated mascot into the app
+```
+
+```bash
 npm test         # 36 suites: catalogue integrity, the season calendar, chart escaping, API contract
 npm run check    # syntax check + verifies every local link in web/ resolves
 ```
