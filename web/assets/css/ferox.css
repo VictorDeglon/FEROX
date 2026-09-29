@@ -715,3 +715,12 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
    stretching to fill, which is what an unsized inline <svg> otherwise does. */
 .season-chip svg, .chip svg { width: 13px; height: 13px; flex: none; }
 .slot-card svg:not(.season-icon) { width: 18px; height: 18px; }
+
+/* ==========================================================================
+   Mascot
+   Optional raster art added via scripts/add-mascot.js. Deliberately only used
+   at large sizes — the SVG mark stays responsible for anything under ~48px,
+   where a bitmap goes soft and a mascot's detail turns to mud.
+   ========================================================================== */
+.mascot { display: block; width: min(320px, 68vw); margin-inline: auto; }
+.mascot img { width: 100%; height: auto; }

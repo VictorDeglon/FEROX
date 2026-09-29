@@ -2,7 +2,7 @@
 import { icon, WOLF_MARK, googleGlyph } from '../core/icons.js';
 import { auth } from '../core/auth.js';
 import { googleReady } from '../core/config.js';
-import { esc, toggleTheme, revealOnScroll } from '../core/ui.js';
+import { esc, toggleTheme, revealOnScroll, firstImage } from '../core/ui.js';
 import { ring } from '../core/chart.js';
 import { MEDALS } from '../core/seed.js';
 
@@ -127,6 +127,19 @@ document.getElementById('guestBtn').addEventListener('click', () => {
   auth.signInAsGuest();
   location.href = 'dashboard.html';
 });
+
+/* mascot ------------------------------------------------------------------
+   Optional art. If web/assets/brand/mascot.* has been added (see
+   docs/mascot-prompts.md and scripts/add-mascot.js) it takes over the closing
+   panel; otherwise the geometric mark stays and nothing looks unfinished. */
+firstImage(['assets/brand/mascot.webp', 'assets/brand/mascot.png', 'assets/brand/mascot.jpg'])
+  .then(src => {
+    if (!src) return;
+    const host = document.getElementById('ctaMark');
+    host.className = 'mascot glow-aura';
+    host.style.width = '';
+    host.innerHTML = `<img src="${src}" alt="" width="320" height="320" loading="lazy" decoding="async">`;
+  });
 
 /* motion ----------------------------------------------------------------- */
 revealOnScroll();
