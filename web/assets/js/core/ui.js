@@ -3,7 +3,7 @@
  * Every app page calls `mountShell()` once and then renders into `#view`.
  */
 import { CONFIG } from './config.js';
-import { icon, WOLF_MARK } from './icons.js';
+import { icon, brandMark, social, SOCIALS } from './icons.js';
 import { auth } from './auth.js';
 import { store } from './store.js';
 
@@ -125,6 +125,7 @@ const NAV = [
   { href: 'medals.html',    label: 'Medals',   ico: 'medal' },
   { href: 'friends.html',   label: 'Friends',  ico: 'users' },
   { href: 'profile.html',   label: 'Profile',  ico: 'user' },
+  { href: 'docs.html',      label: 'Docs',     ico: 'book' },
 ];
 
 const here = () => location.pathname.split('/').pop() || 'dashboard.html';
@@ -164,7 +165,7 @@ export function mountShell({ title, actions = '' }) {
   shell.innerHTML = `
     <aside class="sidebar">
       <a class="brand" href="dashboard.html" aria-label="FEROX home">
-        <span style="color:var(--ember)">${WOLF_MARK}</span>
+        ${brandMark(30)}
         <span class="brand-word">Ferox</span>
       </a>
       <nav class="nav" aria-label="Main">${navHtml()}</nav>
@@ -181,12 +182,13 @@ export function mountShell({ title, actions = '' }) {
     <div class="main">
       <header class="topbar">
         <a class="brand" href="dashboard.html" style="display:none" id="mBrand">
-          <span style="color:var(--ember)">${WOLF_MARK}</span>
+          ${brandMark(30)}
         </a>
         <h1 class="grow">${esc(title)}</h1>
         <div class="row" id="topActions">${actions}</div>
       </header>
       <main class="content" id="content"></main>
+      ${appFooter()}
     </div>
     <nav class="tabbar" aria-label="Sections">${tabHtml()}</nav>`;
 
@@ -226,6 +228,26 @@ export function mountShell({ title, actions = '' }) {
   return content;
 }
 
+/** The small print, on every app page. */
+function appFooter() {
+  return `<footer class="app-foot">
+    <div class="row wrap" style="gap:18px;align-items:center;justify-content:space-between">
+      <div class="row wrap" style="gap:16px">
+        <a href="docs.html#about">How it works</a>
+        <a href="docs.html#research">Research</a>
+        <a href="docs.html#privacy">Privacy</a>
+        <a href="docs.html#terms">Terms</a>
+      </div>
+      <div class="row" style="gap:10px">
+        ${SOCIALS.map(s => `<a href="${s.url}" target="_blank" rel="noopener noreferrer"
+          aria-label="FEROX on ${s.label}" class="social-link">${social(s.id, 17)}</a>`).join('')}
+      </div>
+    </div>
+    <p class="dim" style="font-size:var(--step--2);margin-top:12px">
+      FEROX is a tracking tool, not medical advice. Free, open source, and your data stays on your device.</p>
+  </footer>`;
+}
+
 /** Redirect to the landing page unless someone has started a session. */
 export function requireSession() {
   if (!auth.signedIn) {
@@ -240,6 +262,13 @@ export async function bootPage({ title, actions = '' }, render) {
   const view = mountShell({ title, actions });
   view.innerHTML = `<div class="grid grid-3">${'<div class="skel" style="height:118px"></div>'.repeat(3)}</div>`;
   await store.init({ token: auth.token });
+
+  // Nobody sees the app before it knows who they are — an empty dashboard with
+  // stranger's defaults is a worse first impression than two minutes of setup.
+  if (!store.data.onboarded) {
+    location.replace('onboarding.html');
+    return view;
+  }
   const draw = () => { try { render(view); } catch (err) { console.error(err); view.innerHTML = errorCard(err); } };
 
   // Later store changes repaint synchronously, but the FIRST paint is deferred

@@ -7,6 +7,7 @@ import { ROUTINES, MEDALS, byId } from '../core/seed.js';
 import { seasonById, currentSlot, formatWindow, nextEnd, daysBetween, slotProgress } from '../core/seasons.js';
 import { seasonIcon } from '../core/season-icons.js';
 import { logSessionFlow } from './_log.js';
+import { askReadiness, readinessBar } from './_readiness.js';
 
 const view = await bootPage({
   title: 'Today',
@@ -14,6 +15,9 @@ const view = await bootPage({
 }, render);
 
 document.getElementById('quickLog').addEventListener('click', () => logSessionFlow());
+
+// Ask once a day, after the page has settled — never on top of a loading screen.
+setTimeout(() => { if (!store.readinessFor()) askReadiness(); }, 900);
 
 function render(el) {
   const d = store.data;
@@ -33,6 +37,8 @@ function render(el) {
   const suggestion = ROUTINES[d.sessions.length % ROUTINES.length];
 
   el.innerHTML = `
+    <div id="readySlot"></div>
+
     <section class="grid grid-4">
       ${tile('Streak', s.streak, 'days', s.streak >= 3 ? `Best ${s.bestStreak}` : 'Keep it going', 'flame', s.streak > 0)}
       ${tile('This week', weekSessions, `/ ${goals.sessionsPerWeek}`, weekSessions >= goals.sessionsPerWeek ? 'Target hit' : `${goals.sessionsPerWeek - weekSessions} to go`, 'calendar')}
@@ -113,6 +119,8 @@ function render(el) {
         </div>
       </div>
     </section>`;
+
+  el.querySelector('#readySlot').replaceWith(readinessBar(() => render(el)));
 
   el.querySelectorAll('[data-routine]').forEach(btn =>
     btn.addEventListener('click', () => logSessionFlow(btn.dataset.routine)));

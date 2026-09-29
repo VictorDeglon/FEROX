@@ -9,7 +9,7 @@
  * (or later, to a native app's storage) is a change in exactly one place.
  */
 import { CONFIG } from './config.js';
-import { EXERCISES, FOODS, MEDALS, DEMO_FRIENDS, byId } from './seed.js';
+import { EXERCISES, MEDALS, byId } from './seed.js';
 
 export const todayISO = (d = new Date()) => {
   const x = new Date(d);
@@ -24,10 +24,18 @@ function emptyData() {
   return {
     version: 2,
     profile: {
-      name: 'Guest', email: '', picture: '', handle: 'guest',
-      unit: 'kg', heightCm: 178, joined: todayISO(),
-      goals: { kcal: 2400, protein: 165, carbs: 260, fat: 75, sessionsPerWeek: 4 },
+      name: '', email: '', picture: '', handle: '',
+      unit: 'kg', joined: todayISO(),
+      // Filled by onboarding; everything is editable afterwards.
+      sex: '', age: null, heightCm: null, weightKg: null,
+      activity: 3, level: 3, goal: '', daysPerWeek: 4,
+      equipment: 'gym', limits: [],
+      goals: { kcal: 2200, protein: 150, carbs: 240, fat: 70, sessionsPerWeek: 4 },
     },
+    onboarded: false,
+    layout: 4,               // blocks in the training year
+    planStart: todayISO(),   // week 0 of the ramp
+    readiness: {},           // { [date]: 1-10 }
     sessions: [],   // { id, date, name, durationMin, entries:[{ex,sets:[{reps,weight}]}], note }
     meals: [],      // { id, date, meal, foodId, name, qty, kcal, p, c, f }
     weights: [],    // { date, kg }
@@ -104,7 +112,9 @@ class Store extends EventTarget {
     const local = new LocalAdapter(CONFIG.storageKey);
     const existing = local.read();
     this.#adapter = local;
-    this.#data = existing ? this.#migrate(existing) : seedDemo(emptyData());
+    // A new account starts genuinely empty. Onboarding fills it in, and the
+    // first numbers someone sees are their own rather than a stranger's demo.
+    this.#data = existing ? this.#migrate(existing) : emptyData();
     if (!existing) await this.#adapter.save(this.#data);
     this.#ready = true;
     await this.#backfillMedals();
@@ -130,6 +140,11 @@ class Store extends EventTarget {
       if (!Array.isArray(d[k])) d[k] = [];
     }
     if (!d.seasons || typeof d.seasons !== 'object' || Array.isArray(d.seasons)) d.seasons = {};
+    if (!d.readiness || typeof d.readiness !== 'object' || Array.isArray(d.readiness)) d.readiness = {};
+    if (!Array.isArray(d.profile.limits)) d.profile.limits = [];
+    d.onboarded = Boolean(raw.onboarded);
+    d.layout = [3, 4, 6].includes(raw.layout) ? raw.layout : 4;
+    d.planStart = raw.planStart ?? base.planStart;
     d.version = 2;
     return d;
   }
@@ -180,6 +195,32 @@ class Store extends EventTarget {
     });
   }
 
+  /** Record onboarding answers and the plan they imply, in one commit. */
+  completeOnboarding({ profile, goals, seasons, layout }) {
+    return this.commit(d => {
+      Object.assign(d.profile, profile);
+      d.profile.goals = { ...d.profile.goals, ...goals };
+      d.seasons = { ...seasons };
+      d.layout = layout ?? d.layout;
+      d.onboarded = true;
+      d.planStart = todayISO();
+    });
+  }
+
+  /** Today's self-reported readiness, 1–10. */
+  setReadiness(score, date = todayISO()) {
+    return this.commit(d => { d.readiness[date] = Math.max(1, Math.min(10, Math.round(score))); });
+  }
+  readinessFor(date = todayISO()) { return this.#data.readiness[date] ?? null; }
+
+  /** Whole weeks since the plan started — drives the week-one intensity ramp. */
+  weekIndex() {
+    const start = Date.parse(this.#data.planStart ?? todayISO());
+    return Math.max(0, Math.floor((Date.now() - start) / (7 * 864e5)));
+  }
+
+  setLayout(n) { return this.commit(d => { d.layout = n; }); }
+
   /** Commit a season to a block, or pass null to empty it. */
   setSeason(slotId, seasonId) {
     return this.commit(d => {
@@ -193,11 +234,17 @@ class Store extends EventTarget {
   addFriend(friend) { return this.commit(d => { d.friends.push({ id: uid(), ...friend }); }); }
   removeFriend(id) { return this.commit(d => { d.friends = d.friends.filter(f => f.id !== id); }); }
 
-  /** Wipe local data (used by "reset" and by sign-out of a guest account). */
-  async reset({ demo = true } = {}) {
-    this.#data = demo ? seedDemo(emptyData()) : emptyData();
+  /** Wipe everything back to a brand-new account. */
+  async reset() {
+    this.#data = emptyData();
     await this.#adapter.save(this.#data);
     this.#emit();
+  }
+
+  /** Does this device hold anything worth offering to import on sign-in? */
+  hasLocalData() {
+    const d = this.#data;
+    return d.sessions.length > 0 || d.meals.length > 0 || d.weights.length > 0 || d.onboarded;
   }
 
   /* ---- derived reads ---- */
@@ -341,70 +388,5 @@ class Store extends EventTarget {
   }
 }
 
-/* ------------------------------------------------------- demo data seeding */
-
-/** Give a brand-new guest ~6 weeks of plausible history so nothing looks broken. */
-function seedDemo(data) {
-  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-  const plans = [
-    { name: 'Push Day', exs: ['bench', 'incline-db', 'ohp', 'lateral'] },
-    { name: 'Pull Day', exs: ['deadlift', 'pullup', 'row', 'curl'] },
-    { name: 'Leg Day',  exs: ['squat', 'rdl', 'frontsquat'] },
-    { name: 'Conditioning', exs: ['kb-swing', 'burpee', 'run'] },
-  ];
-  const base = { bench: 62, 'incline-db': 26, ohp: 40, lateral: 10, deadlift: 100, pullup: 0, row: 60, curl: 25, squat: 85, rdl: 70, frontsquat: 60, 'kb-swing': 24, burpee: 0, run: 0 };
-
-  for (let i = 41; i >= 0; i--) {
-    if (i % 7 === 3 || i % 7 === 6) continue;              // two rest days a week
-    if (i > 5 && Math.random() < 0.18) continue;           // the odd missed day
-    const plan = plans[i % plans.length];
-    const progress = 1 + (41 - i) / 220;                   // slow, believable progression
-    data.sessions.push({
-      id: uid(),
-      date: daysAgoISO(i),
-      name: plan.name,
-      durationMin: 38 + Math.floor(Math.random() * 28),
-      startedAt: new Date(Date.now() - i * 864e5).setHours(7 + Math.floor(Math.random() * 11), 0, 0, 0),
-      note: '',
-      entries: plan.exs.map(ex => ({
-        ex,
-        sets: Array.from({ length: 3 + (Math.random() < 0.4 ? 1 : 0) }, () => ({
-          reps: 5 + Math.floor(Math.random() * 8),
-          weight: Math.round(base[ex] * progress * (0.94 + Math.random() * 0.12)),
-        })),
-      })),
-    });
-  }
-
-  for (let i = 20; i >= 0; i--) {
-    const date = daysAgoISO(i);
-    const target = data.profile.goals.kcal;
-    let left = target * (0.86 + Math.random() * 0.26);
-    for (const meal of ['Breakfast', 'Lunch', 'Dinner', 'Snack']) {
-      const food = pick(FOODS);
-      const qty = Math.max(0.5, Math.round((left / 4 / Math.max(food.kcal, 40)) * 2) / 2);
-      left -= food.kcal * qty;
-      data.meals.push({
-        id: uid(), date, meal, foodId: food.id, name: food.name, qty,
-        kcal: Math.round(food.kcal * qty), p: +(food.p * qty).toFixed(1),
-        c: +(food.c * qty).toFixed(1), f: +(food.f * qty).toFixed(1),
-      });
-    }
-  }
-
-  let kg = 81.4;
-  for (let i = 42; i >= 0; i -= 3) {
-    kg -= 0.12 + Math.random() * 0.18;
-    data.weights.push({ date: daysAgoISO(i), kg: +kg.toFixed(1) });
-  }
-
-  data.friends = DEMO_FRIENDS.map(f => ({ ...f }));
-  // A plausible starting year, so the Seasons page is not four empty boxes.
-  data.seasons = { summer: 'greek-fire', autumn: 'bridge', winter: 'winter-fire' };
-  data.profile.name = 'Guest';
-  data.profile.handle = 'guest';
-  return data;
-}
-
 export const store = new Store();
-export { emptyData, seedDemo, uid };
+export { emptyData, uid };

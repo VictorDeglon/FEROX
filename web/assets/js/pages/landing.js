@@ -1,17 +1,16 @@
 /** Landing page: brand marks, generated sections and the sign-in entry point. */
-import { icon, WOLF_MARK, googleGlyph } from '../core/icons.js';
+import { icon, brandMark, googleGlyph, social, SOCIALS } from '../core/icons.js';
 import { auth } from '../core/auth.js';
 import { googleReady } from '../core/config.js';
-import { esc, toggleTheme, revealOnScroll, firstImage } from '../core/ui.js';
+import { esc, toggleTheme, revealOnScroll, firstImage, modal } from '../core/ui.js';
+import { store } from '../core/store.js';
 import { ring } from '../core/chart.js';
 import { MEDALS } from '../core/seed.js';
 
 /* marks ------------------------------------------------------------------ */
-for (const id of ['headMark', 'ctaMark', 'footMark']) {
-  const el = document.getElementById(id);
-  if (el) el.innerHTML = WOLF_MARK;
-}
-document.getElementById('headMark').style.width = '28px';
+document.getElementById('headMark').innerHTML = brandMark(30);
+document.getElementById('footMark').innerHTML = brandMark(22);
+document.getElementById('ctaMark').innerHTML = brandMark(64);
 document.getElementById('heroMedal').innerHTML = icon('flame');
 document.getElementById('heroMedal').classList.add('medal-disc');
 Object.assign(document.getElementById('heroMedal').querySelector('svg').style, { width: '20px', height: '20px' });
@@ -121,12 +120,54 @@ function fallbackButton() {
   return `<button class="btn btn-google btn-lg btn-block" disabled>${googleGlyph()}<span>Sign in with Google</span></button>`;
 }
 
-auth.onChange(session => { if (session) location.href = 'dashboard.html'; });
+/**
+ * Signing in when this device already holds a log. Until there is a server to
+ * sync with, "import" means one real question: keep what is here, or start
+ * over? Asking beats silently doing either.
+ */
+auth.onChange(async session => {
+  if (!session) return;
+  await store.init({ token: auth.token });
+
+  if (!store.hasLocalData()) {
+    location.href = 'onboarding.html';
+    return;
+  }
+
+  const keep = await modal({
+    title: 'Bring your data across?',
+    submit: 'Keep it',
+    cancel: 'Start fresh',
+    body: `<p class="muted" style="font-size:var(--step--1)">
+        This device already has ${store.data.sessions.length} session${store.data.sessions.length === 1 ? '' : 's'},
+        ${store.data.meals.length} meal${store.data.meals.length === 1 ? '' : 's'} logged
+        and ${store.data.weights.length} weigh-in${store.data.weights.length === 1 ? '' : 's'}.</p>
+      <p class="muted" style="font-size:var(--step--1);margin-top:10px">
+        Keep it and it carries over to your account. Start fresh and it is deleted from this device —
+        export it first from your profile if you are not sure.</p>`,
+  });
+
+  if (keep === null) {
+    await store.reset();
+    location.href = 'onboarding.html';
+  } else {
+    await store.updateProfile({
+      name: session.user.name || store.data.profile.name,
+      email: session.user.email ?? '',
+      picture: session.user.picture || store.data.profile.picture,
+    });
+    location.href = store.data.onboarded ? 'dashboard.html' : 'onboarding.html';
+  }
+});
 
 document.getElementById('guestBtn').addEventListener('click', () => {
   auth.signInAsGuest();
-  location.href = 'dashboard.html';
+  location.href = 'onboarding.html';
 });
+
+document.getElementById('footSocial').innerHTML = SOCIALS.map(s =>
+  `<a href="${s.url}" target="_blank" rel="noopener noreferrer"
+     aria-label="FEROX on ${s.label}" class="social-link">${social(s.id, 18)}</a>`).join('');
 
 /* mascot ------------------------------------------------------------------
    Optional art. If web/assets/brand/mascot.* has been added (see

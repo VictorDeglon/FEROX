@@ -6,28 +6,96 @@
 
 export const MUSCLES = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Full body'];
 
+/**
+ * Exercise library.
+ *   equip    'gym' | 'home' | 'minimal' | 'bodyweight' — the LEAST kit it needs,
+ *            so a bodyweight move is available to everyone.
+ *   pattern  movement pattern, used by the split builder to fill a session
+ *            without picking three of the same thing.
+ *   stress   joints it loads, so limitations can filter it out.
+ */
 export const EXERCISES = [
-  { id: 'bench',      name: 'Barbell Bench Press', muscle: 'Chest',     kind: 'strength', unit: 'kg' },
-  { id: 'incline-db', name: 'Incline Dumbbell Press', muscle: 'Chest',  kind: 'strength', unit: 'kg' },
-  { id: 'pushup',     name: 'Push-Up',             muscle: 'Chest',     kind: 'strength', unit: 'bw' },
-  { id: 'squat',      name: 'Back Squat',          muscle: 'Legs',      kind: 'strength', unit: 'kg' },
-  { id: 'frontsquat', name: 'Front Squat',         muscle: 'Legs',      kind: 'strength', unit: 'kg' },
-  { id: 'deadlift',   name: 'Deadlift',            muscle: 'Back',      kind: 'strength', unit: 'kg' },
-  { id: 'rdl',        name: 'Romanian Deadlift',   muscle: 'Legs',      kind: 'strength', unit: 'kg' },
-  { id: 'pullup',     name: 'Pull-Up',             muscle: 'Back',      kind: 'strength', unit: 'bw' },
-  { id: 'row',        name: 'Barbell Row',         muscle: 'Back',      kind: 'strength', unit: 'kg' },
-  { id: 'ohp',        name: 'Overhead Press',      muscle: 'Shoulders', kind: 'strength', unit: 'kg' },
-  { id: 'lateral',    name: 'Lateral Raise',       muscle: 'Shoulders', kind: 'strength', unit: 'kg' },
-  { id: 'curl',       name: 'Barbell Curl',        muscle: 'Arms',      kind: 'strength', unit: 'kg' },
-  { id: 'dip',        name: 'Dip',                 muscle: 'Arms',      kind: 'strength', unit: 'bw' },
-  { id: 'plank',      name: 'Plank',               muscle: 'Core',      kind: 'time',     unit: 'sec' },
-  { id: 'hangleg',    name: 'Hanging Leg Raise',   muscle: 'Core',      kind: 'strength', unit: 'bw' },
-  { id: 'run',        name: 'Run',                 muscle: 'Full body', kind: 'cardio',   unit: 'km' },
-  { id: 'row-erg',    name: 'Rowing Erg',          muscle: 'Full body', kind: 'cardio',   unit: 'km' },
-  { id: 'bike',       name: 'Cycling',             muscle: 'Full body', kind: 'cardio',   unit: 'km' },
-  { id: 'burpee',     name: 'Burpee',              muscle: 'Full body', kind: 'strength', unit: 'bw' },
-  { id: 'kb-swing',   name: 'Kettlebell Swing',    muscle: 'Full body', kind: 'strength', unit: 'kg' },
+  // --- chest ---------------------------------------------------------------
+  { id: 'bench',      name: 'Barbell Bench Press',   muscle: 'Chest', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'h-push', stress: ['shoulder'] },
+  { id: 'incline-db', name: 'Incline Dumbbell Press',muscle: 'Chest', kind: 'strength', unit: 'kg', equip: 'home',       pattern: 'h-push', stress: ['shoulder'] },
+  { id: 'db-press',   name: 'Dumbbell Bench Press',  muscle: 'Chest', kind: 'strength', unit: 'kg', equip: 'home',       pattern: 'h-push', stress: ['shoulder'] },
+  { id: 'pushup',     name: 'Push-Up',               muscle: 'Chest', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'h-push', stress: ['wrist', 'shoulder'] },
+  { id: 'fly',        name: 'Cable Fly',             muscle: 'Chest', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'iso',    stress: ['shoulder'] },
+  { id: 'dip',        name: 'Dip',                   muscle: 'Chest', kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'v-push', stress: ['shoulder'] },
+
+  // --- back ----------------------------------------------------------------
+  { id: 'deadlift',   name: 'Deadlift',              muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'hinge',  stress: ['back'] },
+  { id: 'pullup',     name: 'Pull-Up',               muscle: 'Back', kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'v-pull', stress: ['shoulder', 'wrist'] },
+  { id: 'row',        name: 'Barbell Row',           muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'h-pull', stress: ['back'] },
+  { id: 'db-row',     name: 'Dumbbell Row',          muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'h-pull', stress: [] },
+  { id: 'lat-pull',   name: 'Lat Pulldown',          muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'v-pull', stress: ['shoulder'] },
+  { id: 'face-pull',  name: 'Face Pull',             muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso',    stress: [] },
+  { id: 'inv-row',    name: 'Inverted Row',          muscle: 'Back', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'h-pull', stress: [] },
+
+  // --- legs ----------------------------------------------------------------
+  { id: 'squat',      name: 'Back Squat',            muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'squat',  stress: ['knee', 'back'] },
+  { id: 'frontsquat', name: 'Front Squat',           muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'squat',  stress: ['knee', 'wrist'] },
+  { id: 'goblet',     name: 'Goblet Squat',          muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'squat',  stress: ['knee'] },
+  { id: 'rdl',        name: 'Romanian Deadlift',     muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'hinge',  stress: ['back'] },
+  { id: 'lunge',      name: 'Walking Lunge',         muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'bodyweight', pattern: 'lunge',  stress: ['knee'] },
+  { id: 'split-sq',   name: 'Bulgarian Split Squat', muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'lunge',  stress: ['knee'] },
+  { id: 'hipthrust',  name: 'Hip Thrust',            muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'home',       pattern: 'hinge',  stress: [] },
+  { id: 'calf',       name: 'Calf Raise',            muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'bodyweight', pattern: 'iso',    stress: [] },
+  { id: 'legcurl',    name: 'Leg Curl',              muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'iso',    stress: [] },
+
+  // --- shoulders -----------------------------------------------------------
+  { id: 'ohp',        name: 'Overhead Press',        muscle: 'Shoulders', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'v-push', stress: ['shoulder', 'back'] },
+  { id: 'db-ohp',     name: 'Dumbbell Shoulder Press',muscle: 'Shoulders',kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'v-push', stress: ['shoulder'] },
+  { id: 'lateral',    name: 'Lateral Raise',         muscle: 'Shoulders', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso',    stress: [] },
+  { id: 'rear-delt',  name: 'Rear Delt Fly',         muscle: 'Shoulders', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso',    stress: [] },
+  { id: 'pike-push',  name: 'Pike Push-Up',          muscle: 'Shoulders', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'v-push', stress: ['wrist', 'shoulder'] },
+
+  // --- arms ----------------------------------------------------------------
+  { id: 'curl',       name: 'Barbell Curl',          muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso', stress: ['wrist'] },
+  { id: 'db-curl',    name: 'Dumbbell Curl',         muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso', stress: [] },
+  { id: 'hammer',     name: 'Hammer Curl',           muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso', stress: [] },
+  { id: 'tricep-ext', name: 'Triceps Extension',     muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso', stress: ['wrist'] },
+  { id: 'pushdown',   name: 'Triceps Pushdown',      muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'iso', stress: [] },
+  { id: 'close-push', name: 'Close-Grip Push-Up',    muscle: 'Arms', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'iso', stress: ['wrist'] },
+
+  // --- core ----------------------------------------------------------------
+  { id: 'plank',      name: 'Plank',                 muscle: 'Core', kind: 'time',     unit: 'sec', equip: 'bodyweight', pattern: 'core', stress: ['shoulder'] },
+  { id: 'hangleg',    name: 'Hanging Leg Raise',     muscle: 'Core', kind: 'strength', unit: 'bw',  equip: 'home',       pattern: 'core', stress: ['shoulder'] },
+  { id: 'deadbug',    name: 'Dead Bug',              muscle: 'Core', kind: 'strength', unit: 'bw',  equip: 'bodyweight', pattern: 'core', stress: [] },
+  { id: 'cable-crunch',name:'Cable Crunch',          muscle: 'Core', kind: 'strength', unit: 'kg',  equip: 'gym',        pattern: 'core', stress: [] },
+  { id: 'carry',      name: 'Farmer Carry',          muscle: 'Core', kind: 'strength', unit: 'kg',  equip: 'minimal',    pattern: 'carry',stress: [] },
+
+  // --- power and conditioning (Greek Fire leans on these) ------------------
+  { id: 'box-jump',   name: 'Box Jump',              muscle: 'Legs',      kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'plyo', stress: ['knee'] },
+  { id: 'broad-jump', name: 'Broad Jump',            muscle: 'Legs',      kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'plyo', stress: ['knee'] },
+  { id: 'depth-jump', name: 'Depth Jump',            muscle: 'Legs',      kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'plyo', stress: ['knee'] },
+  { id: 'med-slam',   name: 'Medicine Ball Slam',    muscle: 'Full body', kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'plyo', stress: [] },
+  { id: 'clap-push',  name: 'Clap Push-Up',          muscle: 'Chest',     kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'plyo', stress: ['wrist', 'shoulder'] },
+  { id: 'sprint',     name: 'Sprint Intervals',      muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'bodyweight', pattern: 'sprint', stress: ['knee'] },
+  { id: 'hill-sprint',name: 'Hill Sprints',          muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'bodyweight', pattern: 'sprint', stress: ['knee'] },
+  { id: 'jump-rope',  name: 'Jump Rope',             muscle: 'Full body', kind: 'cardio',   unit: 'sec',equip: 'minimal',    pattern: 'condition', stress: ['knee'] },
+  { id: 'burpee',     name: 'Burpee',                muscle: 'Full body', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'condition', stress: ['wrist', 'knee'] },
+  { id: 'kb-swing',   name: 'Kettlebell Swing',      muscle: 'Full body', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'hinge', stress: ['back'] },
+  { id: 'sled',       name: 'Sled Push',             muscle: 'Full body', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'condition', stress: [] },
+  { id: 'run',        name: 'Run',                   muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'bodyweight', pattern: 'aerobic', stress: ['knee'] },
+  { id: 'row-erg',    name: 'Rowing Erg',            muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'gym',        pattern: 'aerobic', stress: [] },
+  { id: 'bike',       name: 'Cycling',               muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'home',       pattern: 'aerobic', stress: [] },
+
+  // --- mobility ------------------------------------------------------------
+  { id: 'mobility',   name: 'Mobility Flow',         muscle: 'Full body', kind: 'time', unit: 'sec', equip: 'bodyweight', pattern: 'mobility', stress: [] },
+  { id: 'hip-open',   name: 'Hip Openers',           muscle: 'Legs',      kind: 'time', unit: 'sec', equip: 'bodyweight', pattern: 'mobility', stress: [] },
 ];
+
+/** How much kit each tier implies, so `gym` can use everything below it. */
+export const EQUIP_RANK = { bodyweight: 0, minimal: 1, home: 2, gym: 3 };
+
+/** Exercises usable with the kit someone has, minus anything they cannot load. */
+export function availableExercises({ equipment = 'gym', limits = [] } = {}) {
+  const have = EQUIP_RANK[equipment] ?? 3;
+  const avoid = new Set(limits.filter(l => l !== 'none'));
+  return EXERCISES.filter(e =>
+    EQUIP_RANK[e.equip] <= have && !e.stress.some(s => avoid.has(s)));
+}
 
 /** Prebuilt routines. `blocks` reference EXERCISES by id. */
 export const ROUTINES = [

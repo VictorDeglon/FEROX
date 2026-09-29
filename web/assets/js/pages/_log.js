@@ -18,20 +18,27 @@ function lastSet(exId) {
   return null;
 }
 
-/** @param {string} [routineId] prefill from a routine */
-export function logSessionFlow(routineId) {
+/**
+ * @param {string|null} [routineId] prefill from a stock routine
+ * @param {object} [planDay] prefill from a generated plan day — already scaled
+ *                           for the athlete, their season and today's readiness
+ */
+export function logSessionFlow(routineId, planDay) {
   const routine = routineId ? byId(ROUTINES, routineId) : null;
 
   /** @type {{ex:string, sets:{reps:number,weight:number}[]}[]} */
-  const entries = routine
-    ? routine.blocks.map(b => {
-        const prev = lastSet(b.ex);
-        return {
-          ex: b.ex,
-          sets: Array.from({ length: b.sets }, () => ({ reps: b.reps, weight: prev?.weight ?? 0 })),
-        };
-      })
-    : [];
+  let entries = [];
+  if (planDay) {
+    entries = planDay.entries.map(e => {
+      const prev = lastSet(e.ex);
+      return { ex: e.ex, sets: Array.from({ length: e.sets }, () => ({ reps: e.reps, weight: prev?.weight ?? 0 })) };
+    });
+  } else if (routine) {
+    entries = routine.blocks.map(b => {
+      const prev = lastSet(b.ex);
+      return { ex: b.ex, sets: Array.from({ length: b.sets }, () => ({ reps: b.reps, weight: prev?.weight ?? 0 })) };
+    });
+  }
 
   const dlg = document.createElement('dialog');
   dlg.className = 'modal';
@@ -46,11 +53,11 @@ export function logSessionFlow(routineId) {
       <div class="field-row">
         <div class="field">
           <label for="sName">Session name</label>
-          <input class="input" id="sName" name="name" required value="${esc(routine?.name ?? 'Training session')}">
+          <input class="input" id="sName" name="name" required value="${esc(planDay?.name ?? routine?.name ?? 'Training session')}">
         </div>
         <div class="field">
           <label for="sDur">Duration (min)</label>
-          <input class="input" id="sDur" name="durationMin" type="number" min="1" max="600" value="${routine?.minutes ?? 45}">
+          <input class="input" id="sDur" name="durationMin" type="number" min="1" max="600" value="${planDay?.minutes ?? routine?.minutes ?? 45}">
         </div>
       </div>
 
