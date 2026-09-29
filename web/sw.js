@@ -3,13 +3,15 @@
  * App shell is cache-first (it changes only on deploy); everything else falls
  * back to the network. Bump CACHE on release to invalidate.
  */
-const CACHE = 'ferox-v2.1.0';
+const CACHE = 'ferox-v2.2.0';
 const SHELL = [
   './', 'index.html', 'dashboard.html', 'workouts.html', 'nutrition.html',
   'progress.html', 'records.html', 'medals.html', 'friends.html', 'profile.html',
   'seasons.html',
   'manifest.webmanifest',
   'assets/css/ferox.css',
+  'assets/brand/mascot.webp',
+  'assets/brand/mascot.png',
   'assets/brand/favicon.svg', 'assets/brand/logo.svg', 'assets/brand/wolf.svg',
   'assets/js/core/config.js', 'assets/js/core/icons.js', 'assets/js/core/seed.js',
   'assets/js/core/store.js', 'assets/js/core/auth.js', 'assets/js/core/ui.js',

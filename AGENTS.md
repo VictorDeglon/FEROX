@@ -130,13 +130,24 @@ every one of them off in one place. The same applies to the `.glow-*` effects.
 `web/assets/brand/` holds the SVG mark in five forms. It is responsible for the
 nav bar, favicon, tab bar and anything under ~48px.
 
-A raster **mascot** is optional art and lives alongside it. Add one with
-`node scripts/add-mascot.js <image>` — it copies the file in, makes a WebP,
+`mascot.webp` / `mascot.png` is the illustrated mascot — art, not chrome. Add or
+replace it with `node scripts/add-mascot.js <image>`, which unwraps an
+SVG-wrapped raster (what image generators usually hand you), trims transparent
+padding, caps the long edge at 1024, encodes a WebP with lossless alpha,
 registers both in the service worker and bumps the cache. The landing and 404
 pages probe for it at runtime via `firstImage()` in `core/ui.js`, so there is
-never a broken `<img>` when no mascot has been added. Use it big and sparingly;
-never swap it in for the SVG at small sizes. Prompts that match the palette are
-in `docs/mascot-prompts.md`.
+never a broken `<img>` when no mascot is present.
+
+**Use the mascot big and sparingly, and never below ~48px.** Measured: it is
+sharp at 128 and 64px, mushy at 32 and illegible at 20, where the SVG mark stays
+crisp. The mark owns the nav bar, favicon, tab bar and topbar; the mascot owns
+the closing panel, the 404 page and the share card. Prompts that match the
+palette are in `docs/mascot-prompts.md`.
+
+`og.jpg` is the 1200×630 social share card. It must stay a **raster referenced
+by an absolute URL** — Slack, Discord, X and iMessage all silently ignore an SVG
+`og:image`, which is what this used to be. Regenerate it whenever the mascot or
+the tagline changes.
 
 ## Auth
 
