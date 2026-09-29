@@ -36,6 +36,7 @@ test/                    node:test suites (no runner to install)
 scripts/check-web.js     link checker for web/
 scripts/add-mascot.js    wires a generated mascot image into the app
 docs/google-oauth-setup.md
+docs/skywalker-deploy.md tunnelled self-hosting for the optional API
 docs/mascot-prompts.md   image-gen prompts matched to the brand palette
 ```
 
