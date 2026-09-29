@@ -5,6 +5,9 @@ import { icon, googleGlyph } from '../core/icons.js';
 import { auth } from '../core/auth.js';
 import { CONFIG, googleReady } from '../core/config.js';
 import { MEDALS } from '../core/seed.js';
+import { makeAvatar, formatBytes, AVATAR_PX } from '../core/image.js';
+import { LEVELS, GOALS, ACTIVITY, EQUIPMENT, targetsFor } from '../core/profile.js';
+import { seasonById, currentSlot } from '../core/seasons.js';
 
 const view = await bootPage({ title: 'Profile' }, render);
 
@@ -19,7 +22,11 @@ function render(el) {
       <div class="stack" style="gap:16px">
         <div class="card card-pad-lg">
           <div class="row wrap" style="gap:18px;align-items:center">
-            ${avatarHtml(u, 'avatar avatar-lg')}
+            <button class="avatar-edit" id="avatarBtn" aria-label="Change profile picture">
+              ${avatarHtml({ ...u, picture: d.profile.picture || u.picture }, 'avatar avatar-lg')}
+              <span class="avatar-edit-badge">${icon('plus')}</span>
+            </button>
+            <input type="file" id="avatarIn" accept="image/*" hidden>
             <div class="grow" style="min-width:0">
               <h2 style="font-size:1.4rem">${esc(u.name)}</h2>
               <p class="dim" style="font-size:.86rem;margin-top:3px">
@@ -34,6 +41,25 @@ function render(el) {
             ${mini('Medals', `${d.medals.length} / ${MEDALS.length}`)}
             ${mini('Best streak', `${s.bestStreak} d`)}
           </div>
+        </div>
+
+        <div class="card card-pad-lg">
+          <div class="card-head">
+            <h3>Training profile</h3>
+            <a class="card-link" href="onboarding.html?redo=1">Redo setup →</a>
+          </div>
+          <div class="grid grid-3" style="gap:12px">
+            ${mini('Goal', GOALS.find(g => g.id === p.goal)?.label ?? '—')}
+            ${mini('Experience', LEVELS.find(l => l.id === p.level)?.label ?? '—')}
+            ${mini('Days / week', p.daysPerWeek ?? '—')}
+            ${mini('Equipment', EQUIPMENT.find(e => e.id === p.equipment)?.label ?? '—')}
+            ${mini('Activity', (ACTIVITY.find(x => x.id === p.activity)?.label ?? '—').split(',')[0])}
+            ${mini('Weight', p.weightKg ? `${p.weightKg} kg` : '—')}
+            ${mini('Height', p.heightCm ? `${p.heightCm} cm` : '—')}
+            ${mini('Age', p.age ?? '—')}
+            ${mini('Working around', p.limits?.filter(l => l !== 'none').length || 'Nothing')}
+          </div>
+          <button class="btn btn-sm" id="editTraining" style="margin-top:16px">${icon('settings')}<span>Edit training profile</span></button>
         </div>
 
         <div class="card card-pad-lg">
@@ -117,6 +143,23 @@ function render(el) {
     </section>`;
 
   el.querySelector('#editName').addEventListener('click', editProfile);
+
+  const avatarIn = el.querySelector('#avatarIn');
+  el.querySelector('#avatarBtn').addEventListener('click', () => avatarIn.click());
+  avatarIn.addEventListener('change', async () => {
+    const file = avatarIn.files?.[0];
+    avatarIn.value = '';
+    if (!file) return;
+    try {
+      const { dataUrl, bytes, from } = await makeAvatar(file);
+      await store.updateProfile({ picture: dataUrl });
+      toast(`Photo set — ${from.w}×${from.h} resized to ${AVATAR_PX}px, ${formatBytes(bytes)}`, 'ok');
+    } catch (err) {
+      toast(err.message, 'bad');
+    }
+  });
+
+  el.querySelector('#editTraining').addEventListener('click', editTraining);
   el.querySelector('#editGoals').addEventListener('click', editGoals);
   el.querySelector('#signOut')?.addEventListener('click', async () => { await auth.signOut(); location.href = 'index.html'; });
 
@@ -202,6 +245,59 @@ async function editProfile() {
     handle: res.handle.trim().toLowerCase().replace(/\s+/g, '_') || 'athlete',
   });
   toast('Profile updated', 'ok');
+}
+
+/** Change the answers that drive the plan, then rebuild the targets from them. */
+async function editTraining() {
+  const p = store.data.profile;
+  const res = await modal({
+    title: 'Training profile',
+    wide: true,
+    body: `
+      <div class="field-row">
+        <div class="field"><label for="tw">Weight (kg)</label>
+          <input class="input" id="tw" name="weightKg" type="number" min="35" max="250" step="0.1" value="${p.weightKg ?? 78}"></div>
+        <div class="field"><label for="th">Height (cm)</label>
+          <input class="input" id="th" name="heightCm" type="number" min="120" max="230" value="${p.heightCm ?? 178}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="ta">Age</label>
+          <input class="input" id="ta" name="age" type="number" min="14" max="90" value="${p.age ?? 25}"></div>
+        <div class="field"><label for="td">Days per week</label>
+          <input class="input" id="td" name="daysPerWeek" type="number" min="2" max="7" value="${p.daysPerWeek ?? 4}"></div>
+      </div>
+      <div class="field"><label for="tg">Goal</label>
+        <select class="select" id="tg" name="goal">
+          ${GOALS.map(g => `<option value="${g.id}"${p.goal === g.id ? ' selected' : ''}>${esc(g.label)}</option>`).join('')}
+        </select></div>
+      <div class="field-row">
+        <div class="field"><label for="tl">Experience</label>
+          <select class="select" id="tl" name="level">
+            ${LEVELS.map(l => `<option value="${l.id}"${p.level === l.id ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}
+          </select></div>
+        <div class="field"><label for="te">Equipment</label>
+          <select class="select" id="te" name="equipment">
+            ${EQUIPMENT.map(e => `<option value="${e.id}"${p.equipment === e.id ? ' selected' : ''}>${esc(e.label)}</option>`).join('')}
+          </select></div>
+      </div>
+      <div class="field"><label for="tact">Daily activity outside training</label>
+        <select class="select" id="tact" name="activity">
+          ${ACTIVITY.map(a => `<option value="${a.id}"${p.activity === a.id ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}
+        </select></div>
+      <p class="dim" style="font-size:var(--step--2)">Changing these rebuilds your split and your calorie targets.</p>`,
+  });
+  if (!res) return;
+
+  const patch = {
+    weightKg: +res.weightKg, heightCm: +res.heightCm, age: +res.age,
+    daysPerWeek: +res.daysPerWeek, goal: res.goal,
+    level: +res.level, equipment: res.equipment, activity: +res.activity,
+  };
+  const merged = { ...store.data.profile, ...patch };
+  const slot = currentSlot(store.data.layout ?? 4);
+  const season = seasonById(store.data.seasons?.[slot.id]) ?? seasonById('ferox-recomp');
+  await store.updateProfile({ ...patch, goals: targetsFor(merged, season) });
+  toast('Plan rebuilt', 'ok');
 }
 
 async function editGoals() {

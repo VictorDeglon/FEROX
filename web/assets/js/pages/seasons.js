@@ -1,11 +1,11 @@
-/** Seasons — the training year: four blocks, eight seasons, one pick each. */
+/** Seasons — the training year. Pick a layout, then what runs in each block. */
 import { store } from '../core/store.js';
 import { bootPage, esc, toast, confirmDialog } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { seasonIcon } from '../core/season-icons.js';
 import {
-  SLOTS, SEASONS, seasonById, slotById, seasonsForSlot, isYearRound,
-  currentSlot, formatWindow, nextStart, nextEnd, daysBetween, slotProgress,
+  LAYOUTS, SEASONS, seasonById, slotById, slotsFor, recommendedFor, isYearRound,
+  currentSlot, formatWindow, nextStart, nextEnd, daysBetween, slotProgress, defaultYear,
 } from '../core/seasons.js';
 
 const meta = (k, v) => `<div class="row-between" style="font-size:var(--step--1);gap:12px">
@@ -16,101 +16,113 @@ const stat = (label, value) => `<div class="stat">
   <span style="font-size:var(--step--1);font-weight:600">${esc(value)}</span></div>`;
 
 const NOW = new Date();
-const LIVE = currentSlot(NOW);
+let filter = 'all';
 
 await bootPage({ title: 'Seasons' }, render);
 
+const layout = () => store.data.layout ?? 4;
+const live = () => currentSlot(layout(), NOW);
+
 function render(el) {
   const picks = store.data.seasons ?? {};
-  const filled = SLOTS.filter(s => picks[s.id]).length;
-  const livePick = picks[LIVE.id] ? seasonById(picks[LIVE.id]) : null;
+  const slots = slotsFor(layout());
+  const cur = live();
+  const livePick = picks[cur.id] ? seasonById(picks[cur.id]) : null;
+  const filtered = filter === 'all' ? SEASONS : SEASONS.filter(s => s.kind === filter);
 
   el.innerHTML = `
-    ${hero(livePick, filled)}
+    ${hero(livePick, cur, slots.filter(s => picks[s.id]).length, slots.length)}
 
     <section class="stack" style="gap:var(--sp-s)">
       <div class="row-between wrap" style="gap:12px">
         <div>
           <h2 style="font-size:var(--step-2)">Your year</h2>
           <p class="dim" style="font-size:var(--step--1);margin-top:3px">
-            Four blocks. Tap one to choose what you run in it.</p>
+            Any season can go in any block. Tap one to change it.</p>
         </div>
-        ${filled ? `<button class="btn btn-ghost btn-sm" id="clearAll">${icon('trash')}<span>Clear all</span></button>` : ''}
+        <div class="row wrap" style="gap:8px">
+          <div class="seg">
+            ${Object.values(LAYOUTS).map(l =>
+              `<button data-layout="${l.id}" aria-pressed="${layout() === l.id}">${l.id} blocks</button>`).join('')}
+          </div>
+          <button class="btn btn-ghost btn-sm" id="resetYear">${icon('reset')}<span>Default</span></button>
+        </div>
       </div>
-      <div class="year-strip">${SLOTS.map(slot => slotCard(slot, picks[slot.id])).join('')}</div>
+      <p class="dim" style="font-size:var(--step--2);margin-top:-6px">${esc(LAYOUTS[layout()].hint)}</p>
+      <div class="year-strip" style="${layout() === 4 ? '' : `grid-template-columns:repeat(auto-fit,minmax(170px,1fr))`}">
+        ${slots.map(slot => slotCard(slot, picks[slot.id], cur)).join('')}
+      </div>
     </section>
 
     <section class="stack" style="gap:var(--sp-s)">
-      <div>
-        <h2 style="font-size:var(--step-2)">The eight seasons</h2>
-        <p class="dim" style="font-size:var(--step--1);margin-top:3px">
-          Each one is built for a time of year. FEROX Recomp is the exception — it fits every block.</p>
+      <div class="row-between wrap" style="gap:12px">
+        <div>
+          <h2 style="font-size:var(--step-2)">All ${SEASONS.length} seasons</h2>
+          <p class="dim" style="font-size:var(--step--1);margin-top:3px">
+            Each is built for a job. FEROX Recomp fits any block, any month.</p>
+        </div>
+        <div class="seg">
+          ${[['all', 'All'], ['major', 'Main'], ['transition', 'Transition'], ['starter', 'Starter'], ['short', 'Short']]
+            .map(([k, l]) => `<button data-filter="${k}" aria-pressed="${filter === k}">${l}</button>`).join('')}
+        </div>
       </div>
-      <div class="grid grid-2">${SEASONS.map(seasonCard).join('')}</div>
+      <div class="grid grid-2">${filtered.map(seasonCard).join('')}</div>
     </section>`;
 
-  el.querySelectorAll('[data-slot]').forEach(b =>
-    b.addEventListener('click', () => pickFlow(b.dataset.slot)));
-  el.querySelectorAll('[data-detail]').forEach(b =>
-    b.addEventListener('click', () => detail(seasonById(b.dataset.detail))));
-  el.querySelector('#clearAll')?.addEventListener('click', async () => {
-    if (await confirmDialog('Clear your year?', 'Every block goes back to empty. You can pick again straight away.')) {
-      await store.setSeasons({});
-      toast('Year cleared');
+  el.querySelectorAll('[data-slot]').forEach(b => b.addEventListener('click', () => pickFlow(b.dataset.slot)));
+  el.querySelectorAll('[data-detail]').forEach(b => b.addEventListener('click', () => detail(seasonById(b.dataset.detail))));
+  el.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => { filter = b.dataset.filter; render(el); }));
+  el.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', async () => {
+    const n = +b.dataset.layout;
+    await store.setLayout(n);
+    await store.setSeasons(defaultYear(n));
+    toast(`Switched to ${n} blocks`, 'ok');
+  }));
+  el.querySelector('#resetYear').addEventListener('click', async () => {
+    if (await confirmDialog('Reset your year?', 'Puts the default rotation back: Greek Fire, Bridge, Winter Fire, Recomp.', { danger: false })) {
+      await store.setSeasons(defaultYear(layout()));
+      toast('Year reset');
     }
   });
 }
 
-/* ---------------------------------------------------------------- sections */
+function hero(season, slot, filled, total) {
+  const left = daysBetween(NOW, nextEnd(slot, NOW));
+  const pct = Math.round(slotProgress(slot, NOW) * 100);
 
-function hero(live, filled) {
-  const days = daysBetween(NOW, nextEnd(LIVE, NOW));
-  const pctDone = Math.round(slotProgress(LIVE, NOW) * 100);
-
-  if (!live) {
-    return `<div class="card card-pad-lg glow-edge" style="--glow-color:var(--ember)">
-      <div class="row wrap" style="gap:var(--sp-m);align-items:center">
-        <div class="grow" style="min-width:240px">
-          <p class="eyebrow row" style="gap:7px"><i class="glow-dot"></i>Running now · ${esc(LIVE.name)}</p>
-          <h2 style="font-size:var(--step-3);margin:8px 0 6px">No season picked yet</h2>
-          <p class="muted" style="font-size:var(--step--1);max-width:52ch">
-            ${esc(formatWindow(LIVE))} — ${days} day${days === 1 ? '' : 's'} left in this block.
-            Pick a season and the app knows what you're training for.</p>
-          <button class="btn btn-primary glow-cta" style="margin-top:14px" data-slot="${LIVE.id}">
-            ${icon('plus')}<span>Choose your ${esc(LIVE.short.toLowerCase())} season</span></button>
-        </div>
-      </div>
+  if (!season) {
+    return `<div class="card card-pad-lg glow-edge">
+      <p class="eyebrow row" style="gap:7px"><i class="glow-dot"></i>Running now · ${esc(slot.name)}</p>
+      <h2 style="font-size:var(--step-3);margin:8px 0 6px">No season picked</h2>
+      <p class="muted" style="font-size:var(--step--1);max-width:52ch">
+        ${esc(formatWindow(slot))} — ${left} day${left === 1 ? '' : 's'} left in this block.</p>
+      <button class="btn btn-primary glow-cta" style="margin-top:14px" data-slot="${slot.id}">
+        ${icon('plus')}<span>Choose a season</span></button>
     </div>`;
   }
 
-  return `<div class="card card-pad-lg glow-edge" style="--glow-color:${live.accent};--season:${live.accent}">
+  return `<div class="card card-pad-lg glow-edge" style="--glow-color:${season.accent};--season:${season.accent}">
     <div class="row wrap" style="gap:var(--sp-m);align-items:center">
-      <div class="season-art season-art-lg glow-aura" style="--season:${live.accent};--glow-color:${live.accent}">
-        ${seasonIcon(live)}
-      </div>
+      <div class="season-art season-art-lg glow-aura" style="--season:${season.accent};--glow-color:${season.accent}">${seasonIcon(season)}</div>
       <div class="grow" style="min-width:230px">
-        <p class="eyebrow row" style="gap:7px">
-          <i class="glow-dot" style="--glow-color:${live.accent}"></i>Running now · ${esc(LIVE.name)}
-        </p>
-        <h2 style="font-size:var(--step-3);margin:8px 0 4px">${esc(live.name)}</h2>
-        <p class="muted" style="font-size:var(--step--1)">${esc(live.tagline)} · ${esc(live.goal)}</p>
-        <div class="bar" style="margin-top:14px"><i style="width:${pctDone}%;background:linear-gradient(90deg,${live.accent},${live.accent2})"></i></div>
+        <p class="eyebrow row" style="gap:7px"><i class="glow-dot" style="--glow-color:${season.accent}"></i>Running now · ${esc(slot.name)}</p>
+        <h2 style="font-size:var(--step-3);margin:8px 0 4px">${esc(season.name)}</h2>
+        <p class="muted" style="font-size:var(--step--1)">${esc(season.tagline)} · ${esc(season.look)}</p>
+        <div class="bar" style="margin-top:14px"><i style="width:${pct}%;background:linear-gradient(90deg,${season.accent},${season.accent2})"></i></div>
         <p class="dim" style="font-size:var(--step--2);margin-top:7px">
-          ${esc(formatWindow(LIVE))} · ${pctDone}% through · ${days} day${days === 1 ? '' : 's'} to go</p>
+          ${esc(formatWindow(slot))} · ${pct}% through · ${left} day${left === 1 ? '' : 's'} to go · ${filled}/${total} blocks planned</p>
       </div>
-      <div class="stack" style="gap:8px;min-width:150px">
-        <button class="btn btn-sm" data-detail="${live.id}">${icon('chevron')}<span>Season detail</span></button>
-        <button class="btn btn-ghost btn-sm" data-slot="${LIVE.id}">Change</button>
+      <div class="stack" style="gap:8px;min-width:140px">
+        <button class="btn btn-sm" data-detail="${season.id}">${icon('chevron')}<span>Details</span></button>
+        <button class="btn btn-ghost btn-sm" data-slot="${slot.id}">Change</button>
       </div>
     </div>
-    <p class="dim" style="font-size:var(--step--2);margin-top:var(--sp-s)">
-      ${filled} of ${SLOTS.length} blocks planned.</p>
   </div>`;
 }
 
-function slotCard(slot, seasonId) {
+function slotCard(slot, seasonId, cur) {
   const season = seasonId ? seasonById(seasonId) : null;
-  const isNow = slot.id === LIVE.id;
+  const isNow = slot.id === cur.id;
   const starts = daysBetween(NOW, nextStart(slot, NOW));
 
   return `<button class="slot-card ${isNow ? 'is-now' : ''}" data-slot="${slot.id}"
@@ -137,14 +149,14 @@ function slotCard(slot, seasonId) {
 
 function seasonCard(season) {
   const picked = Object.values(store.data.seasons ?? {}).includes(season.id);
-  const windows = isYearRound(season) ? 'Any block, all year' : season.slots.map(id => slotById(id).short).join(' · ');
+  const where = isYearRound(season) ? 'Any block' : season.bestIn.map(id => slotById(id, 4)?.short ?? id).join(' · ');
 
   return `<article class="season-card glow-hover ${picked ? 'is-picked' : ''}" style="--season:${season.accent}">
     <div class="row" style="gap:var(--sp-s);align-items:flex-start">
       <span class="season-art" style="--season:${season.accent}">${seasonIcon(season)}</span>
       <div class="grow" style="min-width:0">
         <div class="row wrap" style="gap:7px;margin-bottom:5px">
-          <span class="season-chip" style="--season:${season.accent}">${esc(windows)}</span>
+          <span class="season-chip" style="--season:${season.accent}">Best in ${esc(where)}</span>
           ${picked ? `<span class="chip chip-ok">${icon('check')}In your year</span>` : ''}
         </div>
         <h3>${esc(season.name)}</h3>
@@ -155,7 +167,7 @@ function seasonCard(season) {
     <div class="stack" style="gap:7px">
       ${meta('Goal', season.goal)}
       ${meta('Calories', season.calories)}
-      ${meta('Runs', isYearRound(season) ? 'All year' : season.slots.map(id => formatWindow(slotById(id))).join(' · '))}
+      ${meta('The look', season.look)}
     </div>
     ${splitBar(season)}
     <button class="btn btn-sm" data-detail="${season.id}">Full breakdown</button>
@@ -163,7 +175,7 @@ function seasonCard(season) {
 }
 
 function splitBar(season) {
-  const total = Object.values(season.split).reduce((a, b) => a + b, 0);
+  const total = Object.values(season.split).reduce((x, y) => x + y, 0);
   const shades = [season.accent, season.accent2, 'var(--line-hi)'];
   return `<div>
     <div style="display:flex;height:7px;border-radius:var(--r-pill);overflow:hidden;gap:2px">
@@ -178,12 +190,12 @@ function splitBar(season) {
   </div>`;
 }
 
-/* ----------------------------------------------------------------- dialogs */
-
 function pickFlow(slotId) {
-  const slot = slotById(slotId);
-  const options = seasonsForSlot(slotId);
+  const slot = slotById(slotId, layout());
   const current = store.data.seasons?.[slotId];
+  const rec = new Set(recommendedFor(slotId).map(s => s.id));
+  // Recommended first, but everything is offered — people train around their lives.
+  const options = [...SEASONS].sort((x, y) => (rec.has(y.id) ? 1 : 0) - (rec.has(x.id) ? 1 : 0));
 
   const dlg = document.createElement('dialog');
   dlg.className = 'modal';
@@ -196,22 +208,22 @@ function pickFlow(slotId) {
       </div>
       <button class="btn btn-ghost btn-icon" data-close aria-label="Close">${icon('x')}</button>
     </div>
-    <p class="dim" style="font-size:var(--step--1)">
-      ${options.length} season${options.length === 1 ? '' : 's'} are built for this block.</p>
-    <div class="stack" style="gap:9px">
+    <div class="stack" style="gap:9px;max-height:56vh;overflow-y:auto;padding-right:2px">
       ${options.map(s => `
         <button class="list-item glow-hover" style="--glow-color:${s.accent};text-align:left;cursor:pointer;width:100%"
             data-pick="${s.id}" aria-pressed="${current === s.id}">
           <span class="season-art" style="--season:${s.accent};width:42px;padding:7px">${seasonIcon(s)}</span>
           <span class="grow" style="min-width:0">
-            <strong>${esc(s.name)}</strong>${isYearRound(s) ? ' <span class="season-chip" style="--season:' + s.accent + '">Any block</span>' : ''}
+            <strong>${esc(s.name)}</strong>
+            ${rec.has(s.id) ? `<span class="season-chip" style="--season:${s.accent}">Recommended</span>` : ''}
             <br><small>${esc(s.goal)} · ${esc(s.calories)}</small>
           </span>
-          ${current === s.id ? `<span class="chip chip-ok">${icon('check')}Current</span>` : `<span style="color:var(--text-3);width:18px">${icon('chevron')}</span>`}
+          ${current === s.id ? `<span class="chip chip-ok">${icon('check')}Current</span>`
+            : `<span style="color:var(--text-3);width:18px">${icon('chevron')}</span>`}
         </button>`).join('')}
     </div>
     <div class="row" style="justify-content:space-between;gap:10px">
-      ${current ? `<button class="btn btn-ghost btn-sm" data-clear style="color:var(--bad)">${icon('trash')}<span>Empty this block</span></button>` : '<span></span>'}
+      ${current ? `<button class="btn btn-ghost btn-sm" data-clear style="color:var(--bad)">${icon('trash')}<span>Empty block</span></button>` : '<span></span>'}
       <button class="btn btn-ghost" data-close>Done</button>
     </div>
   </div>`;
@@ -219,20 +231,17 @@ function pickFlow(slotId) {
   const close = () => { dlg.close(); dlg.remove(); };
   dlg.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', close));
   dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
-
   dlg.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', async () => {
-    const season = seasonById(b.dataset.pick);
-    await store.setSeason(slotId, season.id);
+    const s = seasonById(b.dataset.pick);
+    await store.setSeason(slotId, s.id);
     close();
-    toast(`${season.name} set for ${slot.short.toLowerCase()}`, 'ok');
+    toast(`${s.name} set for ${slot.short}`, 'ok');
   }));
-
   dlg.querySelector('[data-clear]')?.addEventListener('click', async () => {
     await store.setSeason(slotId, null);
     close();
     toast('Block emptied');
   });
-
   document.body.append(dlg);
   dlg.showModal();
 }
@@ -252,43 +261,27 @@ function detail(season) {
       </div>
       <button class="btn btn-ghost btn-icon" data-close aria-label="Close">${icon('x')}</button>
     </div>
-
     <p class="muted" style="font-size:var(--step--1)">${esc(season.blurb)}</p>
-
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
-      ${stat('Goal', season.goal)}${stat('Calories', season.calories)}
-      ${stat('Runs', isYearRound(season) ? 'All year' : season.slots.map(id => slotById(id).short).join(', '))}
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+      ${stat('Goal', season.goal)}${stat('Calories', season.calories)}${stat('The look', season.look)}
+      ${stat('Rep range', `${season.repRange[0]}–${season.repRange[1]}`)}
+      ${stat('Rest', `${season.restSec}s on compounds`)}
+      ${stat('Protein', `${season.proteinPerKg} g/kg`)}
     </div>
-
     <div>
       <p class="eyebrow" style="margin-bottom:8px">Training emphasis</p>
-      <div class="row wrap" style="gap:7px">
-        ${season.emphasis.map(e => `<span class="chip">${esc(e)}</span>`).join('')}
-      </div>
+      <div class="row wrap" style="gap:7px">${season.emphasis.map(e => `<span class="chip">${esc(e)}</span>`).join('')}</div>
     </div>
-
+    ${season.avoid?.length ? `<div>
+      <p class="eyebrow" style="margin-bottom:8px">What to avoid</p>
+      <div class="row wrap" style="gap:7px">${season.avoid.map(e => `<span class="chip chip-warn">${esc(e)}</span>`).join('')}</div>
+    </div>` : ''}
     <div>
       <p class="eyebrow" style="margin-bottom:8px">What to watch</p>
-      <div class="row wrap" style="gap:7px">
-        ${season.watch.map(w => `<span class="season-chip" style="--season:${season.accent}">${esc(w)}</span>`).join('')}
-      </div>
+      <div class="row wrap" style="gap:7px">${season.watch.map(w => `<span class="season-chip" style="--season:${season.accent}">${esc(w)}</span>`).join('')}</div>
     </div>
-
-    <div>
-      <p class="eyebrow" style="margin-bottom:8px">Time split</p>
-      ${splitBar(season)}
-    </div>
-
-    <div>
-      <p class="eyebrow" style="margin-bottom:8px">Calendar</p>
-      ${(isYearRound(season) ? SLOTS : season.slots.map(slotById)).map(s => `
-        <div class="row-between" style="font-size:var(--step--1);padding:7px 0;border-bottom:1px solid var(--line)">
-          <span>${esc(s.name)}</span>
-          <span class="dim">${esc(formatWindow(s))}</span>
-        </div>`).join('')}
-    </div>
-
-    <button class="btn btn-primary btn-block" data-add>${icon('plus')}<span>Add to my year</span></button>
+    <div><p class="eyebrow" style="margin-bottom:8px">Time split</p>${splitBar(season)}</div>
+    <button class="btn btn-primary btn-block" data-add>${icon('plus')}<span>Put this in my current block</span></button>
   </div>`;
 
   const close = () => { dlg.close(); dlg.remove(); };
@@ -296,13 +289,10 @@ function detail(season) {
   dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
   dlg.querySelector('[data-add]').addEventListener('click', async () => {
     close();
-    // Year-round seasons can go anywhere, so ask which block rather than guessing.
-    const target = isYearRound(season) ? LIVE.id
-      : (season.slots.includes(LIVE.id) ? LIVE.id : season.slots[0]);
-    await store.setSeason(target, season.id);
-    toast(`${season.name} added to ${slotById(target).short.toLowerCase()}`, 'ok');
+    const slot = live();
+    await store.setSeason(slot.id, season.id);
+    toast(`${season.name} set for ${slot.short}`, 'ok');
   });
-
   document.body.append(dlg);
   dlg.showModal();
 }

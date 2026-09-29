@@ -25,7 +25,9 @@ web/                     the app — this is what GitHub Pages serves
   assets/brand/          logo.svg, wolf.svg, mark.svg, favicon.svg, maskable.svg
   assets/css/ferox.css   the whole design system, token-driven
   assets/js/core/        config, store, auth, ui, chart, icons, seed,
-                         seasons (the training year), season-icons (animated SVG)
+                         seasons + season-icons (the training year),
+                         profile (calorie maths), split (week builder),
+                         research (study summaries), image (avatar resizing)
   assets/js/pages/       one module per page + _log.js (shared session editor)
 server/                  optional Express API
   index.js               app + static host        static.js  no-API dev server
@@ -109,6 +111,30 @@ The server imports the same file, so it is the single source of truth.
   `core/season-icons.js`. Tests assert every field is present, the time split
   totals 100, the icon renders with an animated part, and gradient ids stay
   unique. A season eligible for all four blocks is treated as year-round.
+
+## Onboarding and the plan
+
+A new account starts genuinely empty — there is no demo data. `bootPage` sends
+anyone without `data.onboarded` to `onboarding.html`, which collects name, sex,
+age, height, weight, goal, experience, days per week, activity and equipment,
+then writes a real plan.
+
+`core/profile.js` owns the maths: Mifflin–St Jeor for BMR, an activity
+multiplier for maintenance, a per-season calorie shift and protein per kg.
+**The deficit is floored** so intake never drops below resting expenditure or
+the conventional 1,200/1,500 kcal minimum — a percentage cut applied to a small
+sedentary person otherwise lands near 1,080 kcal, which is not a number to
+prescribe. There is a test for it.
+
+`core/split.js` builds the week. Two rules it must keep:
+1. Every major muscle group is trained **2–3 times a week**, at every day count.
+2. Week one runs ~15% above steady state and settles by week four.
+Both are tested. It also filters exercises by equipment and by the joints
+someone listed as problems, and backfills a session if those filters leave it
+too thin.
+
+`_readiness.js` asks how today feels, 1–10, and scales sets and load. A wrecked
+day loses about half the volume; a primed day gains a set and a finisher.
 
 ## Seasons
 

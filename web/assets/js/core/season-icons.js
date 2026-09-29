@@ -89,6 +89,41 @@ const ICONS = {
     <circle cx="5" cy="34" r="3.4" fill="${a}" class="fx-cross"/>`,
     'Bridge'),
 
+  /* Clean Bulk — a bar loading up, plates settling on. */
+  bulk: (id, a, b) => wrap(id, grad(`g${id}`, a, b), `
+    <path d="M6 24h36" stroke="${b}" stroke-width="3" stroke-linecap="round"/>
+    <rect x="12" y="13" width="6" height="22" rx="2" fill="url(#g${id})" class="fx-stack" style="--d:0s"/>
+    <rect x="21" y="9"  width="6" height="30" rx="2" fill="url(#g${id})" class="fx-stack" style="--d:.2s"/>
+    <rect x="30" y="13" width="6" height="22" rx="2" fill="url(#g${id})" class="fx-stack" style="--d:.4s"/>
+    <path d="M24 4v3M24 41v3" stroke="${a}" stroke-width="3" stroke-linecap="round" class="fx-pulse-soft" style="transform-origin:24px 24px"/>`,
+    'Clean Bulk'),
+
+  /* The Cut — a descending trace, trimming down. */
+  cut: (id, a, b) => wrap(id, grad(`g${id}`, a, b, false), `
+    <path d="M5 12h38" stroke="${b}" stroke-width="2.6" stroke-linecap="round" opacity=".28"/>
+    <path d="M5 12c8 0 8 8 16 8s8 8 16 8 6 8 6 8" stroke="url(#g${id})" stroke-width="3.6"
+      stroke-linecap="round" fill="none" class="fx-trace" pathLength="100" stroke-dasharray="30 70"/>
+    <circle cx="43" cy="36" r="3.6" fill="${a}" class="fx-pulse-soft" style="transform-origin:43px 36px"/>`,
+    'The Cut'),
+
+  /* Hybrid — two paths crossing, lifting and running at once. */
+  hybrid: (id, a, b) => wrap(id, grad(`g${id}`, a, b, false), `
+    <path d="M6 34c10 0 14-20 24-20s12 8 12 8" stroke="url(#g${id})" stroke-width="3.4"
+      stroke-linecap="round" fill="none" class="fx-trace" pathLength="100" stroke-dasharray="32 68"/>
+    <path d="M6 14c10 0 14 20 24 20s12-8 12-8" stroke="${b}" stroke-width="3.4"
+      stroke-linecap="round" fill="none" opacity=".55" class="fx-trace" style="animation-delay:-1.3s"
+      pathLength="100" stroke-dasharray="32 68"/>
+    <circle cx="24" cy="24" r="3.2" fill="${a}" class="fx-pulse-soft" style="transform-origin:24px 24px"/>`,
+    'Hybrid'),
+
+  /* Peak Week — a summit with a light on it. */
+  peak: (id, a, b) => wrap(id, grad(`g${id}`, a, b), `
+    <path d="M5 38 19 16l8 11 5-7 11 18Z" fill="url(#g${id})"/>
+    <path d="M19 16 27 27l-5 7-6-9Z" fill="#000" opacity=".2"/>
+    <circle cx="19" cy="10" r="3.4" fill="${a}" class="fx-pulse-soft" style="transform-origin:19px 10px"/>
+    <path d="M12 7l-2-2M26 7l2-2M19 3V1" stroke="${a}" stroke-width="2.2" stroke-linecap="round" class="fx-drift"/>`,
+    'Peak Week'),
+
   /* Reset — a dial coming back round to zero. */
   reset: (id, a, b) => wrap(id, grad(`g${id}`, a, b), `
     <g class="fx-rewind" style="transform-origin:24px 24px">

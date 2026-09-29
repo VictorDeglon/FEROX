@@ -4,11 +4,15 @@ import { bootPage, esc, num, relDate, toast, confirmDialog } from '../core/ui.js
 import { icon } from '../core/icons.js';
 import { ROUTINES, EXERCISES, MUSCLES, byId, exerciseName } from '../core/seed.js';
 import { logSessionFlow } from './_log.js';
+import { askReadiness, readinessBar } from './_readiness.js';
+import { buildWeek, weeklyFrequency, templateFor } from '../core/split.js';
+import { seasonById, currentSlot } from '../core/seasons.js';
+import { seasonIcon } from '../core/season-icons.js';
 
 const empty = msg => `<div class="card"><div class="empty">${icon('dumbbell')}<strong>${esc(msg)}</strong></div></div>`;
 
 let filter = 'All';
-let tab = 'routines';
+let tab = 'plan';
 
 const view = await bootPage({
   title: 'Workouts',
@@ -21,6 +25,7 @@ function render(el) {
   el.innerHTML = `
     <div class="row-between wrap" style="gap:12px">
       <div class="seg" role="tablist">
+        <button role="tab" aria-pressed="${tab === 'plan'}" data-tab="plan">Your plan</button>
         <button role="tab" aria-pressed="${tab === 'routines'}" data-tab="routines">Routines</button>
         <button role="tab" aria-pressed="${tab === 'history'}" data-tab="history">History</button>
         <button role="tab" aria-pressed="${tab === 'library'}" data-tab="library">Exercises</button>
@@ -37,9 +42,73 @@ function render(el) {
     b.addEventListener('click', () => { filter = b.dataset.filter; render(el); }));
 
   const pane = el.querySelector('#pane');
-  if (tab === 'routines') routines(pane);
+  if (tab === 'plan') plan(pane, el);
+  else if (tab === 'routines') routines(pane);
   else if (tab === 'history') history(pane);
   else library(pane);
+}
+
+/** The week FEROX built for this person, scaled by how they feel today. */
+function plan(pane, root) {
+  const p = store.data.profile;
+  const slot = currentSlot(store.data.layout ?? 4);
+  const season = seasonById(store.data.seasons?.[slot.id]) ?? seasonById('ferox-recomp');
+  const score = store.readinessFor() ?? 7;
+  const week = buildWeek(p, season, score, store.weekIndex());
+  const freq = weeklyFrequency(week);
+  const main = ['Chest', 'Back', 'Legs', 'Shoulders'].filter(m => freq[m]);
+  const tpl = templateFor(p.daysPerWeek);
+  const wk = store.weekIndex();
+
+  pane.className = 'stack';
+  pane.innerHTML = `<div id="readySlot"></div>
+
+    <div class="card card-pad-lg glow-edge" style="--glow-color:${season.accent};--season:${season.accent}">
+      <div class="row wrap" style="gap:var(--sp-s);align-items:center">
+        <span class="season-art" style="--season:${season.accent}">${seasonIcon(season)}</span>
+        <div class="grow" style="min-width:180px">
+          <p class="eyebrow">${esc(slot.name)} · week ${wk + 1}</p>
+          <h3 style="font-size:var(--step-1);margin-top:3px">${esc(season.name)} · ${esc(tpl.name)}</h3>
+          <p class="dim" style="font-size:var(--step--2);margin-top:3px">${esc(season.goal)} · ${season.repRange[0]}–${season.repRange[1]} reps · ${season.restSec}s rest</p>
+        </div>
+        ${main.length ? `<span class="chip chip-ok">each muscle ${Math.min(...main.map(m => freq[m]))}–${Math.max(...main.map(m => freq[m]))}× a week</span>` : ''}
+      </div>
+      ${wk < 3 ? `<p class="dim" style="font-size:var(--step--2);margin-top:12px">
+        Week ${wk + 1} runs ${Math.round((({0:1.15,1:1.08,2:1.03}[wk] ?? 1) - 1) * 100)}% above your steady state — it settles by week four.</p>` : ''}
+    </div>
+
+    <div class="grid grid-2">
+      ${week.days.map((d, i) => `
+        <article class="card card-pad-lg stack" style="gap:12px">
+          <div class="row-between">
+            <div>
+              <p class="eyebrow">Day ${i + 1}</p>
+              <h3 style="margin-top:3px">${esc(d.name)}</h3>
+            </div>
+            <span class="chip">${d.minutes} min</span>
+          </div>
+          <div class="row wrap" style="gap:6px">
+            ${d.focus.map(f => `<span class="chip chip-ember">${esc(f)}</span>`).join('')}
+          </div>
+          <div class="table-wrap"><table class="data">
+            <tbody>${d.entries.map(e => `
+              <tr>
+                <td><strong>${esc(e.name)}</strong>${e.finisher ? ' <span class="chip chip-warn">finisher</span>' : ''}
+                  <br><small class="dim">${esc(e.muscle)} · ${e.rest}s rest</small></td>
+                <td style="text-align:right" class="num"><strong>${e.sets} × ${e.reps}</strong>
+                  <br><small class="dim">${e.rir} in reserve</small></td>
+              </tr>`).join('')}</tbody>
+          </table></div>
+          <button class="btn btn-primary btn-sm btn-block" data-start-day="${i}">${icon('bolt')}<span>Start this session</span></button>
+        </article>`).join('')}
+    </div>
+
+    <p class="dim" style="font-size:var(--step--2)">
+      Built from your setup answers and ${esc(season.name)}. Change anything in your profile and this rebuilds.</p>`;
+
+  pane.querySelector('#readySlot').replaceWith(readinessBar(() => render(root)));
+  pane.querySelectorAll('[data-start-day]').forEach(b =>
+    b.addEventListener('click', () => logSessionFlow(null, week.days[+b.dataset.startDay])));
 }
 
 function routines(pane) {
