@@ -64,6 +64,18 @@ function emptyData() {
     checkIns: [],   // { id, date, weightKg, bodyFat, leanKg, waistCm, restingHr, sleepH, energy, note }
 
     customFoods: [],// { id, name, per, kcal, p, c, f, custom: true }
+
+    /**
+     * Combinations worth remembering.
+     *
+     * `savedMeals` are the ones that have a name and can be logged in one tap.
+     * `mealPatterns` is the quiet half: every combination logged together is
+     * fingerprinted and counted, and once the same one shows up twice FEROX
+     * offers to save it. Nobody wants to be asked to name their breakfast the
+     * first time they eat it.
+     */
+    savedMeals: [],   // { id, name, meal, items:[{foodId,qty}], kcal,p,c,f, uses, lastUsed }
+    mealPatterns: {}, // { [fingerprint]: { items, count, lastSeen, dismissed } }
     water: {},      // { [date]: millilitres }
     settings: { ...DEFAULT_SETTINGS },
     unlocks: [],    // easter-egg ids — see core/eggs.js
@@ -161,10 +173,11 @@ class Store extends EventTarget {
     const base = emptyData();
     const d = { ...base, ...raw, profile: { ...base.profile, ...(raw.profile ?? {}) } };
     d.profile.goals = { ...base.profile.goals, ...(raw.profile?.goals ?? {}) };
-    for (const k of ['sessions', 'meals', 'weights', 'medals', 'friends', 'checkIns', 'customFoods', 'unlocks']) {
+    for (const k of ['sessions', 'meals', 'weights', 'medals', 'friends', 'checkIns',
+      'customFoods', 'unlocks', 'savedMeals']) {
       if (!Array.isArray(d[k])) d[k] = [];
     }
-    for (const k of ['seasons', 'readiness', 'water']) {
+    for (const k of ['seasons', 'readiness', 'water', 'mealPatterns']) {
       if (!d[k] || typeof d[k] !== 'object' || Array.isArray(d[k])) d[k] = {};
     }
     if (!Array.isArray(d.profile.limits)) d.profile.limits = [];
@@ -297,6 +310,75 @@ class Store extends EventTarget {
     return this.commit(d => { d.settings.lastWeighInPrompt = date; });
   }
 
+  /* ---- saved meals ---- */
+
+  /**
+   * A fingerprint for a combination of foods.
+   *
+   * Sorted ids and nothing else: the same plate with the portions nudged is
+   * still the same plate, and someone who always has two eggs one day and
+   * three the next should not be offered two different saved breakfasts.
+   */
+  static fingerprint(items) {
+    return [...new Set(items.map(i => i.foodId).filter(Boolean))].sort().join('+');
+  }
+
+  /**
+   * Note that these foods were logged together.
+   *
+   * Called after a meal is logged. Nothing is saved and nothing is asked on the
+   * first sighting — it just counts. `suggestibleMeal()` is what decides when
+   * the count is high enough to be worth mentioning.
+   */
+  noteMealPattern(items, meal) {
+    const key = Store.fingerprint(items);
+    if (!key || items.length < 2) return Promise.resolve(null);
+    return this.commit(d => {
+      const hit = d.mealPatterns[key] ?? { items: [], count: 0, dismissed: false };
+      d.mealPatterns[key] = {
+        ...hit,
+        meal,
+        items: items.map(i => ({ foodId: i.foodId, qty: i.qty })),
+        count: hit.count + 1,
+        lastSeen: todayISO(),
+      };
+    }).then(() => key);
+  }
+
+  /**
+   * A combination logged more than once, not yet saved and not yet declined.
+   * This is the whole point of the quiet counting.
+   */
+  suggestibleMeal(minCount = 2) {
+    const saved = new Set(this.#data.savedMeals.map(m => Store.fingerprint(m.items)));
+    for (const [key, pat] of Object.entries(this.#data.mealPatterns)) {
+      if (pat.dismissed || pat.count < minCount || saved.has(key)) continue;
+      return { key, ...pat };
+    }
+    return null;
+  }
+
+  /** "Don't ask me about this one again." */
+  dismissMealPattern(key) {
+    return this.commit(d => { if (d.mealPatterns[key]) d.mealPatterns[key].dismissed = true; });
+  }
+
+  saveMeal(meal) {
+    const rec = { id: `sm-${uid().slice(0, 8)}`, uses: 0, lastUsed: null, ...meal };
+    return this.commit(d => { d.savedMeals.unshift(rec); }).then(() => rec);
+  }
+  removeSavedMeal(id) {
+    return this.commit(d => { d.savedMeals = d.savedMeals.filter(m => m.id !== id); });
+  }
+  noteMealUsed(id) {
+    return this.commit(d => {
+      const m = d.savedMeals.find(x => x.id === id);
+      if (m) { m.uses = (m.uses ?? 0) + 1; m.lastUsed = todayISO(); }
+      // Most-used first, so the thing you eat every morning stays at the top.
+      d.savedMeals.sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0));
+    });
+  }
+
   addCustomFood(food) {
     const rec = { id: `cf-${uid().slice(0, 8)}`, per: '1 serving', custom: true, ...food };
     return this.commit(d => { d.customFoods.unshift(rec); }).then(() => rec);
@@ -405,6 +487,8 @@ class Store extends EventTarget {
       d.readiness = {};
       d.water = {};
       d.customFoods = [];
+      d.savedMeals = [];
+      d.mealPatterns = {};
       // The plan is a fresh start too: week one of the ramp begins today, and
       // the checkpoint schedule is measured from the same date.
       d.planStart = todayISO();
@@ -592,7 +676,7 @@ export const RESET_CLEARS = [
   'Medals and personal records',
   'Daily readiness scores',
   'Water intake',
-  'Custom foods you added',
+  'Custom foods and saved meals',
 ];
 /** ...and what survives it. */
 export const RESET_KEEPS = [

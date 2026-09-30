@@ -17,9 +17,9 @@ const ensureDir = () => (ready ??= mkdir(config.dataDir, { recursive: true }));
 
 /** Collections that must be arrays. Mirrors `emptyData()` in the web store. */
 export const ARRAYS = ['sessions', 'meals', 'weights', 'medals', 'friends',
-  'checkIns', 'customFoods', 'unlocks'];
+  'checkIns', 'customFoods', 'unlocks', 'savedMeals'];
 /** ...and the ones that must be plain objects keyed by date or slot. */
-export const MAPS = ['seasons', 'readiness', 'water'];
+export const MAPS = ['seasons', 'readiness', 'water', 'mealPatterns'];
 
 /**
  * A fresh document, matching web/assets/js/core/store.js at version 3.

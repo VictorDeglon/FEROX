@@ -1214,3 +1214,26 @@ code.phrase {
 .cat-row-add svg { width: 15px; height: 15px; }
 [data-theme='light'] .cat-row-add { color: var(--ember-lo); }
 .cat-row-add:hover { background: var(--ember); color: #fff; }
+
+/* Meal photo and plate builder ------------------------------------------- */
+.meal-photo {
+  width: 100%; max-height: 300px; object-fit: cover;
+  border-radius: var(--r-md); border: 1px solid var(--line);
+}
+.plate-total {
+  padding: 13px 15px; border-radius: var(--r-md);
+  background: var(--surf-2); border: 1px solid var(--line);
+}
+[data-theme='light'] .plate-total { background: var(--surf-3); }
+
+/* A suggestion the app raises itself — quieter than a prompt, louder than nothing. */
+.nudge {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 13px 15px; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--ember) 7%, var(--surf-1));
+  border: 1px solid color-mix(in srgb, var(--ember) 28%, var(--line));
+}
+.nudge > svg { width: 17px; height: 17px; flex: none; color: var(--ember); margin-top: 2px; }
+.nudge-body { flex: 1; min-width: 0; }
+.nudge-body strong { font-size: var(--step--1); }
+.nudge-body p { font-size: var(--step--2); color: var(--text-2); margin-top: 3px; }

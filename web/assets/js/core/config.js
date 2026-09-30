@@ -19,6 +19,17 @@ export const CONFIG = {
   // '' = pure static/local mode. Set to e.g. 'http://localhost:4000' to use the API.
   apiBase: '',
 
+  /**
+   * Optional endpoint that estimates a meal from a photograph.
+   *
+   * Empty by default, and the photo path stays hidden until it is set. Food
+   * recognition needs a vision model far larger than this whole app, so it
+   * cannot run offline — see core/vision.js for the full reasoning. When this
+   * is configured the athlete is told the photo leaves the device, told where
+   * it goes, and asked before it is sent.
+   */
+  visionEndpoint: '',
+
   storageKey: 'ferox.v2',
   sessionKey: 'ferox.v2.session',
   themeKey: 'ferox.v2.theme',

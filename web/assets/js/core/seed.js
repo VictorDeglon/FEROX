@@ -8,11 +8,13 @@
  */
 import { EXERCISE_CATALOGUE } from './exercises.js';
 import { ANATOMY, GROUPS, anatomyById } from './anatomy.js';
+import { FOODS, FOOD_CATEGORIES, per100 } from './foods.js';
 
 export const MUSCLES = GROUPS;
 export { ANATOMY, anatomyById };
 
 export const EXERCISES = EXERCISE_CATALOGUE;
+export { FOODS, FOOD_CATEGORIES, per100 };
 
 /**
  * Ids used before the catalogue was generated.
@@ -111,30 +113,6 @@ export const ROUTINES = [
     blurb: 'Conversational pace. If you can’t talk, slow down.',
     blocks: [{ ex: 'run', sets: 1, reps: 6 }],
   },
-];
-
-/** Per 100 g unless `per` says otherwise. */
-export const FOODS = [
-  { id: 'f-chicken', name: 'Chicken breast, cooked', per: '100 g', kcal: 165, p: 31, c: 0,  f: 3.6 },
-  { id: 'f-rice',    name: 'White rice, cooked',     per: '100 g', kcal: 130, p: 2.7, c: 28, f: 0.3 },
-  { id: 'f-oats',    name: 'Rolled oats, dry',       per: '100 g', kcal: 389, p: 17, c: 66, f: 7 },
-  { id: 'f-egg',     name: 'Egg, whole',             per: '1 egg', kcal: 72,  p: 6.3, c: 0.4, f: 4.8 },
-  { id: 'f-salmon',  name: 'Salmon, cooked',         per: '100 g', kcal: 208, p: 20, c: 0,  f: 13 },
-  { id: 'f-beef',    name: 'Beef mince, 5% fat',     per: '100 g', kcal: 137, p: 21, c: 0,  f: 5 },
-  { id: 'f-yoghurt', name: 'Greek yoghurt, 0%',      per: '100 g', kcal: 59,  p: 10, c: 3.6, f: 0.4 },
-  { id: 'f-banana',  name: 'Banana',                 per: '1 med', kcal: 105, p: 1.3, c: 27, f: 0.4 },
-  { id: 'f-avocado', name: 'Avocado',                per: '100 g', kcal: 160, p: 2,  c: 9,  f: 15 },
-  { id: 'f-pasta',   name: 'Pasta, cooked',          per: '100 g', kcal: 158, p: 5.8, c: 31, f: 0.9 },
-  { id: 'f-potato',  name: 'Potato, boiled',         per: '100 g', kcal: 87,  p: 1.9, c: 20, f: 0.1 },
-  { id: 'f-broccoli',name: 'Broccoli, steamed',      per: '100 g', kcal: 35,  p: 2.4, c: 7,  f: 0.4 },
-  { id: 'f-almond',  name: 'Almonds',                per: '100 g', kcal: 579, p: 21, c: 22, f: 50 },
-  { id: 'f-bread',   name: 'Wholegrain bread',       per: '1 slice', kcal: 82, p: 4, c: 14, f: 1.1 },
-  { id: 'f-milk',    name: 'Milk, semi-skimmed',     per: '250 ml', kcal: 122, p: 8.5, c: 12, f: 4.3 },
-  { id: 'f-whey',    name: 'Whey protein',           per: '1 scoop', kcal: 120, p: 24, c: 3, f: 1.5 },
-  { id: 'f-peanut',  name: 'Peanut butter',          per: '100 g', kcal: 588, p: 25, c: 20, f: 50 },
-  { id: 'f-tuna',    name: 'Tuna, in water',         per: '100 g', kcal: 116, p: 26, c: 0, f: 0.8 },
-  { id: 'f-apple',   name: 'Apple',                  per: '1 med', kcal: 95,  p: 0.5, c: 25, f: 0.3 },
-  { id: 'f-olive',   name: 'Olive oil',              per: '1 tbsp', kcal: 119, p: 0, c: 0, f: 13.5 },
 ];
 
 export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];

@@ -4,6 +4,8 @@ import { bootPage, esc, num, pct, toast, modal, confirmDialog } from '../core/ui
 import { icon } from '../core/icons.js';
 import { ring, barChart, lineChart, breakdown, VIZ } from '../core/chart.js';
 import { FOODS, MEALS, byId } from '../core/seed.js';
+import { pickFood, plateBuilder, scale, totals, searchFoods } from './_plate.js';
+import { photoFlow, photoAvailable } from './_photo.js';
 import { planStatus } from '../core/plan.js';
 import { adherence } from '../core/metabolism.js';
 
@@ -25,10 +27,22 @@ const findFood = id => byId(catalogue(), id);
 
 const view = await bootPage({
   title: 'Nutrition',
-  actions: `<button class="btn btn-primary btn-sm" id="addFood">${icon('plus')}<span>Add food</span></button>`,
+  actions: `
+    <button class="btn btn-ghost btn-sm btn-icon" id="photoBtn" aria-label="Log a meal from a photo"
+      title="Log a meal from a photo">${icon('camera')}</button>
+    <button class="btn btn-ghost btn-sm" id="plateBtn">${icon('apple')}<span>Build a meal</span></button>
+    <button class="btn btn-primary btn-sm" id="addFood">${icon('plus')}<span>Add food</span></button>`,
 }, render);
 
 document.getElementById('addFood').addEventListener('click', () => addFoodFlow());
+document.getElementById('plateBtn').addEventListener('click', () => plateBuilder({ onDone: logPlate }));
+document.getElementById('photoBtn').addEventListener('click', async () => {
+  const res = await photoFlow();
+  if (!res) return;
+  // Whether or not an estimate came back, the plate builder is where it lands —
+  // an estimate you cannot correct is worse than no estimate at all.
+  plateBuilder({ onDone: logPlate });
+});
 
 function render(el) {
   const d = store.data;
@@ -127,6 +141,8 @@ function render(el) {
       </div>
 
       <div class="stack" style="gap:16px">
+        ${mealNudge()}
+        ${savedMealsCard()}
         ${targetCard(plan, a, goals)}
 
         <div class="card card-pad-lg">
@@ -220,6 +236,18 @@ function render(el) {
   }));
 
   el.querySelector('#newFood').addEventListener('click', newFoodFlow);
+
+  el.querySelectorAll('[data-logsaved]').forEach(b => b.addEventListener('click', () =>
+    logSaved(store.data.savedMeals.find(m => m.id === b.dataset.logsaved))));
+  el.querySelectorAll('[data-rmsaved]').forEach(b => b.addEventListener('click', async () => {
+    await store.removeSavedMeal(b.dataset.rmsaved);
+    toast('Removed');
+  }));
+
+  el.querySelector('#nudgeSave')?.addEventListener('click', () => saveSuggested());
+  el.querySelector('#nudgeNo')?.addEventListener('click', async () => {
+    await store.dismissMealPattern(el.querySelector('#nudgeNo').dataset.key);
+  });
   el.querySelectorAll('[data-rmfood]').forEach(b => b.addEventListener('click', async () => {
     const f = byId(store.data.customFoods, b.dataset.rmfood);
     if (await confirmDialog('Delete this food?',
@@ -288,6 +316,86 @@ function targetCard(plan, a, goals) {
             ? 'Your target matches what your data implies. Nothing to change.'
             : 'Log food on most days for a couple of weeks and FEROX will measure your maintenance instead of predicting it.'}</p>`}
   </div>`;
+}
+
+/**
+ * The suggestion FEROX raises on its own.
+ *
+ * It only appears once the same combination has been logged twice, which is
+ * the whole design: being asked to name your breakfast the first time you eat
+ * it is an interruption, and being asked the second time is a shortcut.
+ */
+function mealNudge() {
+  const pat = store.suggestibleMeal();
+  if (!pat) return '';
+  const all = [...store.data.customFoods, ...FOODS];
+  const names = pat.items.map(i => all.find(f => f.id === i.foodId)?.name).filter(Boolean);
+  if (names.length < 2) return '';
+
+  return `<div class="nudge">
+    ${icon('sparkle')}
+    <div class="nudge-body">
+      <strong>You have had this ${pat.count} times</strong>
+      <p>${esc(names.join(' + '))}</p>
+      <div class="row" style="gap:8px;margin-top:10px">
+        <button class="btn btn-sm btn-primary" id="nudgeSave">Save as a meal</button>
+        <button class="btn btn-sm btn-ghost" id="nudgeNo" data-key="${esc(pat.key)}">No thanks</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/** One-tap repeats, most used first. */
+function savedMealsCard() {
+  const saved = store.data.savedMeals;
+  if (!saved.length) return '';
+  return `<div class="card card-pad-lg">
+    <div class="card-head"><h3>Your meals</h3><span class="chip num">${saved.length}</span></div>
+    <div class="list">
+      ${saved.slice(0, 8).map(m => `
+        <div class="list-item">
+          <button class="grow" data-logsaved="${esc(m.id)}"
+            style="min-width:0;text-align:left;background:none;border:0;cursor:pointer;color:inherit">
+            <strong>${esc(m.name)}</strong><br>
+            <small>${num(m.kcal)} kcal · P ${m.p} / C ${m.c} / F ${m.f}${m.uses ? ` · used ${m.uses}×` : ''}</small>
+          </button>
+          <button class="btn btn-ghost btn-sm" data-rmsaved="${esc(m.id)}"
+            aria-label="Delete ${esc(m.name)}">${icon('trash')}</button>
+        </div>`).join('')}
+    </div>
+    <p class="dim" style="font-size:var(--step--2);margin-top:10px">Tap one to log it again.</p>
+  </div>`;
+}
+
+/** Turn the suggested pattern into a named, saved meal. */
+async function saveSuggested() {
+  const pat = store.suggestibleMeal();
+  if (!pat) return;
+  const all = [...store.data.customFoods, ...FOODS];
+  const items = pat.items.map(i => ({ food: all.find(f => f.id === i.foodId), qty: i.qty }))
+    .filter(x => x.food);
+  const guess = items.map(x => x.food.name.split(',')[0]).slice(0, 2).join(' and ');
+
+  const res = await modal({
+    title: 'Save this meal',
+    submit: 'Save it',
+    body: `
+      <div class="field">
+        <label for="smName">Call it</label>
+        <input class="input" id="smName" name="name" maxlength="60" value="${esc(guess)}" required>
+      </div>
+      <p class="dim" style="font-size:var(--step--2)">
+        ${esc(items.map(x => `${x.qty}× ${x.food.name}`).join(', '))}</p>`,
+  });
+  if (!res) return;
+
+  await store.saveMeal({
+    name: res.name.trim() || guess,
+    meal: pat.meal,
+    items: pat.items,
+    ...totals(items),
+  });
+  toast('Saved — one tap next time', 'ok');
 }
 
 /* --------------------------------------------------------------- helpers */
@@ -395,98 +503,50 @@ async function logFood(food, qty, meal) {
  * filters as you type and the macros for the chosen serving update with it,
  * so the number being logged is visible before it is committed.
  */
-async function addFoodFlow(meal = mealForNow()) {
-  const all = catalogue();
-  const dlg = document.createElement('dialog');
-  dlg.className = 'modal';
-  dlg.innerHTML = `
-    <form class="card card-pad-lg stack" style="gap:16px">
-      <div class="row-between">
-        <h3>Add food</h3>
-        <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Close">${icon('x')}</button>
-      </div>
-      <div class="field">
-        <label for="foodSearch">Search</label>
-        <input class="input" id="foodSearch" autocomplete="off" placeholder="chicken, oats, whey…">
-      </div>
-      <div class="field">
-        <label for="foodId">Food</label>
-        <select class="select" id="foodId" name="foodId" size="6" style="min-height:150px">
-          ${all.map((f, i) => optionFor(f, i === 0)).join('')}
-        </select>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="qty">Servings</label>
-          <input class="input" id="qty" name="qty" type="number" min="0.25" step="0.25" value="1" inputmode="decimal">
-        </div>
-        <div class="field">
-          <label for="meal">Meal</label>
-          <select class="select" id="meal" name="meal">
-            ${MEALS.map(m => `<option${m === meal ? ' selected' : ''}>${m}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <p class="muted" id="preview" style="font-size:.84rem"></p>
-      <div class="row wrap" style="justify-content:space-between;gap:10px">
-        <button type="button" class="btn btn-ghost btn-sm" data-new>${icon('plus')}<span>Not listed</span></button>
-        <div class="row" style="gap:10px">
-          <button type="button" class="btn btn-ghost" data-close>Cancel</button>
-          <button type="submit" class="btn btn-primary">Add</button>
-        </div>
-      </div>
-    </form>`;
+/**
+ * Log a plate of several foods in one go, remembering what it was.
+ *
+ * Every combination logged together is fingerprinted and counted by the store.
+ * Nothing is saved and nothing is asked the first time — see
+ * `store.noteMealPattern`.
+ */
+async function logPlate({ items, name, meal }) {
+  for (const it of items) await logFood(it.food, it.qty, meal);
+  await store.noteMealPattern(items.map(i => ({ foodId: i.food.id, qty: i.qty })), meal);
 
-  const search = dlg.querySelector('#foodSearch');
-  const list = dlg.querySelector('#foodId');
-  const qty = dlg.querySelector('#qty');
-  const preview = dlg.querySelector('#preview');
-
-  const sync = () => {
-    const f = byId(all, list.value);
-    const q = Math.max(0.25, +qty.value || 1);
-    preview.textContent = f
-      ? `${q}× ${f.per} — ${Math.round(f.kcal * q)} kcal · P ${(f.p * q).toFixed(1)} / C ${(f.c * q).toFixed(1)} / F ${(f.f * q).toFixed(1)}`
-      : 'Nothing matches that.';
-  };
-
-  search.addEventListener('input', () => {
-    const q = search.value.trim().toLowerCase();
-    const hits = q ? all.filter(f => f.name.toLowerCase().includes(q)) : all;
-    list.innerHTML = hits.map((f, i) => optionFor(f, i === 0)).join('');
-    sync();
-  });
-  list.addEventListener('change', sync);
-  qty.addEventListener('input', sync);
-  sync();
-
-  const close = () => { dlg.close(); dlg.remove(); };
-  dlg.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', close));
-  dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
-  dlg.querySelector('[data-new]').addEventListener('click', async () => {
-    close();
-    const made = await newFoodFlow();
-    if (made) { await logFood(made, 1, meal); toast(`${made.name} logged`, 'ok'); }
-  });
-
-  dlg.querySelector('form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const food = byId(all, list.value);
-    if (!food) { toast('Pick a food first', 'bad'); return; }
-    const q = Math.max(0.25, +qty.value || 1);
-    const chosen = dlg.querySelector('#meal').value;
-    close();
-    await logFood(food, q, chosen);
-    toast(`${food.name} logged`, 'ok');
-  });
-
-  document.body.append(dlg);
-  dlg.showModal();
-  search.focus();
+  if (name) {
+    const t = totals(items);
+    await store.saveMeal({
+      name, meal,
+      items: items.map(i => ({ foodId: i.food.id, qty: i.qty })),
+      ...t,
+    });
+    toast(`${name} logged and saved`, 'ok');
+  } else {
+    toast(`${items.length} item${items.length === 1 ? '' : 's'} logged`, 'ok');
+  }
 }
 
-const optionFor = (f, selected) =>
-  `<option value="${esc(f.id)}"${selected ? ' selected' : ''}>${esc(f.name)} — ${f.kcal} kcal / ${esc(f.per)}${f.custom ? ' ·' : ''}</option>`;
+/** Log a saved meal in one tap. */
+async function logSaved(saved) {
+  const all = [...store.data.customFoods, ...FOODS];
+  for (const it of saved.items) {
+    const food = all.find(f => f.id === it.foodId);
+    if (food) await logFood(food, it.qty, saved.meal ?? mealForNow());
+  }
+  await store.noteMealUsed(saved.id);
+  toast(`${saved.name} logged`, 'ok');
+}
+
+async function addFoodFlow(meal = mealForNow()) {
+  pickFood({
+    title: `Add to ${meal.toLowerCase()}`,
+    onPick: async (food, qty) => {
+      await logFood(food, qty, meal);
+      toast(`${food.name} logged`, 'ok');
+    },
+  });
+}
 
 /**
  * Add a food of your own.

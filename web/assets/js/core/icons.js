@@ -36,6 +36,8 @@ const P = {
   shield2:  '<path d="M12 3 4.5 6v6c0 4.5 3 7.8 7.5 9 4.5-1.2 7.5-4.5 7.5-9V6z"/><path d="m9 12 2 2 4-4"/>',
   heart:    '<path d="M12 20s-7-4.4-7-9.2A4.1 4.1 0 0 1 12 8a4.1 4.1 0 0 1 7 2.8C19 15.6 12 20 12 20Z"/>',
   arrowUp:  '<path d="M12 20V5m0 0-6 6m6-6 6 6"/>',
+  camera:   '<path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.3l1.3-2h7.8l1.3 2h2.3A1.5 1.5 0 0 1 21 8.5v10a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/><circle cx="12" cy="13" r="3.8"/>',
+  bookmark: '<path d="M6 4h12v17l-6-4.5L6 21z"/>',
 };
 
 /** Brand glyphs for the footer. Filled marks, so they sit apart from the UI set. */

@@ -3,7 +3,7 @@
  * App shell is cache-first (it changes only on deploy); everything else falls
  * back to the network. Bump CACHE on release to invalidate.
  */
-const CACHE = 'ferox-v5.0.0';
+const CACHE = 'ferox-v6.0.0';
 const SHELL = [
   './', 'index.html', 'dashboard.html', 'workouts.html', 'nutrition.html',
   'progress.html', 'records.html', 'medals.html', 'friends.html', 'profile.html',
@@ -28,7 +28,8 @@ const SHELL = [
   'assets/js/pages/medals.js', 'assets/js/pages/friends.js', 'assets/js/pages/profile.js',
   'assets/js/pages/_log.js', 'assets/js/pages/seasons.js', 'assets/js/pages/_readiness.js',
   'assets/js/pages/_weighin.js', 'assets/js/pages/_catalog.js',
-  'assets/js/core/catalog.js',
+  'assets/js/core/catalog.js', 'assets/js/core/foods.js', 'assets/js/core/vision.js',
+  'assets/js/pages/_plate.js', 'assets/js/pages/_photo.js',
   'assets/js/pages/onboarding.js', 'assets/js/pages/docs.js',
 ];
 

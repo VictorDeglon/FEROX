@@ -80,7 +80,13 @@ export function toast(message, kind = '') {
  * Open a <dialog> built from a title + body HTML.
  * Resolves with the submitted FormData, or null if dismissed.
  */
-export function modal({ title, body, submit = 'Save', cancel = 'Cancel', wide = false }) {
+/**
+ * @param {{title, body, submit?, cancel?, wide?, onMount?}} opts
+ *        `onMount` receives the live dialog before it opens, for the cases
+ *        where two fields have to stay in step — servings and grams, body fat
+ *        and lean mass — which a static body string cannot express.
+ */
+export function modal({ title, body, submit = 'Save', cancel = 'Cancel', wide = false, onMount = null }) {
   return new Promise(resolve => {
     const dlg = document.createElement('dialog');
     dlg.className = 'modal';
@@ -109,6 +115,7 @@ export function modal({ title, body, submit = 'Save', cancel = 'Cancel', wide = 
     });
 
     document.body.append(dlg);
+    onMount?.(dlg);
     dlg.showModal();
     dlg.querySelector('input, select, textarea')?.focus();
   });
