@@ -27,6 +27,7 @@ web/                     the app — this is what GitHub Pages serves
   assets/js/core/        config, store, auth, ui, chart, icons, seed,
                          seasons + season-icons (the training year),
                          profile (calorie maths), split (week builder),
+                         strength (what weight to put on the bar),
                          metabolism (measured maintenance + checkpoints),
                          plan (what the two of those say together),
                          themes (palettes), eggs (the secret console),
@@ -157,11 +158,85 @@ sedentary person otherwise lands near 1,080 kcal, which is not a number to
 prescribe. There is a test for it.
 
 `core/split.js` builds the week. Two rules it must keep:
-1. Every major muscle group is trained **2–3 times a week**, at every day count.
+1. Every major muscle group is trained **2–3 times a week**, at every day count
+   and in every season — except `endurance`, which drops lifting to twice a week
+   deliberately and is asserted as the one exception.
 2. Week one runs ~15% above steady state and settles by week four.
 Both are tested. It also filters exercises by equipment and by the joints
 someone listed as problems, and backfills a session if those filters leave it
 too thin.
+
+**`pick()` ranks candidates, it does not filter them**, so a preference that
+would empty the pool loses to the next one down instead of leaving a slot blank.
+The order has been wrong twice and both failures are worth knowing about:
+
+- Ranking by *position* in the day's focus list, rather than in/out of it as a
+  yes-or-no, made an upper day that listed Chest first fill its overhead-press
+  slot with a dip and finish with no shoulder work.
+- Preferring an uncovered muscle *above* the day's focus let an upper day spend
+  its last isolation slot on a leg curl.
+
+The order that satisfies both is: in-focus, then uncovered, then focus position,
+then not-used-this-week, then the mode's preferred lifts, then the best kit the
+athlete has. That last one matters more than it sounds — `availableExercises`
+returns everything at or *below* someone's tier, so without it a full-gym lifter
+was handed push-ups as their main chest movement about as often as a bench press.
+
+Exercises are tracked at two scopes: `inSession` is a hard exclusion (never the
+same lift twice in one day) and `used` is a week-wide soft preference (so the
+accessory slots rotate instead of prescribing the same pushdown four times).
+
+## Training modes
+
+A season already carried `repRange` and `restSec`, which say how hard each set
+is. `MODES` in `core/split.js` adds the half that was missing — how *many* —
+and the two move in opposite directions. A block of triples needs five sets to
+accumulate anything; a block of fifteens needs three or it is junk volume. That
+axis runs from `strength` (1–5 reps × 5 sets, heavy) to `metabolic` (10–15 × 3,
+light), and `intensity` scales the prescribed weight on top of it.
+
+Each mode also carries a `shape`, which *transforms* the week's template rather
+than replacing it: `compound` strips trailing accessories, `accessory` adds one,
+`explosive` leads with jumps, `conditioned` finishes on conditioning, `aerobic`
+rebuilds the week as two lifting days plus runs, `restorative` swaps power work
+for unilateral and mobility work. Transforming rather than hand-writing twenty
+templates is deliberate — the base templates already satisfy the frequency rule,
+so a transformation inherits it instead of having to re-prove it.
+
+Adding a mode means adding it to `MODES` and pointing at least one season's
+`mode` field at it. Tests assert every season names a real mode, every mode's
+`prefer` list names real exercises, and the sets-versus-reps axis runs the way
+the modes claim it does.
+
+## What weight goes on the bar
+
+`core/strength.js`. Three cases, in order of how much is actually known:
+
+1. **Never done this lift.** Estimate a 1RM from bodyweight × a per-exercise
+   standard × experience × sex × age, then **undershoot by 15%**.
+2. **Done this lift.** Use the best set logged, and add to it when the last
+   session hit every prescribed rep. Lower-body barbell lifts climb twice as
+   fast; missing by more than two reps backs the weight off.
+3. **Done this *muscle*.** Carry the group's measured ratio across to a lift
+   never performed — clamped to `CARRY_RANGE`, because a deadlift at double the
+   estimate is real information about your back and is *not* permission to open
+   an untried pulldown at double the textbook.
+
+**The undershoot is the load-bearing decision, and it is not timidity.** A first
+session 10 kg light costs thirty seconds to fix. A first session 10 kg heavy
+costs a failed rep, a tweaked shoulder, or a person who quietly decides this app
+is not for them. Every default leans the same way: estimates are conservative,
+rounding is always *down* to a loadable increment, and progression is earned.
+
+Two things run in opposite directions on purpose: a muscle group that is **ahead
+earns heavier weight**, one that is **behind earns an extra set**. A lagging
+group needs more work, not a heavier version of work it is already failing.
+
+The muscle ratio is a **median**, so one mistyped weight cannot drag a whole
+group's prescription with it, and nothing is acted on below two logged lifts —
+one lift is an anecdote. Adding an exercise that is logged in kg means adding it
+to `STANDARDS`; a test fails if you forget, because the logger would open that
+field at zero.
 
 `_readiness.js` asks how today feels, 1–10, and scales sets and load. A wrecked
 day loses about half the volume; a primed day gains a set and a finisher.

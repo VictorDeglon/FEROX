@@ -6,6 +6,7 @@ import { store, todayISO } from '../core/store.js';
 import { esc, toast } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { EXERCISES, ROUTINES, MEDALS, byId } from '../core/seed.js';
+import { suggestLoad } from '../core/strength.js';
 
 const unitLabel = ex => ({ kg: 'kg', bw: 'body', sec: 'sec', km: 'km' }[ex.unit] ?? '');
 
@@ -26,17 +27,32 @@ function lastSet(exId) {
 export function logSessionFlow(routineId, planDay) {
   const routine = routineId ? byId(ROUTINES, routineId) : null;
 
-  /** @type {{ex:string, sets:{reps:number,weight:number}[]}[]} */
+  /** @type {{ex:string, sets:{reps:number,weight:number}[], note?:string}[]} */
   let entries = [];
   if (planDay) {
-    entries = planDay.entries.map(e => {
-      const prev = lastSet(e.ex);
-      return { ex: e.ex, sets: Array.from({ length: e.sets }, () => ({ reps: e.reps, weight: prev?.weight ?? 0 })) };
-    });
+    // A generated day already carries a prescribed load per exercise, worked
+    // out from the athlete, the season and what the log says about that muscle.
+    entries = planDay.entries.map(e => ({
+      ex: e.ex,
+      note: e.load?.note,
+      sets: Array.from({ length: e.sets }, () => ({
+        reps: e.reps,
+        weight: e.load?.kg ?? lastSet(e.ex)?.weight ?? 0,
+      })),
+    }));
   } else if (routine) {
+    // A stock routine has no load of its own, so ask the model for one rather
+    // than opening every field at zero and making someone guess.
     entries = routine.blocks.map(b => {
-      const prev = lastSet(b.ex);
-      return { ex: b.ex, sets: Array.from({ length: b.sets }, () => ({ reps: b.reps, weight: prev?.weight ?? 0 })) };
+      const suggested = suggestLoad(b.ex, store.data.profile, store.data, { reps: b.reps, rir: 2 });
+      return {
+        ex: b.ex,
+        note: suggested?.note,
+        sets: Array.from({ length: b.sets }, () => ({
+          reps: b.reps,
+          weight: suggested?.kg ?? lastSet(b.ex)?.weight ?? 0,
+        })),
+      };
     });
   }
 
@@ -111,9 +127,10 @@ export function logSessionFlow(routineId, planDay) {
         const ex = byId(EXERCISES, entry.ex);
         return `<div class="card" style="padding:12px;background:var(--surf-2)">
           <div class="row-between" style="margin-bottom:9px">
-            <div>
+            <div style="min-width:0">
               <strong style="font-size:.9rem">${esc(ex.name)}</strong>
               <span class="dim" style="font-size:.74rem"> · ${esc(ex.muscle)}</span>
+              ${entry.note ? `<br><small class="dim" style="font-size:.7rem">${esc(entry.note)}</small>` : ''}
             </div>
             <button type="button" class="btn btn-ghost btn-sm" data-del="${ei}" aria-label="Remove ${esc(ex.name)}">${icon('trash')}</button>
           </div>
@@ -165,7 +182,13 @@ export function logSessionFlow(routineId, planDay) {
   dlg.querySelector('#addEx').addEventListener('click', () => {
     const id = dlg.querySelector('#addPick').value;
     const prev = lastSet(id);
-    entries.push({ ex: id, sets: [{ reps: prev?.reps ?? 8, weight: prev?.weight ?? 0 }] });
+    const reps = prev?.reps ?? 8;
+    const suggested = suggestLoad(id, store.data.profile, store.data, { reps, rir: 2 });
+    entries.push({
+      ex: id,
+      note: prev ? undefined : suggested?.note,
+      sets: [{ reps, weight: prev?.weight ?? suggested?.kg ?? 0 }],
+    });
     draw();
     host.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
