@@ -7,7 +7,7 @@
 
 **A free workout, diet and progress tracker. No subscription, no ads, no data harvesting.**
 
-[Open the app](https://victordeglon.github.io/FEROX/) · [Google sign-in setup](docs/google-oauth-setup.md) · [Contributing notes](AGENTS.md)
+[Open the app](https://victordeglon.github.io/FEROX/) · [Guides](docs/guide/) · [Google sign-in setup](docs/google-oauth-setup.md) · [Contributing notes](AGENTS.md)
 
 </div>
 
@@ -107,6 +107,24 @@ npm run check    # syntax check + verifies every local link in web/ resolves
 
 Both run on every push. See [AGENTS.md](AGENTS.md) for conventions — chiefly:
 the app must keep working with no backend, no build step and no network.
+
+The catalogues are generated, not hand-written:
+
+```bash
+node scripts/gen-exercises.js   # 1,000 exercises from scripts/data/families.js
+node scripts/gen-foods.js       # 450 foods, with the macro arithmetic checked
+```
+
+## Guides
+
+Written for the person using the app rather than the person changing it —
+[docs/guide/](docs/guide/) covers [getting started](docs/guide/getting-started.md),
+[what weight to lift](docs/guide/weights.md),
+[your training plan](docs/guide/training-plan.md),
+[seasons](docs/guide/seasons.md),
+[food and meals](docs/guide/nutrition.md),
+[weigh-ins and checkpoints](docs/guide/progress.md),
+[privacy](docs/guide/privacy.md) and [themes](docs/guide/themes.md).
 
 ## Licence
 

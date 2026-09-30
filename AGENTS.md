@@ -25,6 +25,10 @@ web/                     the app — this is what GitHub Pages serves
   assets/brand/          logo.svg, wolf.svg, mark.svg, favicon.svg, maskable.png
   assets/css/ferox.css   the whole design system, token-driven
   assets/js/core/        config, store, auth, ui, chart, icons, seed,
+                         exercises + anatomy + musclemap (the 1,000-exercise
+                         catalogue, the muscles, and the body map),
+                         foods (450 foods), catalog (exercise search),
+                         vision (photo meals — read it before touching them),
                          seasons + season-icons (the training year),
                          profile (calorie maths), split (week builder),
                          strength (what weight to put on the bar),
@@ -33,7 +37,9 @@ web/                     the app — this is what GitHub Pages serves
                          themes (palettes), eggs (the secret console),
                          research (study summaries), image (avatar resizing)
   assets/js/pages/       one module per page + _log.js (shared session editor),
-                         _readiness.js (daily check-in), _weighin.js (weigh-ins)
+                         _readiness.js (daily check-in), _weighin.js (weigh-ins),
+                         _catalog.js (exercise browser), _plate.js (food search
+                         and the meal builder), _photo.js (meal photos)
 server/                  optional Express API
   index.js               app + static host        static.js  no-API dev server
   config.js  lib/{auth,store}.js  routes/{auth,data}.js
@@ -42,6 +48,9 @@ scripts/check-web.js     link checker for web/
 scripts/add-mascot.js    wires a generated mascot image into the app
 scripts/make-icons.js    derives every square app icon from the mascot
 scripts/lib/png.js       a very small PNG decode/resize/pad/encode, no deps
+scripts/gen-exercises.js builds core/exercises.js from data/families.js
+scripts/gen-foods.js     builds core/foods.js from data/foods.js, checking macros
+docs/guide/              the guides, written for the person *using* the app
 docs/google-oauth-setup.md
 docs/skywalker-deploy.md tunnelled self-hosting for the optional API
 docs/mascot-prompts.md   image-gen prompts matched to the brand palette
@@ -121,8 +130,97 @@ the *whole* document and only coerces the collections it knows about; it used
 to rebuild from a whitelist, which silently deleted onboarding, seasons and
 readiness on every save.
 
-`core/seed.js` holds the shared catalogue (exercises, routines, foods, medals).
-The server imports the same file, so it is the single source of truth.
+`core/seed.js` is the front door to the shared catalogue. The server imports the
+same file, so it is the single source of truth.
+
+## The generated catalogues
+
+**`core/exercises.js` and `core/foods.js` are generated. Never edit them.**
+Change `scripts/data/families.js` or `scripts/data/foods.js` and re-run
+`node scripts/gen-exercises.js` / `node scripts/gen-foods.js`.
+
+They are generated because a thousand hand-written rows drift — the same
+movement ends up with two different muscle lists depending on which afternoon it
+was added — and because the generator is where the checking lives.
+
+### Exercises
+
+A family expands to `implements × angles × grips` plus its `extras`. **The rule
+for an axis is that every combination it produces must be a real exercise.**
+That rule has been broken once and it is worth knowing how: a single grid on the
+squat produced "Goblet Barbell Squat" and "Back Dumbbell Squat". A family whose
+angles depend on its implement therefore declares several `grids`, one per
+implement group, and `plain` names the value that is the *default* form of the
+movement rather than a variation (a back squat is *the* barbell squat).
+
+`variant` — 0 for the plain movement, one per modifier — is what makes searching
+"bench" return the bench press. Search ranking took three attempts:
+
+- Ranking on where the word appeared in the name put "Bench Dip" on top, because
+  the canonical movement almost always carries a qualifier and so never *starts*
+  with the word you typed.
+- Adding a name-length tiebreak put "Dead Bench Press" on top instead.
+- Weighting `variant` decisively is what works.
+
+The catalogue ships as **columns of dictionary indices**, decoded on import: 322
+KB of JSON objects becomes 73 KB that decodes in 7 ms. `id` is not stored at
+all — it is the slug of the name, derived by the same function that made it.
+
+**`LEGACY_IDS` in seed.js maps the 53 pre-catalogue ids onto the new ones.**
+Every logged session references exercises by id, so an old id that stops
+resolving turns a year of logged benches into a history of blanks. A test
+asserts every entry still points at something real.
+
+### Foods
+
+Macros are **per serving**, not per 100 g, and every row carries what a serving
+weighs so it can still be scaled. The generator checks calories against macros
+and **refuses to write the file** if any row is more than 12% out — a typo in a
+food database is a calorie target that is quietly wrong for months.
+
+Two things that check got wrong before it was right: fibre is priced at 2 kcal/g
+rather than 4 (it is a carbohydrate the body does not fully metabolise, and the
+full four flagged every vegetable), and alcohol rows are tagged and exempted
+because alcohol is 7 kcal/g and appears in no macro column.
+
+## Anatomy and the body map
+
+`core/anatomy.js` holds 28 fine muscles, each rolling into exactly one of the 7
+coarse `GROUPS`. An exercise's `muscle` is **derived** from its primary movers,
+so it cannot disagree with them.
+
+`core/musclemap.js` draws a front and back figure with the worked muscles lit,
+primaries solid and helpers faded. A thousand exercises cannot each have an
+illustration drawn, and a stock photo of a stranger mid-rep teaches nobody
+anything — what people want to know is what a movement works. It is inline SVG
+from shared region paths, so it costs no request, works offline and follows the
+theme. Every colour is a token.
+
+## Meal photos
+
+**Read the comment at the top of `core/vision.js` before touching this.**
+
+Food recognition does not fit inside the no-backend rule: the smallest useful
+vision models are many times the size of this app and would have to be
+downloaded before the first photo. So the photo path reads and shrinks the image
+**on the device** and keeps it with the meal (useful on its own), and offers an
+estimate *only* where `config.visionEndpoint` is set — off by default, with the
+athlete told the photo is leaving the device and where it goes, before it goes.
+Anything an estimator returns opens in the plate builder to be corrected, never
+logged silently.
+
+If you are tempted to make this work offline, or to quietly default the endpoint
+to something, do not. The honesty is the feature.
+
+## Meals that save themselves
+
+Every combination logged together is fingerprinted (sorted food ids — the same
+plate with the portions nudged is still the same plate) and counted in
+`mealPatterns`. Nothing is saved and nothing is asked on the first sighting; the
+second time the same combination appears, `suggestibleMeal()` surfaces it.
+
+Being asked to name your breakfast the first time you eat it is an interruption.
+Being asked the second time is a shortcut. Do not lower the threshold to one.
 
 ## Adding things
 
