@@ -16,6 +16,12 @@ import { progressLoad, isLoaded, setBias, strengthProfile } from './strength.js'
 /**
  * Weekly templates. Each day names the muscle groups it covers and the
  * movement patterns to fill it with, in priority order.
+ *
+ * **A day's `focus` must name a group for every pattern it programmes.** The
+ * picker prefers in-focus muscles, so an `h-push` slot on a day that forgot to
+ * list Chest will happily be filled by a close-grip bench press — which is an
+ * arm exercise, in focus, and leaves chest trained once that week. There is a
+ * test for it; the 4-day Upper B day is where it bit.
  */
 export const TEMPLATES = {
   2: {
@@ -23,16 +29,16 @@ export const TEMPLATES = {
     // Both days press horizontally so chest is trained twice — with only two
     // sessions there is no room for a day that skips a major group.
     days: [
-      { name: 'Full Body A', focus: ['Legs', 'Chest', 'Back', 'Shoulders'], patterns: ['squat', 'h-push', 'h-pull', 'v-push', 'core'] },
-      { name: 'Full Body B', focus: ['Legs', 'Chest', 'Back', 'Arms'],      patterns: ['hinge', 'h-push', 'v-pull', 'iso', 'core'] },
+      { name: 'Full Body A', focus: ['Legs', 'Chest', 'Back', 'Shoulders', 'Core'], patterns: ['squat', 'h-push', 'h-pull', 'v-push', 'core'] },
+      { name: 'Full Body B', focus: ['Legs', 'Chest', 'Back', 'Arms', 'Core'], patterns: ['hinge', 'h-push', 'v-pull', 'iso', 'core'] },
     ],
   },
   3: {
     name: 'Full Body ×3', note: 'Every muscle three times a week. Hard to beat at this frequency.',
     days: [
-      { name: 'Full Body A', focus: ['Legs', 'Chest', 'Back'],     patterns: ['squat', 'h-push', 'h-pull', 'core'] },
+      { name: 'Full Body A', focus: ['Legs', 'Chest', 'Back', 'Core'], patterns: ['squat', 'h-push', 'h-pull', 'core'] },
       { name: 'Full Body B', focus: ['Legs', 'Shoulders', 'Back'], patterns: ['hinge', 'v-push', 'v-pull', 'iso'] },
-      { name: 'Full Body C', focus: ['Legs', 'Chest', 'Arms'],     patterns: ['lunge', 'h-push', 'h-pull', 'iso'] },
+      { name: 'Full Body C', focus: ['Legs', 'Chest', 'Back', 'Arms'], patterns: ['lunge', 'h-push', 'h-pull', 'iso'] },
     ],
   },
   4: {
@@ -40,7 +46,7 @@ export const TEMPLATES = {
     days: [
       { name: 'Upper A', focus: ['Chest', 'Back', 'Shoulders'], patterns: ['h-push', 'h-pull', 'v-push', 'iso'] },
       { name: 'Lower A', focus: ['Legs', 'Core'],               patterns: ['squat', 'hinge', 'iso', 'core'] },
-      { name: 'Upper B', focus: ['Back', 'Shoulders', 'Arms'],  patterns: ['v-pull', 'v-push', 'h-push', 'iso'] },
+      { name: 'Upper B', focus: ['Back', 'Shoulders', 'Chest', 'Arms'], patterns: ['v-pull', 'v-push', 'h-push', 'iso'] },
       { name: 'Lower B', focus: ['Legs', 'Core'],               patterns: ['hinge', 'lunge', 'iso', 'core'] },
     ],
   },
@@ -71,7 +77,7 @@ export const TEMPLATES = {
       { name: 'Push A', focus: ['Chest', 'Shoulders', 'Arms'], patterns: ['h-push', 'v-push', 'iso', 'iso'] },
       { name: 'Pull A', focus: ['Back', 'Arms'],               patterns: ['v-pull', 'h-pull', 'iso', 'iso'] },
       { name: 'Legs A', focus: ['Legs', 'Core'],               patterns: ['squat', 'hinge', 'iso', 'core'] },
-      { name: 'Conditioning', focus: ['Full body'],            patterns: ['condition', 'sprint', 'core'] },
+      { name: 'Conditioning', focus: ['Full body', 'Core'],    patterns: ['condition', 'sprint', 'core'] },
       { name: 'Push B', focus: ['Shoulders', 'Chest', 'Arms'], patterns: ['v-push', 'h-push', 'iso', 'iso'] },
       { name: 'Pull B', focus: ['Back', 'Arms'],               patterns: ['h-pull', 'v-pull', 'iso', 'iso'] },
       { name: 'Legs B', focus: ['Legs', 'Core'],               patterns: ['hinge', 'lunge', 'iso', 'core'] },
@@ -117,7 +123,9 @@ export const MODES = {
     id: 'strength', label: 'Heavy, low rep',
     blurb: 'Few reps, many sets, long rests. The bar is the point.',
     setsMain: 5, setsAcc: 3, intensity: 1.0,
-    prefer: ['squat', 'bench', 'deadlift', 'ohp', 'row', 'frontsquat', 'rdl', 'pullup'],
+    prefer: ['back-barbell-squat', 'barbell-bench-press', 'barbell-deadlift',
+      'standing-barbell-overhead-press', 'barbell-row', 'front-barbell-squat',
+      'barbell-romanian-deadlift', 'pull-up', 'barbell-hip-thrust'],
     avoid: ['plyo', 'condition'],
     shape: 'compound',
   },
@@ -125,8 +133,9 @@ export const MODES = {
     id: 'power', label: 'Fast and explosive',
     blurb: 'Moved fast, never ground out. Jumps and sprints alongside the lifting.',
     setsMain: 5, setsAcc: 3, intensity: 0.92,
-    prefer: ['box-jump', 'broad-jump', 'depth-jump', 'med-slam', 'clap-push',
-      'sprint', 'hill-sprint', 'kb-swing', 'frontsquat'],
+    prefer: ['box-jump', 'broad-jump', 'depth-jump', 'medicine-ball-slam', 'clap-push-up',
+      'sprint-intervals', 'hill-sprints', 'kettlebell-swing', 'front-barbell-squat',
+      'power-clean', 'squat-jump', 'lateral-bound'],
     avoid: [],
     shape: 'explosive',
   },
@@ -137,8 +146,10 @@ export const MODES = {
     // The barbell lifts belong in a mass block too — what makes it a mass block
     // is the extra accessory slot the `accessory` shape adds, not swapping the
     // bench press out for a dumbbell one.
-    prefer: ['bench', 'squat', 'incline-db', 'lat-pull', 'hipthrust', 'legcurl',
-      'lateral', 'curl', 'pushdown', 'fly', 'rear-delt'],
+    prefer: ['barbell-bench-press', 'back-barbell-squat', 'incline-dumbbell-bench-press',
+      'cable-lat-pulldown', 'barbell-hip-thrust', 'lying-machine-leg-curl',
+      'dumbbell-lateral-raise', 'barbell-curl', 'triceps-pushdown', 'cable-fly',
+      'bent-over-dumbbell-rear-delt-fly', 'leg-press', 'machine-leg-extension'],
     avoid: ['sprint'],
     shape: 'accessory',
   },
@@ -154,7 +165,8 @@ export const MODES = {
     id: 'metabolic', label: 'High rep, short rest',
     blurb: 'Lighter bar, higher reps, fewer sets and a conditioning finish. Built for a deficit.',
     setsMain: 3, setsAcc: 2, intensity: 0.85,
-    prefer: ['kb-swing', 'burpee', 'jump-rope', 'sled', 'goblet', 'lunge', 'carry'],
+    prefer: ['kettlebell-swing', 'burpee', 'jump-rope', 'sled-push', 'goblet-dumbbell-squat',
+      'walking-dumbbell-lunge', 'farmers-carry', 'battle-ropes', 'mountain-climber'],
     avoid: [],
     shape: 'conditioned',
   },
@@ -162,7 +174,7 @@ export const MODES = {
     id: 'endurance', label: 'Aerobic-led',
     blurb: 'The running carries the block. Lifting drops to what holds what you have.',
     setsMain: 3, setsAcc: 2, intensity: 0.85,
-    prefer: ['run', 'row-erg', 'bike', 'jump-rope'],
+    prefer: ['run', 'rowing-erg', 'cycling', 'jump-rope', 'easy-run', 'long-run', 'tempo-run'],
     avoid: ['plyo'],
     shape: 'aerobic',
   },
@@ -170,8 +182,9 @@ export const MODES = {
     id: 'quality', label: 'Light and strict',
     blurb: 'Low load, single-limb work, positions held until they stop being negotiable.',
     setsMain: 3, setsAcc: 2, intensity: 0.7,
-    prefer: ['split-sq', 'lunge', 'deadbug', 'plank', 'mobility', 'hip-open',
-      'face-pull', 'db-row', 'goblet'],
+    prefer: ['bulgarian-split-squat', 'walking-dumbbell-lunge', 'dead-bug', 'plank',
+      'mobility-flow', 'hip-openers', 'cable-face-pull', 'dumbbell-row',
+      'goblet-dumbbell-squat', 'bird-dog', 'cat-cow'],
     avoid: ['plyo', 'sprint'],
     shape: 'restorative',
   },

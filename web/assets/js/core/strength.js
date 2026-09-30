@@ -21,63 +21,119 @@
  * Everything is pure. It takes a profile and a data document and returns
  * numbers, so it is tested in node with no DOM.
  */
-import { EXERCISES, byId } from './seed.js';
+import { exerciseById } from './seed.js';
 import { LEVELS } from './profile.js';
 
 /**
- * One-rep max as a multiple of bodyweight, for an **intermediate male**.
- * Everything else scales off this.
+ * One-rep max as a multiple of bodyweight, for an **intermediate male**,
+ * expressed as what he would lift on a **barbell**.
  *
- * `mult` is what goes on the implement named in `load`:
- *   'bar'   a loaded barbell           — the total, as you would write it down
- *   'each'  one of a pair of dumbbells — per hand, which is how people log it
- *   'one'   a single implement         — one kettlebell, one goblet dumbbell
- *   'stack' a machine or cable stack
+ * Priced in two factors rather than one number per exercise. A thousand-row
+ * table would be a thousand chances to be inconsistent — and it could not be
+ * written by hand anyway. A movement's price is:
+ *
+ *      class multiplier  x  gear factor
+ *
+ * The class says what the movement *is* (a horizontal press, a hinge, a
+ * lateral raise). The gear factor says what you are holding: a dumbbell bench
+ * press is the same movement at roughly a third of the barbell number **per
+ * hand**, which is how people log it.
  *
  * The numbers sit around the middle of the published intermediate bands rather
  * than the top of them. They are a starting point for someone who has told us
  * nothing but their bodyweight, not a claim about anybody in particular.
  */
-export const STANDARDS = {
-  // chest
-  'bench':       { mult: 1.00, load: 'bar',   region: 'upper' },
-  'incline-db':  { mult: 0.33, load: 'each',  region: 'upper' },
-  'db-press':    { mult: 0.36, load: 'each',  region: 'upper' },
-  'fly':         { mult: 0.22, load: 'stack', region: 'upper' },
-  // back
-  'deadlift':    { mult: 1.50, load: 'bar',   region: 'lower' },
-  'row':         { mult: 0.80, load: 'bar',   region: 'upper' },
-  'db-row':      { mult: 0.33, load: 'each',  region: 'upper' },
-  'lat-pull':    { mult: 0.85, load: 'stack', region: 'upper' },
-  'face-pull':   { mult: 0.25, load: 'stack', region: 'upper' },
-  // legs
-  'squat':       { mult: 1.25, load: 'bar',   region: 'lower' },
-  'frontsquat':  { mult: 1.00, load: 'bar',   region: 'lower' },
-  'goblet':      { mult: 0.40, load: 'one',   region: 'lower' },
-  'rdl':         { mult: 1.05, load: 'bar',   region: 'lower' },
-  'lunge':       { mult: 0.30, load: 'each',  region: 'lower' },
-  'split-sq':    { mult: 0.30, load: 'each',  region: 'lower' },
-  'hipthrust':   { mult: 1.40, load: 'bar',   region: 'lower' },
-  'calf':        { mult: 0.90, load: 'bar',   region: 'lower' },
-  'legcurl':     { mult: 0.45, load: 'stack', region: 'lower' },
-  // shoulders
-  'ohp':         { mult: 0.60, load: 'bar',   region: 'upper' },
-  'db-ohp':      { mult: 0.27, load: 'each',  region: 'upper' },
-  'lateral':     { mult: 0.10, load: 'each',  region: 'upper' },
-  'rear-delt':   { mult: 0.09, load: 'each',  region: 'upper' },
-  // arms
-  'curl':        { mult: 0.45, load: 'bar',   region: 'upper' },
-  'db-curl':     { mult: 0.20, load: 'each',  region: 'upper' },
-  'hammer':      { mult: 0.22, load: 'each',  region: 'upper' },
-  'tricep-ext':  { mult: 0.30, load: 'bar',   region: 'upper' },
-  'pushdown':    { mult: 0.45, load: 'stack', region: 'upper' },
-  // core and carries
-  'cable-crunch':{ mult: 0.45, load: 'stack', region: 'upper' },
-  'carry':       { mult: 0.50, load: 'each',  region: 'lower' },
-  // full body
-  'kb-swing':    { mult: 0.35, load: 'one',   region: 'lower' },
-  'sled':        { mult: 1.00, load: 'one',   region: 'lower' },
+export const LOAD_CLASSES = {
+  // pressing
+  'press-h':  { mult: 1.00, region: 'upper' },   // bench press and its relatives
+  'press-v':  { mult: 0.60, region: 'upper' },   // overhead press
+  fly:        { mult: 0.29, region: 'upper' },
+  'ext-arm':  { mult: 0.40, region: 'upper', gear: { dumbbell: 0.45 } },
+  raise:      { mult: 0.28, region: 'upper' },   // lateral and front raises
+  // pulling
+  row:        { mult: 0.80, region: 'upper', gear: { dumbbell: 0.45 } },
+  pulldown:   { mult: 0.85, region: 'upper' },
+  shrug:      { mult: 1.00, region: 'upper', gear: { dumbbell: 0.55 } },
+  rear:       { mult: 0.25, region: 'upper' },
+  'curl-arm': { mult: 0.45, region: 'upper', gear: { dumbbell: 0.45 } },
+  wrist:      { mult: 0.25, region: 'upper', gear: { dumbbell: 0.45 } },
+  // hinge and squat
+  deadlift:   { mult: 1.50, region: 'lower' },
+  rdl:        { mult: 1.05, region: 'lower' },
+  squat:      { mult: 1.25, region: 'lower' },
+  legpress:   { mult: 2.20, region: 'lower' },   // the highest number in the gym
+  thrust:     { mult: 1.40, region: 'lower', gear: { dumbbell: 0.45 } },
+  lunge:      { mult: 0.50, region: 'lower', gear: { dumbbell: 0.35, kettlebell: 0.35 } },
+  olympic:    { mult: 0.90, region: 'lower', gear: { dumbbell: 0.30, kettlebell: 0.35 } },
+  sled:       { mult: 1.00, region: 'lower' },
+  // leg isolation
+  'curl-leg': { mult: 0.45, region: 'lower' },
+  'ext-leg':  { mult: 0.55, region: 'lower' },
+  calf:       { mult: 0.90, region: 'lower' },
+  abduct:     { mult: 0.35, region: 'lower' },
+  // trunk
+  crunch:     { mult: 0.45, region: 'upper' },
+  ext:        { mult: 0.40, region: 'lower' },   // back extension
 };
+
+/**
+ * What the implement costs relative to a barbell doing the same job.
+ *
+ * `dumbbell` is per hand, because that is the number written on the dumbbell
+ * and the number people type in. A machine reads slightly higher than a
+ * barbell for the same effort — it stabilises the weight for you — and a cable
+ * slightly lower, because part of the stack is fighting a pulley.
+ */
+export const GEAR_FACTOR = {
+  barbell: 1, smith: 1.05, machine: 1.10, cable: 0.75,
+  dumbbell: 0.36, kettlebell: 0.42, band: 0.28,
+  bodyweight: 1, plyo: 1, cardio: 1, other: 1,
+};
+
+/**
+ * A class may override the generic factor where it does not hold.
+ *
+ * One dumbbell figure cannot serve every movement: a dumbbell bench press is
+ * about a third of the barbell total per hand, while a single-arm dumbbell row
+ * is closer to a half. Without the override the model prescribed a one-kilo
+ * lateral raise, which is not a conservative starting point — it is a wrong one.
+ */
+const gearFactorFor = (cls, gear) => cls.gear?.[gear] ?? GEAR_FACTOR[gear] ?? 1;
+
+/** Smallest jump you can actually make, by implement, in kg. */
+export const INCREMENT = {
+  barbell: 2.5, smith: 2.5, machine: 2.5, cable: 2.5,
+  dumbbell: 2, kettlebell: 4, band: 1, other: 2.5,
+};
+
+/**
+ * Isolation work moves in smaller steps than a barbell squat ever will —
+ * there is no 2.5 kg jump on a lateral raise that is not a 25% increase.
+ */
+const SMALL_STEP = new Set(['raise', 'rear', 'wrist', 'fly']);
+
+export const incrementFor = ex => {
+  const e = resolve(ex);
+  if (!e?.loadClass) return 2.5;
+  if (SMALL_STEP.has(e.loadClass)) return e.gear === 'dumbbell' ? 1 : 2.5;
+  return INCREMENT[e.gear] ?? 2.5;
+};
+
+/** Accept either an exercise id or the exercise itself. */
+const resolve = ex => (typeof ex === 'string' ? exerciseById(ex) : ex) ?? null;
+
+/** The standard that prices a given exercise, or null if it takes no weight. */
+export function standardFor(ex) {
+  const e = resolve(ex);
+  if (!e || e.unit !== 'kg' || !e.loadClass) return null;
+  const cls = LOAD_CLASSES[e.loadClass];
+  if (!cls) return null;
+  return {
+    mult: cls.mult * gearFactorFor(cls, e.gear),
+    region: cls.region,
+    gear: e.gear,
+  };
+}
 
 /**
  * Experience, relative to "intermediate". These map onto `LEVELS` in
@@ -91,15 +147,6 @@ export const LEVEL_STRENGTH = { 1: 0.55, 2: 0.75, 3: 1.00, 4: 1.25, 5: 1.50 };
  * pressing and under-prescribe squatting for half the people using this.
  */
 export const SEX_RATIO = { upper: 0.62, lower: 0.75 };
-
-/** Smallest jump you can actually make on the implement, in kg. */
-export const INCREMENT = { bar: 2.5, each: 2, one: 2, stack: 2.5 };
-
-/** Isolation work moves in smaller steps than a barbell squat ever will. */
-const SMALL_STEP = new Set(['lateral', 'rear-delt', 'db-curl', 'hammer', 'face-pull']);
-
-export const incrementFor = exId =>
-  (SMALL_STEP.has(exId) ? 1 : INCREMENT[STANDARDS[exId]?.load] ?? 2.5);
 
 /** Strength peaks in the twenties and gives ground slowly after. */
 export function ageFactor(age) {
@@ -125,7 +172,7 @@ export function sexFactor(sex, region = 'upper') {
  *          (bodyweight, timed and distance work all return null by design)
  */
 export function predicted1RM(exId, profile) {
-  const std = STANDARDS[exId];
+  const std = standardFor(exId);
   const bw = +profile?.weightKg;
   if (!std || !bw || bw <= 0) return null;
 
@@ -196,9 +243,15 @@ export function strengthProfile(data, profile = data?.profile) {
   const sessions = data?.sessions ?? [];
   const byMuscle = {};
 
-  for (const [exId, std] of Object.entries(STANDARDS)) {
-    const ex = byId(EXERCISES, exId);
-    if (!ex) continue;
+  /*
+   * Only the exercises this athlete has actually logged, not all thousand —
+   * scanning the whole catalogue against every session was the difference
+   * between a page that paints and one that stalls for a second.
+   */
+  const logged = new Set(sessions.flatMap(s => (s.entries ?? []).map(e => e.ex)));
+  for (const exId of logged) {
+    const ex = exerciseById(exId);
+    if (!ex || !standardFor(ex)) continue;
     const seen = observed1RM(exId, sessions);
     const want = predicted1RM(exId, profile);
     if (!seen || !want) continue;
@@ -297,8 +350,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
  *          distance work all prescribe reps and minutes, not kilos.
  */
 export function suggestLoad(exId, profile, data, { reps = 8, rir = 2, intensity = 1 } = {}) {
-  const std = STANDARDS[exId];
-  if (!std) return null;
+  if (!standardFor(exId)) return null;
 
   const sessions = data?.sessions ?? [];
   const seen = observed1RM(exId, sessions);
@@ -315,7 +367,7 @@ export function suggestLoad(exId, profile, data, { reps = 8, rir = 2, intensity 
   } else if (want) {
     // Nothing on this lift — but the muscle group may already have been
     // measured, in which case that is far better evidence than the textbook.
-    const muscle = byId(EXERCISES, exId)?.muscle;
+    const muscle = exerciseById(exId)?.muscle;
     const trend = strengthProfile(data, profile)[muscle];
     if (trend?.confident) {
       // Clamped, and hard. A deadlift double the estimate is real information
@@ -370,9 +422,9 @@ export function progressLoad(exId, data, { reps = 8, rir = 2, intensity = 1 } = 
   }
 
   const step = base.step;
-  // Lower-body compounds add weight twice as fast; they have far more room.
-  const std = STANDARDS[exId];
-  const bigStep = std.region === 'lower' && std.load === 'bar' ? step * 2 : step;
+  // Lower-body barbell lifts add weight twice as fast; they have far more room.
+  const std = standardFor(exId);
+  const bigStep = std.region === 'lower' && std.gear === 'barbell' ? step * 2 : step;
 
   if (last.minReps >= reps) {
     return {
@@ -399,4 +451,4 @@ export function progressLoad(exId, data, { reps = 8, rir = 2, intensity = 1 } = 
 }
 
 /** Is this exercise one we prescribe a weight for at all? */
-export const isLoaded = exId => Boolean(STANDARDS[exId]);
+export const isLoaded = exId => Boolean(standardFor(exId));

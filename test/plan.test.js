@@ -6,7 +6,8 @@ import { bmr, tdee, targetsFor, summarise, suggestedSeason, GOALS, LEVELS, ACTIV
 import { buildWeek, buildSession, weeklyFrequency, templateFor, readinessFor, weekIntensity,
   TEMPLATES, MODES, modeFor } from '../web/assets/js/core/split.js';
 import { seasonById, SEASONS } from '../web/assets/js/core/seasons.js';
-import { availableExercises, EXERCISES } from '../web/assets/js/core/seed.js';
+import { availableExercises, EXERCISES, LEGACY_IDS, ROUTINES, exerciseById }
+  from '../web/assets/js/core/seed.js';
 import { isLoaded } from '../web/assets/js/core/strength.js';
 
 const person = (o = {}) => ({
@@ -322,10 +323,10 @@ test('the plan uses what you have lifted, not the textbook', () => {
     profile: p,
     sessions: [{
       id: 's1', date: '2026-09-20',
-      entries: [{ ex: 'bench', sets: [{ reps: 8, weight: 100 }, { reps: 8, weight: 100 }] }],
+      entries: [{ ex: 'barbell-bench-press', sets: [{ reps: 8, weight: 100 }, { reps: 8, weight: 100 }] }],
     }],
   };
-  const find = week => week.days.flatMap(d => d.entries).find(e => e.ex === 'bench');
+  const find = week => week.days.flatMap(d => d.entries).find(e => e.ex === 'barbell-bench-press');
   const cold = find(buildWeek(p, seasonById('winter-fire'), 7, 3));
   const warm = find(buildWeek(p, seasonById('winter-fire'), 7, 3, heavy));
   assert.ok(cold && warm, 'this template should programme a bench press');
@@ -343,12 +344,12 @@ test('a wrecked day lightens the bar as well as the volume', () => {
 
 test('a full gym is given the barbell, not push-ups', () => {
   const p = person({ daysPerWeek: 4, equipment: 'gym', level: 3 });
-  const names = buildWeek(p, seasonById('winter-fire'), 7, 3)
-    .days.flatMap(d => d.entries.map(e => e.ex));
-  assert.ok(!names.includes('pushup'),
+  const picked = buildWeek(p, seasonById('winter-fire'), 7, 3)
+    .days.flatMap(d => d.entries.map(e => EXERCISES.find(x => x.id === e.ex)));
+  assert.ok(!picked.some(e => e.id === 'push-up'),
     'availableExercises returns everything at or below your tier; the picker must prefer the top of it');
-  assert.ok(names.some(id => ['bench', 'squat', 'deadlift', 'row', 'ohp'].includes(id)),
-    'a gym week should contain at least one barbell lift');
+  assert.ok(picked.filter(e => e.gear === 'barbell').length >= 3,
+    'a gym week should be led by barbell work');
 });
 
 test('a session covers its focus groups rather than doubling up', () => {
@@ -357,4 +358,44 @@ test('a session covers its focus groups rather than doubling up', () => {
   const week = buildWeek(person({ daysPerWeek: 2, equipment: 'gym' }), seasonById('ferox-recomp'), 7, 3);
   const freq = weeklyFrequency(week);
   for (const m of ['Chest', 'Back', 'Legs']) assert.ok(freq[m] >= 2, `${m}: ${freq[m]}`);
+});
+
+
+/* ------------------------------------------------- template invariants */
+
+test('every template day lists a group for every pattern it programmes', () => {
+  // The picker prefers in-focus muscles, so an h-push slot on a day that forgot
+  // to list Chest gets filled by a close-grip bench press — an arm exercise,
+  // in focus — and chest ends the week trained once. This is where that bit.
+  const CANON = {
+    'h-push': ['Chest', 'Shoulders'], 'v-push': ['Shoulders', 'Chest'],
+    'h-pull': ['Back'], 'v-pull': ['Back'],
+    squat: ['Legs'], hinge: ['Legs', 'Back'], lunge: ['Legs'],
+    core: ['Core'], carry: ['Core', 'Arms'],
+  };
+  for (const [days, tpl] of Object.entries(TEMPLATES)) {
+    for (const d of tpl.days) {
+      for (const pattern of d.patterns) {
+        const want = CANON[pattern];
+        if (!want) continue;   // iso, plyo, condition and the rest go anywhere
+        assert.ok(want.some(g => d.focus.includes(g)),
+          `${days}-day ${d.name}: programmes "${pattern}" but its focus (${d.focus.join(', ')}) names none of ${want.join('/')}`);
+      }
+    }
+  }
+});
+
+test('the catalogue is wired in and legacy ids still resolve', () => {
+  assert.ok(EXERCISES.length > 900, `only ${EXERCISES.length} exercises`);
+  // Every session ever logged references an exercise by id. If an old id stops
+  // resolving, someone opens the app to a history of blanks.
+  for (const [old, now] of Object.entries(LEGACY_IDS)) {
+    assert.ok(exerciseById(now), `LEGACY_IDS.${old} points at "${now}", which does not exist`);
+    assert.equal(exerciseById(old)?.id, now, `${old} should resolve to ${now}`);
+  }
+  for (const r of ROUTINES) {
+    for (const b of r.blocks) {
+      assert.ok(exerciseById(b.ex), `routine ${r.id} references "${b.ex}", which does not resolve`);
+    }
+  }
 });

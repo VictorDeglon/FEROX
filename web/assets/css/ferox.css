@@ -1153,3 +1153,64 @@ code.phrase {
 .wi-more > summary::before { content: '＋ '; color: var(--ember); }
 .wi-more[open] > summary::before { content: '− '; }
 .wi-more > summary:hover { color: var(--ember); }
+
+/* ==========================================================================
+   Body map
+   One inline SVG per exercise, built from shared region paths in
+   core/musclemap.js. A thousand exercises cannot each have an illustration,
+   and what people actually want to know is which muscles a movement works.
+   ========================================================================== */
+.musclemap-wrap { display: grid; gap: 10px; justify-items: center; }
+.musclemap-views { display: flex; gap: 6px; }
+.musclemap { width: var(--mm-size, 120px); height: auto; display: block; overflow: visible; }
+
+.mm-body   { fill: var(--surf-3); stroke: var(--line); stroke-width: 1; }
+.mm-inert  { fill: var(--surf-3); }
+.mm-idle   { fill: color-mix(in srgb, var(--text-3) 22%, transparent); }
+.mm-secondary { fill: color-mix(in srgb, var(--ember) 42%, transparent); }
+.mm-primary   { fill: var(--ember); }
+[data-theme='light'] .mm-idle { fill: color-mix(in srgb, var(--text-3) 30%, transparent); }
+
+.musclemap-chip .musclemap { width: var(--mm-size, 34px); }
+.musclemap-chip { display: inline-block; line-height: 0; flex: none; }
+
+.mm-legend { display: grid; gap: 4px; font-size: var(--step--2); color: var(--text-2); text-align: center; }
+.mm-legend p { display: flex; align-items: center; gap: 6px; justify-content: center; }
+.mm-key { width: 9px; height: 9px; border-radius: 2px; flex: none; display: block; }
+.mm-key-primary { background: var(--ember); }
+.mm-key-secondary { background: color-mix(in srgb, var(--ember) 42%, transparent); }
+
+/* ==========================================================================
+   Exercise catalog
+   ========================================================================== */
+.search-wrap { position: relative; display: block; }
+.search-wrap > svg {
+  position: absolute; left: 13px; top: 50%; translate: 0 -50%;
+  width: 17px; height: 17px; color: var(--text-3); pointer-events: none;
+}
+.search-input { padding-left: 40px; }
+.search-input::-webkit-search-cancel-button { filter: invert(.5); }
+
+.cat-list { display: grid; gap: 6px; }
+
+.cat-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 9px 12px; border-radius: var(--r-md);
+  background: var(--surf-2); border: 1px solid var(--line); color: var(--text);
+  cursor: pointer; transition: border-color .14s, background .14s;
+}
+[data-theme='light'] .cat-row { background: var(--surf-1); }
+.cat-row:hover { border-color: var(--line-hi); }
+.cat-row:focus-visible { outline: 2px solid var(--ember); outline-offset: 1px; }
+.cat-row-main { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.cat-row-main strong { font-size: var(--step--1); font-weight: 600; }
+.cat-row-main small { color: var(--text-3); font-size: var(--step--2); text-transform: capitalize; }
+.cat-row > svg { width: 16px; height: 16px; flex: none; color: var(--text-3); }
+
+.cat-row-add {
+  display: grid; place-items: center; width: 30px; height: 30px; flex: none;
+  border-radius: 50%; background: var(--ember-soft); color: var(--ember-hi);
+}
+.cat-row-add svg { width: 15px; height: 15px; }
+[data-theme='light'] .cat-row-add { color: var(--ember-lo); }
+.cat-row-add:hover { background: var(--ember); color: #fff; }

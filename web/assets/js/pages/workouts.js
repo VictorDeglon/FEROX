@@ -3,6 +3,7 @@ import { store } from '../core/store.js';
 import { bootPage, esc, num, relDate, toast, confirmDialog } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { ROUTINES, EXERCISES, MUSCLES, byId, exerciseName } from '../core/seed.js';
+import { mountCatalog } from './_catalog.js';
 import { logSessionFlow } from './_log.js';
 import { askReadiness, readinessBar } from './_readiness.js';
 import { buildWeek, weeklyFrequency, templateForSeason, modeFor } from '../core/split.js';
@@ -31,7 +32,7 @@ function render(el) {
         <button role="tab" aria-pressed="${tab === 'history'}" data-tab="history">History</button>
         <button role="tab" aria-pressed="${tab === 'library'}" data-tab="library">Exercises</button>
       </div>
-      ${tab === 'routines' || tab === 'library' ? `<div class="seg">
+      ${tab === 'routines' ? `<div class="seg">
         ${['All', ...MUSCLES].map(m => `<button data-filter="${esc(m)}" aria-pressed="${filter === m}">${esc(m)}</button>`).join('')}
       </div>` : ''}
     </div>
@@ -281,33 +282,26 @@ function history(pane) {
   }));
 }
 
+/**
+ * The exercise catalog.
+ *
+ * A thousand movements, searchable by name, muscle or kit, each one opening a
+ * body map that says what it works. The old version was a flat table of fifty
+ * rows, which stopped being viable the moment the catalogue grew.
+ */
 function library(pane) {
-  const list = EXERCISES.filter(e => filter === 'All' || e.muscle === filter);
-  const prs = new Map(store.personalRecords().map(p => [p.ex, p]));
   pane.className = 'stack';
   pane.innerHTML = `<div class="card card-pad-lg">
-    <div class="card-head"><h3>${list.length} exercises</h3></div>
-    <div class="table-wrap"><table class="data">
-      <thead><tr><th>Exercise</th><th>Muscle</th><th>Type</th>
-        <th style="text-align:right">Est. 1RM</th><th style="text-align:right">Your best</th></tr></thead>
-      <tbody>${list.map(e => {
-        const pr = prs.get(e.id);
-        const p = store.data.profile;
-        const est = isLoaded(e.id) ? predicted1RM(e.id, p) : null;
-        const seen = isLoaded(e.id) ? observed1RM(e.id, store.data.sessions) : null;
-        const ratio = est && seen ? seen.oneRM / est : null;
-        return `<tr>
-          <td><strong>${esc(e.name)}</strong></td>
-          <td class="dim">${esc(e.muscle)}</td>
-          <td><span class="chip">${esc(e.kind)}</span></td>
-          <td style="text-align:right" class="num dim">${est ? `${Math.round(est)} kg` : '—'}</td>
-          <td style="text-align:right" class="num">${pr
-            ? (e.kind === 'strength' && e.unit === 'kg'
-                ? `${pr.weight} kg × ${pr.reps}${ratio ? ` <small class="dim">(${Math.round(ratio * 100)}%)</small>` : ''}`
-                : `${pr.reps} ${e.unit === 'sec' ? 'sec' : e.unit === 'km' ? 'km' : 'reps'}`)
-            : '<span class="dim">—</span>'}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>
+    <div class="card-head">
+      <h3>Exercise catalog</h3>
+      <span class="chip num">${EXERCISES.length.toLocaleString()}</span>
+    </div>
+    <div id="catHost"></div>
   </div>`;
+
+  mountCatalog(pane.querySelector('#catHost'), {
+    profile: store.data.profile,
+    equipment: store.data.profile.equipment,
+    limits: store.data.profile.limits,
+  });
 }
