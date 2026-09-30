@@ -179,7 +179,10 @@ firstImage(['assets/brand/mascot.webp', 'assets/brand/mascot.png', 'assets/brand
     const host = document.getElementById('ctaMark');
     host.className = 'mascot glow-aura';
     host.style.width = '';
-    host.innerHTML = `<img src="${src}" alt="" width="320" height="320" loading="lazy" decoding="async">`;
+    // 320×400, not 320×320: the art is 4:5, and reserving a square box makes
+    // the page jump when the real proportions arrive.
+    host.innerHTML = `<img class="mascot-art" src="${src}" alt="" width="320" height="400"
+      loading="lazy" decoding="async">`;
   });
 
 /* motion ----------------------------------------------------------------- */

@@ -8,6 +8,8 @@ import { seasonById, currentSlot, formatWindow, nextEnd, daysBetween, slotProgre
 import { seasonIcon } from '../core/season-icons.js';
 import { logSessionFlow } from './_log.js';
 import { askReadiness, readinessBar } from './_readiness.js';
+import { maybeAskWeighIn, weighInBar } from './_weighin.js';
+import { planStatus, planHeadline } from '../core/plan.js';
 
 const view = await bootPage({
   title: 'Today',
@@ -16,8 +18,16 @@ const view = await bootPage({
 
 document.getElementById('quickLog').addEventListener('click', () => logSessionFlow());
 
-// Ask once a day, after the page has settled — never on top of a loading screen.
-setTimeout(() => { if (!store.readinessFor()) askReadiness(); }, 900);
+/*
+ * The two daily prompts, one after the other and never at the same time.
+ * Readiness first because it changes what today's session looks like; the
+ * weigh-in second, and only when the schedule says it is due. Both wait for
+ * the page to settle rather than landing on top of a loading skeleton.
+ */
+setTimeout(async () => {
+  if (!store.readinessFor()) await askReadiness();
+  await maybeAskWeighIn();
+}, 900);
 
 function render(el) {
   const d = store.data;
@@ -36,8 +46,11 @@ function render(el) {
   const recentMedals = d.medals.slice(-4).reverse().map(id => byId(MEDALS, id)).filter(Boolean);
   const suggestion = ROUTINES[d.sessions.length % ROUTINES.length];
 
+  const plan = planStatus(d);
+
   el.innerHTML = `
     <div id="readySlot"></div>
+    <div id="weighSlot"></div>
 
     <section class="grid grid-4">
       ${tile('Streak', s.streak, 'days', s.streak >= 3 ? `Best ${s.bestStreak}` : 'Keep it going', 'flame', s.streak > 0)}
@@ -81,6 +94,7 @@ function render(el) {
 
       <div class="stack" style="gap:16px">
         ${seasonCard()}
+        ${checkpointCard(plan)}
 
         <div class="card card-pad-lg" style="background:var(--surf-1);position:relative;overflow:hidden">
           <p class="eyebrow">Up next</p>
@@ -121,6 +135,7 @@ function render(el) {
     </section>`;
 
   el.querySelector('#readySlot').replaceWith(readinessBar(() => render(el)));
+  el.querySelector('#weighSlot').replaceWith(weighInBar(() => render(el)));
 
   el.querySelectorAll('[data-routine]').forEach(btn =>
     btn.addEventListener('click', () => logSessionFlow(btn.dataset.routine)));
@@ -161,6 +176,66 @@ function seasonCard() {
     </div>
     <p class="dim" style="font-size:.72rem;margin-top:7px">
       ${esc(formatWindow(slot))} · ${left} day${left === 1 ? '' : 's'} to go</p>
+  </div>`;
+}
+
+/**
+ * The next checkpoint, and how the last one went.
+ *
+ * Deliberately shows the estimate's confidence rather than hiding it. A target
+ * built from eleven days of half-logged food is a guess, and presenting it with
+ * the same certainty as one built from six weeks would be dishonest.
+ */
+function checkpointCard(plan) {
+  const { next, last, maintenance, ratePerWeek } = plan;
+
+  if (!plan.checkpoints.length) {
+    return `<div class="card card-pad-lg">
+      <div class="card-head"><h3>Checkpoints</h3><a class="card-link" href="progress.html">Progress →</a></div>
+      <p class="muted" style="font-size:.86rem">
+        Log a weigh-in and FEROX starts setting fortnightly weight checkpoints, adjusted
+        to what your own data says about your metabolism.</p>
+    </div>`;
+  }
+
+  const dots = ['low', 'fair', 'good'].map(l =>
+    `<i class="${['low', 'fair', 'good'].indexOf(maintenance.confidence) >= ['low', 'fair', 'good'].indexOf(l) ? 'on' : ''}"></i>`).join('');
+  const dir = ratePerWeek === 0 ? 'hold' : ratePerWeek > 0 ? 'gain' : 'lose';
+  const perWeek = Math.abs(ratePerWeek).toFixed(2);
+
+  return `<div class="card card-pad-lg">
+    <div class="card-head"><h3>Next checkpoint</h3><a class="card-link" href="progress.html">All →</a></div>
+
+    ${next ? `<div class="checkpoint checkpoint-next is-pending">
+      <span class="checkpoint-dot"></span>
+      <div class="grow" style="min-width:0">
+        <strong style="font-size:.9rem">${next.targetKg.toFixed(1)} kg</strong>
+        <p class="dim" style="font-size:.74rem;margin-top:2px">by ${esc(next.date)}</p>
+      </div>
+      <span class="chip num">${relDate(next.date) === 'Today' ? 'today' : `${Math.max(0, Math.round((Date.parse(next.date) - Date.now()) / 864e5))}d`}</span>
+    </div>` : ''}
+
+    <p class="dim" style="font-size:.76rem;margin-top:10px">
+      ${dir === 'hold'
+        ? 'Holding steady at your current calories.'
+        : `On plan you ${dir} about ${perWeek} kg a week.`}
+    </p>
+
+    ${last ? `<div class="row-between" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+      <span class="muted" style="font-size:.8rem">Last checkpoint</span>
+      <span class="chip ${last.status === 'on-track' ? 'chip-ok' : last.status === 'behind' ? 'chip-warn' : 'chip-ember'}">
+        ${last.status === 'on-track' ? 'On track' : last.status === 'ahead' ? `${Math.abs(last.deltaKg)} kg ahead` : `${Math.abs(last.deltaKg)} kg behind`}
+      </span>
+    </div>` : ''}
+
+    <div class="row-between" style="margin-top:10px">
+      <span class="muted" style="font-size:.8rem">Measured maintenance</span>
+      <span class="row" style="gap:8px">
+        <span class="num" style="font-size:.84rem">${num(maintenance.kcal)}</span>
+        <span class="confidence" title="Confidence: ${esc(maintenance.confidence)} — ${esc(maintenance.label)}">${dots}</span>
+      </span>
+    </div>
+    <p class="dim" style="font-size:.72rem;margin-top:6px">${esc(planHeadline(plan))}</p>
   </div>`;
 }
 

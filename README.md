@@ -19,14 +19,18 @@
 |---|---|
 | **Seasons** | Eight structured training seasons across four blocks of the year. Greek Fire through summer, Winter Fire through winter, FEROX Recomp any month you like — each with its own animated icon, calorie approach and time split. |
 | **Workouts** | Six ready-made routines or build your own. Sets, reps and weight captured per exercise, with live volume as you go. |
-| **Diet tracker** | A food database across four meals a day, with a live macro ring against your calorie, protein, carb and fat targets. |
-| **Progress** | Volume, bodyweight, calories and training focus charted over 14, 30 or 90 days, plus a consistency heatmap. |
+| **Diet tracker** | A searchable food database across four meals a day, foods of your own, water, a live macro ring, weekly averages, protein hit-rate and where your calories actually come from. |
+| **Weigh-ins** | A prompt on your own schedule — every other day by default — taking weight plus optional body fat, lean mass, waist, resting heart rate and sleep. Each one gets its own chart. |
+| **Checkpoints** | Fortnightly weight goals that adjust to *your* metabolism, measured from your weigh-ins and food log rather than predicted from an equation, and scaled by how consistently you actually follow the plan. |
+| **Progress** | Volume, bodyweight with a trend line, body composition, calories and training focus charted over 14, 30 or 90 days, plus a consistency heatmap. |
 | **Records** | Every lift's best set, with an estimated one-rep max (Epley) and a per-exercise trend line. |
 | **Medals** | Twelve, earned automatically from streaks, tonnage, records and hitting your macros. |
 | **Friends** | A leaderboard for streak, sessions, volume and medals. |
 
 Dark and light themes, a mobile tab bar, offline support via a service worker,
-and one-click JSON export of everything you have logged.
+and one-click JSON export of everything you have logged. There are a few more
+colour schemes in there than the two you can see. FEROX is not going to tell you
+where they are.
 
 **No account needed.** Use it as a guest and the whole thing runs offline with
 your log saved on the device. Google sign-in is optional and only adds a name
@@ -66,8 +70,8 @@ test/     node:test suites — no test runner to install.
 ```
 
 Everything an athlete logs is one document. Streaks, volume, personal records,
-medal eligibility and every chart are **derived from it at read time**, never
-stored. Pages never touch storage directly — they go through `core/store.js`,
+medal eligibility, every chart and the whole metabolism estimate are **derived
+from it at read time**, never stored. Pages never touch storage directly — they go through `core/store.js`,
 which picks a local or remote adapter at boot. That one indirection is why the
 same UI can run on GitHub Pages today and against a server (or a native shell)
 tomorrow.
@@ -92,10 +96,12 @@ session token.
 
 ```bash
 node scripts/add-mascot.js <image>   # wire a generated mascot into the app
+node scripts/make-icons.js           # re-derive every square app icon from it
 ```
 
 ```bash
-npm test         # 36 suites: catalogue integrity, the season calendar, chart escaping, API contract
+npm test         # ~106 checks: catalogue integrity, the season calendar, chart
+                 # escaping, the metabolism maths, migrations, the API contract
 npm run check    # syntax check + verifies every local link in web/ resolves
 ```
 

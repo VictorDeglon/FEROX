@@ -15,16 +15,42 @@ const fileFor = id => join(config.dataDir, `${safeName(id)}.json`);
 let ready;
 const ensureDir = () => (ready ??= mkdir(config.dataDir, { recursive: true }));
 
+/** Collections that must be arrays. Mirrors `emptyData()` in the web store. */
+export const ARRAYS = ['sessions', 'meals', 'weights', 'medals', 'friends',
+  'checkIns', 'customFoods', 'unlocks'];
+/** ...and the ones that must be plain objects keyed by date or slot. */
+export const MAPS = ['seasons', 'readiness', 'water'];
+
+/**
+ * A fresh document, matching web/assets/js/core/store.js at version 3.
+ *
+ * The two have to agree on the envelope: the client migrates whatever it is
+ * handed, but a server that invents different defaults means a brand-new
+ * account looks different depending on whether an API happened to be running.
+ */
 export function emptyData() {
   const today = new Date().toISOString().slice(0, 10);
   return {
-    version: 2,
+    version: 3,
     profile: {
-      name: 'Athlete', email: '', picture: '', handle: 'athlete',
-      unit: 'kg', heightCm: 178, joined: today,
-      goals: { kcal: 2400, protein: 165, carbs: 260, fat: 75, sessionsPerWeek: 4 },
+      name: '', email: '', picture: '', handle: '',
+      unit: 'kg', joined: today,
+      sex: '', age: null, heightCm: null, weightKg: null,
+      activity: 3, level: 3, goal: '', daysPerWeek: 4,
+      equipment: 'gym', limits: [],
+      goals: { kcal: 2200, protein: 150, carbs: 240, fat: 70, sessionsPerWeek: 4 },
     },
-    sessions: [], meals: [], weights: [], medals: [], friends: [],
+    onboarded: false,
+    layout: 4,
+    planStart: today,
+    settings: {
+      weighInEvery: 2,
+      checkpointEvery: 14,
+      palette: 'ember',
+      lastWeighInPrompt: '',
+    },
+    ...Object.fromEntries(ARRAYS.map(k => [k, []])),
+    ...Object.fromEntries(MAPS.map(k => [k, {}])),
   };
 }
 

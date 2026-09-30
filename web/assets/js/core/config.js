@@ -22,6 +22,8 @@ export const CONFIG = {
   storageKey: 'ferox.v2',
   sessionKey: 'ferox.v2.session',
   themeKey: 'ferox.v2.theme',
+  /** Cached so the palette is on <html> before the first paint, not after. */
+  paletteKey: 'ferox.v2.palette',
 };
 
 /** True once a real Google client id has been configured. */

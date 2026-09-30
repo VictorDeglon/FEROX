@@ -3,7 +3,7 @@
  * App shell is cache-first (it changes only on deploy); everything else falls
  * back to the network. Bump CACHE on release to invalidate.
  */
-const CACHE = 'ferox-v3.0.0';
+const CACHE = 'ferox-v4.0.0';
 const SHELL = [
   './', 'index.html', 'dashboard.html', 'workouts.html', 'nutrition.html',
   'progress.html', 'records.html', 'medals.html', 'friends.html', 'profile.html',
@@ -14,16 +14,18 @@ const SHELL = [
   'assets/brand/mascot.png',
   'assets/brand/icon.webp', 'assets/brand/icon.png', 'assets/brand/favicon-32.png',
   'assets/brand/apple-touch-icon.png', 'assets/brand/maskable.png',
-  'assets/brand/mascot.webp', 'assets/brand/logo.svg', 'assets/brand/wolf.svg',
+  'assets/brand/logo.svg', 'assets/brand/wolf.svg',
   'assets/js/core/config.js', 'assets/js/core/icons.js', 'assets/js/core/seed.js',
   'assets/js/core/store.js', 'assets/js/core/auth.js', 'assets/js/core/ui.js',
   'assets/js/core/chart.js', 'assets/js/core/seasons.js', 'assets/js/core/season-icons.js',
   'assets/js/core/profile.js', 'assets/js/core/split.js', 'assets/js/core/research.js',
-  'assets/js/core/image.js',
+  'assets/js/core/image.js', 'assets/js/core/themes.js', 'assets/js/core/eggs.js',
+  'assets/js/core/metabolism.js', 'assets/js/core/plan.js',
   'assets/js/pages/landing.js', 'assets/js/pages/dashboard.js', 'assets/js/pages/workouts.js',
   'assets/js/pages/nutrition.js', 'assets/js/pages/progress.js', 'assets/js/pages/records.js',
   'assets/js/pages/medals.js', 'assets/js/pages/friends.js', 'assets/js/pages/profile.js',
   'assets/js/pages/_log.js', 'assets/js/pages/seasons.js', 'assets/js/pages/_readiness.js',
+  'assets/js/pages/_weighin.js',
   'assets/js/pages/onboarding.js', 'assets/js/pages/docs.js',
 ];
 

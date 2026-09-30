@@ -153,7 +153,11 @@ small { font-size: var(--step--1); }
 
 /* brand -------------------------------------------------------------- */
 .brand { display: inline-flex; align-items: center; gap: 10px; }
-.brand svg, .brand img { width: 30px; height: 30px; flex: none; }
+/* The mark carries its own width/height, so only size the ones that have none.
+   A blanket 30px here silently rendered every larger mark — the 64px one on the
+   landing CTA included — at nav-bar size. */
+.brand svg, .brand img { flex: none; }
+.brand svg:not([width]), .brand img:not([width]) { width: 30px; height: 30px; }
 .brand-word {
   font-family: var(--font-display); font-weight: 900; font-size: 1.16rem;
   letter-spacing: .1em; text-transform: uppercase;
@@ -725,6 +729,11 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
 .mascot { display: block; width: min(320px, 68vw); margin-inline: auto; }
 .mascot img { width: 100%; height: auto; }
 
+/* The art is 4:5. Anything that hands it a square box — a 404 page setting
+   width and height to the same number, say — has to letterbox rather than
+   squash, so the aspect ratio is declared here once and `contain` enforces it. */
+.mascot-art { aspect-ratio: 818 / 1024; object-fit: contain; height: auto; }
+
 /* ==========================================================================
    Sliders and choice controls
    Used throughout onboarding and the readiness check-in.
@@ -856,6 +865,7 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
   font-size: var(--step--1); font-weight: 600; cursor: pointer;
 }
 .ready-chip:hover { border-color: var(--line-hi); }
+.ready-chip svg { width: 15px; height: 15px; flex: none; }
 
 /* App footer --------------------------------------------------------------- */
 .app-foot {
@@ -893,4 +903,253 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
 .avatar-edit-badge svg { width: 13px; height: 13px; }
 
 /* Brand mark (raster mascot, used in chrome) -------------------------------- */
+/* `contain` is the load-bearing part: the art is square but a browser that has
+   not measured it yet, or a rule that sets only one axis, must letterbox it
+   rather than crop it. Nothing in the chrome may cut the wolf's ears off. */
 .brand-mark { flex: none; object-fit: contain; }
+
+/* A mark that sits on its own rather than beside the wordmark — the landing
+   CTA, the footer. The box shrink-wraps whatever size the mark asked for, so
+   the glow aura around it lines up with the art instead of a stale pixel count. */
+.mark-slot { display: inline-flex; line-height: 0; }
+.mark-slot img, .mark-slot svg { flex: none; object-fit: contain; }
+
+/* ==========================================================================
+   Palettes
+   A palette remaps tokens and nothing else — no new selectors, no component
+   overrides. `data-theme` still means light/dark and every rule elsewhere in
+   this file keys off it exactly as before; `data-palette` rides alongside.
+
+   Locked behind the secret console (core/eggs.js), surfaced in the profile.
+   ========================================================================== */
+
+/* --- Neon Wolf: hot pink and neon blue ------------------------------------ */
+[data-palette='neon'] {
+  --ember-hi: #FF7AD9;
+  --ember:    #FF2D95;
+  --ember-lo: #4D5BFF;
+  --ember-grad: linear-gradient(135deg, var(--ember-hi), var(--ember) 42%, var(--ember-lo));
+
+  --viz-1: #FF2D95; --viz-2: #00E5FF; --viz-3: #A855F7;
+  --viz-4: #FFD166; --viz-5: #22E3A5; --viz-6: #FF7AD9;
+
+  --bg:      #08040E;
+  --surf-1:  #120A1C;
+  --surf-2:  #180F25;
+  --surf-3:  #21152F;
+  --line:    #301D45;
+  --line-hi: #472C63;
+
+  --text:   #FBF4FF;
+  --text-2: #BCA8D2;
+  --text-3: #85729C;
+  color-scheme: dark;
+}
+[data-palette='neon'][data-theme='light'] {
+  --ember-lo: #B3126B;
+  --bg:      #FFF5FB;
+  --surf-1:  #FFFFFF;
+  --surf-2:  #FFFFFF;
+  --surf-3:  #FCE9F5;
+  --line:    #F3D4E8;
+  --line-hi: #E2AED2;
+  --text:   #1B0A20;
+  --text-2: #604A6E;
+  --text-3: #93809F;
+  color-scheme: light;
+}
+
+/* --- Cosmic: deep violet, starlight edges --------------------------------- */
+[data-palette='cosmic'] {
+  --ember-hi: #C4B5FD;
+  --ember:    #7C5CFF;
+  --ember-lo: #2E1F8F;
+  --ember-grad: linear-gradient(135deg, var(--ember-hi), var(--ember) 45%, var(--ember-lo));
+
+  --viz-1: #7C5CFF; --viz-2: #38BDF8; --viz-3: #F472B6;
+  --viz-4: #FBBF24; --viz-5: #34D399; --viz-6: #C4B5FD;
+
+  --bg:      #05060F;
+  --surf-1:  #0C0F22;
+  --surf-2:  #12162E;
+  --surf-3:  #1A1F3D;
+  --line:    #272D52;
+  --line-hi: #3A4170;
+
+  --text:   #EFF0FF;
+  --text-2: #A7AED6;
+  --text-3: #6F769A;
+  color-scheme: dark;
+}
+[data-palette='cosmic'][data-theme='light'] {
+  --ember-lo: #4326C9;
+  --bg:      #F4F4FD;
+  --surf-1:  #FFFFFF;
+  --surf-2:  #FFFFFF;
+  --surf-3:  #ECECFA;
+  --line:    #DFDFF2;
+  --line-hi: #C6C6E6;
+  --text:   #0B0C1C;
+  --text-2: #4F5478;
+  --text-3: #858AA8;
+  color-scheme: light;
+}
+
+/* --- Nautical: deep water, teal and brass --------------------------------- */
+[data-palette='nautical'] {
+  --ember-hi: #5EEAD4;
+  --ember:    #06B6D4;
+  --ember-lo: #0E7490;
+  --ember-grad: linear-gradient(135deg, var(--ember-hi), var(--ember) 48%, var(--ember-lo));
+
+  --viz-1: #06B6D4; --viz-2: #38BDF8; --viz-3: #F0B429;
+  --viz-4: #34D399; --viz-5: #F472B6; --viz-6: #94A3B8;
+
+  --bg:      #041018;
+  --surf-1:  #082029;
+  --surf-2:  #0C2935;
+  --surf-3:  #113343;
+  --line:    #1B4457;
+  --line-hi: #2A6076;
+
+  --text:   #ECFBFF;
+  --text-2: #9EBCC8;
+  --text-3: #6D8A98;
+  color-scheme: dark;
+}
+[data-palette='nautical'][data-theme='light'] {
+  --ember-lo: #0B5E70;
+  --bg:      #F2F8FA;
+  --surf-1:  #FFFFFF;
+  --surf-2:  #FFFFFF;
+  --surf-3:  #E7F2F6;
+  --line:    #D7E6EC;
+  --line-hi: #B4CFDA;
+  --text:   #05202B;
+  --text-2: #456068;
+  --text-3: #7A959F;
+  color-scheme: light;
+}
+
+/* Every palette's light mode needs the same softer shadows the base light
+   theme uses — they are a function of brightness, not of hue. */
+[data-palette][data-theme='light'] {
+  --shadow-1: 0 1px 2px rgb(16 24 40 / .06);
+  --shadow-2: 0 8px 24px -10px rgb(16 24 40 / .18);
+  --shadow-3: 0 24px 60px -18px rgb(16 24 40 / .22);
+}
+
+/* Theme picker ------------------------------------------------------------- */
+.theme-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+.theme-card {
+  display: grid; gap: 10px; padding: 14px; text-align: left; width: 100%;
+  background: var(--surf-2); border: 1px solid var(--line);
+  border-radius: var(--r-md); color: var(--text); cursor: pointer;
+  transition: border-color .18s, transform .18s var(--ease), box-shadow .22s;
+}
+[data-theme='light'] .theme-card { background: var(--surf-1); }
+.theme-card:hover { transform: translateY(-2px); border-color: var(--line-hi); }
+.theme-card[aria-pressed='true'] {
+  border-color: var(--ember);
+  box-shadow: 0 0 0 1px var(--ember), 0 8px 26px -14px var(--ember-ring);
+}
+.theme-card strong { font-family: var(--font-display); font-size: var(--step--1); }
+.theme-card small { display: block; color: var(--text-3); font-size: var(--step--2); line-height: 1.45; }
+
+/* Three stripes of the palette's own colours, independent of the live theme. */
+.theme-swatch { display: flex; height: 26px; border-radius: var(--r-sm); overflow: hidden; }
+.theme-swatch i { flex: 1; display: block; }
+
+/* Danger and destructive confirmation ------------------------------------- */
+.btn-danger {
+  --btn-bg: var(--bad); --btn-fg: #fff; --btn-line: transparent;
+}
+[data-theme='light'] .btn-danger { --btn-bg: #DC2626; }
+.btn-danger:disabled { opacity: .35; }
+
+.zone-danger {
+  border-color: color-mix(in srgb, var(--bad) 34%, var(--line));
+  background: color-mix(in srgb, var(--bad) 5%, var(--surf-1));
+}
+
+.fate-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.fate-list { list-style: none; padding: 0; display: grid; gap: 7px; }
+.fate-list li { display: flex; align-items: flex-start; gap: 8px; font-size: var(--step--1); line-height: 1.4; }
+.fate-list svg { width: 14px; height: 14px; flex: none; margin-top: 3px; }
+.fate-gone { color: var(--text-2); }
+.fate-gone svg { color: var(--bad); }
+.fate-kept svg { color: var(--ok); }
+
+code.phrase {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--surf-3); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 1px 7px; letter-spacing: .06em;
+  color: var(--bad); font-size: .92em;
+}
+.input-ok { border-color: var(--ok) !important; }
+
+/* Secret console ----------------------------------------------------------- */
+.secret-modal { width: min(460px, calc(100vw - 32px)); }
+.secret-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .08em; text-align: center; font-size: 1rem;
+}
+.secret-out { font-size: var(--step--1); line-height: 1.5; min-height: 3.2em; text-align: center; }
+.secret-hit { border-color: color-mix(in srgb, var(--ember) 55%, var(--line)); box-shadow: var(--glow-ember); }
+.secret-miss { animation: secret-shake .4s var(--ease); }
+@keyframes secret-shake {
+  10%, 90% { transform: translateX(-2px); }
+  30%, 70% { transform: translateX(4px); }
+  50%      { transform: translateX(-4px); }
+}
+
+/* The five-tap target. No affordance on purpose — but a pointer cursor and a
+   generous hit area mean nobody who is looking for it has to be precise. */
+.topbar h1 { cursor: default; user-select: none; -webkit-user-select: none; }
+
+/* Weigh-in and body composition ------------------------------------------- */
+.measure-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+
+.checkpoint {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: var(--r-md);
+  background: var(--surf-2); border: 1px solid var(--line);
+}
+[data-theme='light'] .checkpoint { background: var(--surf-3); }
+.checkpoint-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex: none;
+  background: var(--text-3);
+}
+.checkpoint.is-ontrack  { border-color: color-mix(in srgb, var(--ok) 42%, var(--line)); }
+.checkpoint.is-ontrack  .checkpoint-dot { background: var(--ok); }
+.checkpoint.is-ahead    .checkpoint-dot { background: var(--ember); }
+.checkpoint.is-behind   { border-color: color-mix(in srgb, var(--warn) 42%, var(--line)); }
+.checkpoint.is-behind   .checkpoint-dot { background: var(--warn); }
+.checkpoint.is-pending  { opacity: .72; border-style: dashed; }
+.checkpoint-next { border-color: color-mix(in srgb, var(--ember) 45%, var(--line)); opacity: 1; }
+
+/* Confidence in the metabolism estimate, shown rather than hidden. */
+.confidence { display: inline-flex; gap: 3px; align-items: center; }
+.confidence i { width: 5px; height: 12px; border-radius: 2px; background: var(--surf-3); display: block; }
+.confidence i.on { background: var(--ember); }
+
+/* Water tracker ------------------------------------------------------------ */
+.water-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.water-cup {
+  width: 26px; height: 34px; border-radius: 4px 4px 9px 9px;
+  border: 1.5px solid var(--line-hi); background: var(--surf-3);
+  position: relative; overflow: hidden; flex: none;
+}
+.water-cup.full { border-color: color-mix(in srgb, var(--viz-2) 70%, transparent); }
+.water-cup.full::after {
+  content: ''; position: absolute; inset: auto 0 0 0; height: 78%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--viz-2) 75%, transparent), var(--viz-2));
+}
+
+/* Weigh-in disclosure ------------------------------------------------------ */
+.wi-more > summary { list-style: none; color: var(--text-3); font-weight: 600; }
+.wi-more > summary::-webkit-details-marker { display: none; }
+.wi-more > summary::before { content: '＋ '; color: var(--ember); }
+.wi-more[open] > summary::before { content: '− '; }
+.wi-more > summary:hover { color: var(--ember); }

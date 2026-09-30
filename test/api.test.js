@@ -52,8 +52,12 @@ test('data endpoints reject missing and invalid tokens', async () => {
 test('a new user starts with an empty, well-formed log', async () => {
   const body = await (await get('/api/data', { headers: auth })).json();
   assert.deepEqual(body.sessions, []);
-  assert.equal(body.version, 2);
+  assert.equal(body.version, 3);
   assert.ok(body.profile.goals.kcal > 0);
+  // The v3 collections have to exist, or the client renders an empty app.
+  for (const k of ['checkIns', 'customFoods', 'unlocks']) assert.deepEqual(body[k], []);
+  for (const k of ['seasons', 'readiness', 'water']) assert.deepEqual(body[k], {});
+  assert.equal(body.settings.weighInEvery, 2, 'every other day is the default cadence');
 });
 
 test('data round-trips through a PUT', async () => {
@@ -69,8 +73,56 @@ test('data round-trips through a PUT', async () => {
   const back = await (await get('/api/data', { headers: auth })).json();
   assert.equal(back.sessions[0].name, 'Push');
   assert.equal(back.profile.goals.kcal, 3000);
-  assert.equal(back.profile.goals.protein, 165, 'missing goals should fall back to defaults');
+  assert.equal(back.profile.goals.protein, 150, 'missing goals should fall back to defaults');
   assert.deepEqual(back.medals, ['m-first']);
+});
+
+test('a PUT keeps the whole document, not a whitelist of it', async () => {
+  // This is the regression that mattered: the old route rebuilt the document
+  // from a fixed list of keys, so onboarding, seasons, readiness and the plan
+  // start date were deleted on every save and setup ran again on every device.
+  const payload = {
+    profile: { name: 'Tester' },
+    onboarded: true,
+    layout: 6,
+    planStart: '2026-01-04',
+    readiness: { '2026-09-28': 8 },
+    seasons: { summer: 'greek-fire' },
+    water: { '2026-09-28': 2000 },
+    checkIns: [{ id: 'c1', date: '2026-09-28', weightKg: 81.4, bodyFat: 17.2 }],
+    customFoods: [{ id: 'cf-1', name: 'Nan bread', per: '1', kcal: 300, p: 9, c: 50, f: 7 }],
+    unlocks: ['theme-pack'],
+    settings: { weighInEvery: 7, palette: 'cosmic' },
+    sessions: [], meals: [], weights: [], medals: [], friends: [],
+  };
+  const put = await get('/api/data', {
+    method: 'PUT', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  assert.equal(put.status, 200);
+
+  const back = await (await get('/api/data', { headers: auth })).json();
+  assert.equal(back.onboarded, true, 'onboarding flag was dropped');
+  assert.equal(back.layout, 6);
+  assert.equal(back.planStart, '2026-01-04');
+  assert.deepEqual(back.seasons, { summer: 'greek-fire' });
+  assert.deepEqual(back.readiness, { '2026-09-28': 8 });
+  assert.deepEqual(back.water, { '2026-09-28': 2000 });
+  assert.equal(back.checkIns[0].bodyFat, 17.2);
+  assert.equal(back.customFoods[0].name, 'Nan bread');
+  assert.deepEqual(back.unlocks, ['theme-pack']);
+  assert.equal(back.settings.weighInEvery, 7);
+  assert.equal(back.settings.palette, 'cosmic');
+  assert.equal(back.settings.checkpointEvery, 14, 'unset settings still get their default');
+});
+
+test('a PUT cannot poison the prototype chain', async () => {
+  const res = await get('/api/data', {
+    method: 'PUT', headers: { ...auth, 'content-type': 'application/json' },
+    body: '{"__proto__":{"polluted":true},"sessions":[],"meals":[],"weights":[],"medals":[],"friends":[]}',
+  });
+  assert.equal(res.status, 200);
+  assert.equal({}.polluted, undefined, 'Object.prototype was polluted by a PUT');
 });
 
 test('PUT rejects a non-object body and coerces bad collections', async () => {
@@ -79,11 +131,14 @@ test('PUT rejects a non-object body and coerces bad collections', async () => {
 
   const coerced = await get('/api/data', {
     method: 'PUT', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ sessions: 'not-an-array', meals: null }),
+    body: JSON.stringify({ sessions: 'not-an-array', meals: null, checkIns: 7, seasons: [], water: 'no' }),
   });
   assert.equal(coerced.status, 200);
   const back = await (await get('/api/data', { headers: auth })).json();
   assert.deepEqual(back.sessions, [], 'a bad collection should become an empty array, not crash');
+  assert.deepEqual(back.checkIns, []);
+  assert.deepEqual(back.seasons, {}, 'an array where a map belongs should become an empty map');
+  assert.deepEqual(back.water, {});
 });
 
 test('one user cannot read another user log', async () => {
