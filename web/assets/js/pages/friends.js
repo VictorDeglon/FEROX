@@ -3,13 +3,16 @@ import { store } from '../core/store.js';
 import { bootPage, esc, num, toast, modal, confirmDialog, avatarHtml, initials } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { auth } from '../core/auth.js';
+import { searchPeople, profilesByUid } from '../core/social.js';
+import { weight as toDisplay, weightLabel } from '../core/units.js';
+import { handleFlow } from './_handle.js';
 
 let metric = 'streak';
 
 const METRICS = {
   streak:   { label: 'Streak',  fmt: v => `${v} days`,  key: 'streak' },
   sessions: { label: 'Sessions', fmt: v => num(v),      key: 'sessions' },
-  volume:   { label: 'Volume',  fmt: v => `${num(v)} kg`, key: 'volume' },
+  volume:   { label: 'Volume',  fmt: v => `${num(toDisplay(v, store.unit, { decimals: 0 }))} ${weightLabel(store.unit)}`, key: 'volume' },
   medals:   { label: 'Medals',  fmt: v => num(v),       key: 'medals' },
 };
 
@@ -24,6 +27,10 @@ const view = await bootPage({
 }, render);
 
 document.getElementById('addBtn').addEventListener('click', addFriendFlow);
+
+// Pull friends' public numbers once, on open. `store.commit` re-renders, so
+// the board fills in a moment after it paints rather than blocking on it.
+refreshFriends().catch(() => {});
 
 function render(el) {
   const s = store.stats();
@@ -113,40 +120,143 @@ function render(el) {
   }));
 }
 
+/**
+ * Find a real, registered athlete by handle.
+ *
+ * Prefix search over `handles`, which is a key range rather than a query, so
+ * a search costs one read per result shown and needs no index — see
+ * core/social.js for why that shape was chosen.
+ *
+ * A guest cannot search at all, and says so plainly rather than offering a
+ * box that returns nothing: profiles are readable by signed-in accounts only,
+ * which is also what keeps the directory of everybody off the open web.
+ */
 async function addFriendFlow() {
-  const res = await modal({
-    title: 'Add a friend',
-    submit: 'Add',
+  if (!auth.uid) {
+    const go = await confirmDialog('Sign in to find people',
+      'Friends are real FEROX accounts, so finding them needs one. Your training stays yours either way.',
+      { danger: false });
+    if (go) location.href = 'profile.html';
+    return;
+  }
+  if (!store.data.profile.handle) {
+    const go = await confirmDialog('Claim your handle first',
+      'People find each other by handle, so you need one before you can add anybody.',
+      { danger: false });
+    if (go) await handleFlow({ first: true });
+    return;
+  }
+
+  const already = new Set(store.data.friends.map(f => f.uid).filter(Boolean));
+
+  await modal({
+    title: 'Find an athlete',
+    submit: 'Done',
+    cancel: 'Close',
     body: `
       <div class="field">
-        <label for="fName">Name</label>
-        <input class="input" id="fName" name="name" required placeholder="Sam Okafor">
+        <label for="fq">Search by handle</label>
+        <input class="input" id="fq" autocomplete="off" autocapitalize="off" spellcheck="false"
+          placeholder="sam_lifts" inputmode="search">
       </div>
-      <div class="field">
-        <label for="fHandle">Handle</label>
-        <input class="input" id="fHandle" name="handle" placeholder="sam_lifts">
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="fStreak">Streak (days)</label>
-          <input class="input" id="fStreak" name="streak" type="number" min="0" value="0">
-        </div>
-        <div class="field">
-          <label for="fSessions">Sessions</label>
-          <input class="input" id="fSessions" name="sessions" type="number" min="0" value="0">
-        </div>
-      </div>
-      <p class="dim" style="font-size:.78rem">Local mode has no friend search, so their numbers are entered by hand.
-        With the API connected this becomes a real invite.</p>`,
+      <div id="fres" class="stack" style="gap:8px;min-height:84px">
+        <p class="dim" style="font-size:.8rem">Type at least two characters.</p>
+      </div>`,
+
+    onMount(dlg) {
+      const input = dlg.querySelector('#fq');
+      const out = dlg.querySelector('#fres');
+      let timer = null;
+      let token = 0;
+
+      const row = r => `
+        <div class="row-between" style="gap:10px;padding:8px;border:1px solid var(--line);
+             border-radius:var(--r-md);background:var(--surf-1)">
+          <a class="row" style="gap:9px;min-width:0;align-items:center;text-decoration:none;color:inherit"
+             href="u.html?h=${encodeURIComponent(r.handle)}">
+            ${avatarHtml({ name: r.nickname || r.handle, picture: r.picture }, 'avatar avatar-sm')}
+            <span style="min-width:0">
+              <span style="display:block;font-size:.86rem;font-weight:600;overflow:hidden;
+                           text-overflow:ellipsis;white-space:nowrap">${esc(r.nickname || r.handle)}</span>
+              <span class="dim" style="font-size:.74rem">@${esc(r.handle)}</span>
+            </span>
+          </a>
+          ${already.has(r.uid)
+            ? `<span class="chip chip-ok">Added</span>`
+            : `<button type="button" class="btn btn-sm btn-primary" data-add="${esc(r.uid)}"
+                 data-handle="${esc(r.handle)}" data-name="${esc(r.nickname || r.handle)}"
+                 data-pic="${esc(r.picture ?? '')}">Add</button>`}
+        </div>`;
+
+      const run = async () => {
+        const q = input.value.trim();
+        if (q.length < 2) {
+          out.innerHTML = `<p class="dim" style="font-size:.8rem">Type at least two characters.</p>`;
+          return;
+        }
+        out.innerHTML = `<p class="dim" style="font-size:.8rem">Searching…</p>`;
+        const mine = ++token;
+        let rows = [];
+        try { rows = await searchPeople(q, { limit: 8, exclude: auth.uid }); }
+        catch { if (mine === token) out.innerHTML = `<p class="dim" style="font-size:.8rem">Search failed — check your connection.</p>`; return; }
+        if (mine !== token) return;          // a later keystroke already won
+
+        out.innerHTML = rows.length
+          ? rows.map(row).join('')
+          : `<p class="dim" style="font-size:.8rem">Nobody with a handle starting “${esc(q)}”.</p>`;
+      };
+
+      input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 300); });
+
+      out.addEventListener('click', async e => {
+        const b = e.target.closest('[data-add]');
+        if (!b) return;
+        b.disabled = true;
+        await store.addFriend({
+          uid: b.dataset.add,
+          handle: b.dataset.handle,
+          name: b.dataset.name,
+          picture: b.dataset.pic,
+          streak: 0, sessions: 0, volume: 0, medals: 0,
+        });
+        already.add(b.dataset.add);
+        b.replaceWith(Object.assign(document.createElement('span'),
+          { className: 'chip chip-ok', textContent: 'Added' }));
+        toast('Added — their numbers refresh next time you open this page', 'ok');
+      });
+
+      input.focus();
+    },
   });
-  if (!res?.name?.trim()) return;
-  await store.addFriend({
-    name: res.name.trim(),
-    handle: (res.handle || res.name).trim().toLowerCase().replace(/\s+/g, '_'),
-    streak: +res.streak || 0,
-    sessions: +res.sessions || 0,
-    volume: 0,
-    medals: 0,
-  });
-  toast('Friend added', 'ok');
 }
+
+/**
+ * Refresh saved friends from their public profiles.
+ *
+ * One read each, only for friends who are real accounts, and only on opening
+ * this page — a leaderboard does not need to be live to the second, and
+ * polling it would be the most expensive thing in the app.
+ */
+async function refreshFriends() {
+  const uids = store.data.friends.map(f => f.uid).filter(Boolean);
+  if (!uids.length || !auth.uid) return false;
+  let rows = [];
+  try { rows = await profilesByUid(uids); } catch { return false; }
+  if (!rows.length) return false;
+
+  const by = new Map(rows.map(r => [r.uid, r]));
+  let changed = false;
+  await store.commit(d => {
+    for (const f of d.friends) {
+      const r = f.uid && by.get(f.uid);
+      if (!r) continue;
+      // Their nickname and picture are theirs to change, so take those too.
+      const next = { name: r.nickname || f.name, handle: r.handle ?? f.handle,
+        picture: r.picture ?? f.picture, streak: r.streak ?? 0,
+        sessions: r.sessions ?? 0, volume: r.volume ?? 0, medals: r.medals ?? 0 };
+      if (Object.entries(next).some(([k, v]) => f[k] !== v)) { Object.assign(f, next); changed = true; }
+    }
+  });
+  return changed;
+}
+

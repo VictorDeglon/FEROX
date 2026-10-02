@@ -330,11 +330,54 @@ function navHtml() {
   }).join('');
 }
 
+/**
+ * The mobile tab bar, plus the way to everything it cannot hold.
+ *
+ * Five tabs is the most a thumb can reach comfortably, and FEROX has ten
+ * pages — so for a long time the other five, Profile and Friends among them,
+ * were simply unreachable on a phone: the sidebar that holds them is
+ * `display: none` below 900px. The fifth tab is now More, and it opens the
+ * rest. Seasons moves in with them because it is the one of the five you
+ * visit monthly rather than daily.
+ *
+ * `aria-current` lights More when the open page lives inside it, so the bar
+ * never shows nothing selected.
+ */
+const TAB_LIMIT = 4;
+const primary = () => NAV.filter(i => i.tab).slice(0, TAB_LIMIT);
+const overflow = () => NAV.filter(i => i.href && !primary().includes(i));
+
 function tabHtml() {
-  return NAV.filter(i => i.tab).map(item => {
+  const inMore = overflow().some(i => i.href === here());
+  const tabs = primary().map(item => {
     const cur = item.href === here() ? ' aria-current="page"' : '';
     return `<a href="${item.href}"${cur}>${icon(item.ico)}<span>${esc(item.label)}</span></a>`;
   }).join('');
+  return `${tabs}<button type="button" id="moreTab"${inMore ? ' aria-current="page"' : ''}
+    aria-haspopup="dialog">${icon('menu')}<span>More</span></button>`;
+}
+
+/** The sheet behind the More tab. */
+function moreSheet() {
+  const dlg = document.createElement('dialog');
+  dlg.className = 'modal sheet';
+  dlg.innerHTML = `
+    <div class="card card-pad-lg stack" style="gap:14px">
+      <div class="row-between">
+        <h3>More</h3>
+        <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Close">${icon('x')}</button>
+      </div>
+      <nav class="more-grid" aria-label="More sections">
+        ${overflow().map(i => `<a href="${i.href}"${i.href === here() ? ' aria-current="page"' : ''}>
+          ${icon(i.ico)}<span>${esc(i.label)}</span></a>`).join('')}
+      </nav>
+    </div>`;
+  const close = () => { dlg.close(); dlg.remove(); };
+  dlg.querySelector('[data-close]').addEventListener('click', close);
+  dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
+  dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
+  document.body.append(dlg);
+  dlg.showModal();
 }
 
 function avatarHtml(user, cls = 'avatar') {
@@ -420,6 +463,8 @@ export function mountShell({ title, actions = '' }) {
   };
   auth.onChange(syncUser); syncUser();
 
+  shell.querySelector('#moreTab')?.addEventListener('click', moreSheet);
+
   wireSecretConsole(shell);
 
   return content;
@@ -467,6 +512,15 @@ export async function bootPage({ title, actions = '' }, render) {
 
   await store.init({ uid: auth.uid });
   syncThemeFromStore();
+
+  // Keep the public profile roughly in step. Fire-and-forget: it throttles
+  // itself in localStorage, so this is free on the overwhelming majority of
+  // page loads, and nothing on this page waits for it.
+  if (auth.uid) {
+    import('./social.js')
+      .then(m => m.syncPublicProfile(auth.uid, store.data, store.stats()))
+      .catch(() => {});
+  }
 
   // Nobody sees the app before it knows who they are — an empty dashboard with
   // stranger's defaults is a worse first impression than two minutes of setup.

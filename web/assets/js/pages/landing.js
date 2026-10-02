@@ -262,6 +262,14 @@ auth.onChange(async session => {
 
   await store.init({ uid: auth.uid });
 
+  // A verified account needs a handle before it can be found by anybody, and
+  // the moment just after signing in is the only one where asking is not an
+  // interruption. Skippable — it can be claimed later from the profile.
+  if (!store.data.profile.handle) {
+    const { ensureHandle } = await import('./_handle.js');
+    await ensureHandle().catch(() => {});
+  }
+
   if (!store.freshAccount) {
     location.href = store.data.onboarded ? 'dashboard.html' : 'onboarding.html';
     return;
