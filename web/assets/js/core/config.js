@@ -43,12 +43,12 @@ export const CONFIG = {
    * that is claiming sync when there is none.
    */
   firebase: {
-    apiKey: 'REPLACE_ME',
+    apiKey: 'AIzaSyC2XisiS4CIm9gNnigZHZkA32jrL2t4VX8',
     authDomain: 'feroxfitness.firebaseapp.com',
     projectId: 'feroxfitness',
     storageBucket: 'feroxfitness.firebasestorage.app',
     messagingSenderId: '807907944000',
-    appId: 'REPLACE_ME',
+    appId: '1:807907944000:web:7f7774fbd1a46bb39f61a5',
   },
 
   /**
