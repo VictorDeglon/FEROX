@@ -260,7 +260,7 @@ export function weighInBar(onChange) {
         <span style="color:var(--ember);width:18px;flex:none">${icon('scale')}</span>
         <div style="min-width:0">
           <strong style="font-size:var(--step--1)">
-            ${due ? 'Weigh-in due' : last ? `${last.weightKg?.toFixed(1)} kg` : 'No weigh-ins yet'}</strong>
+            ${due ? 'Weigh-in due' : last ? fmtWeight(last.weightKg, store.unit) : 'No weigh-ins yet'}</strong>
           <p class="dim" style="font-size:var(--step--2);margin-top:2px">
             ${last
               ? `Last logged ${esc(last.date)}${days != null && !due ? ` · next in ${Math.max(0, every - days)} day${every - days === 1 ? '' : 's'}` : ''}`

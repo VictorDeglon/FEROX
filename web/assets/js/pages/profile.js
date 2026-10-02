@@ -1,6 +1,6 @@
 /** Profile — account, goals, units, themes, weigh-in cadence and data control. */
 import { store, RESET_CLEARS, RESET_KEEPS } from '../core/store.js';
-import { weight as toDisplay, weightLabel } from '../core/units.js';
+import { weight as toDisplay, weightLabel, fmtWeight, fmtHeight } from '../core/units.js';
 import {
   bootPage, esc, num, toast, modal, confirmPhrase, avatarHtml, displayName, displayUser,
   applyMode, applyPalette, currentMode, currentPalette,
@@ -76,8 +76,8 @@ function render(el) {
             ${mini('Days / week', p.daysPerWeek ?? '—')}
             ${mini('Equipment', EQUIPMENT.find(e => e.id === p.equipment)?.label ?? '—')}
             ${mini('Activity', (ACTIVITY.find(x => x.id === p.activity)?.label ?? '—').split(',')[0])}
-            ${mini('Weight', p.weightKg ? `${p.weightKg} kg` : '—')}
-            ${mini('Height', p.heightCm ? `${p.heightCm} cm` : '—')}
+            ${mini('Weight', p.weightKg ? fmtWeight(p.weightKg, store.unit) : '—')}
+            ${mini('Height', p.heightCm ? fmtHeight(p.heightCm, store.unit) : '—')}
             ${mini('Age', p.age ?? '—')}
             ${mini('Working around', p.limits?.filter(l => l !== 'none').length || 'Nothing')}
           </div>

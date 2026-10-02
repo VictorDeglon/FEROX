@@ -1,3 +1,4 @@
+import { handFor, quantityFor, compare, GUESSING_NOTE } from '../core/portions.js';
 /**
  * Finding food, and building a plate out of it.
  *
@@ -190,7 +191,18 @@ export async function askQuantity(food) {
           <p class="dim" style="font-size:var(--step--2)">${food.grams ? 'Or weigh it' : 'Unknown weight'}</p>
         </div>
       </div>
-      <p class="muted" id="qPreview" style="font-size:var(--step--1)"></p>`,
+      <div class="stack" style="gap:8px;margin-top:4px">
+        <span class="eyebrow">Or just estimate</span>
+        <div class="row wrap" style="gap:7px">
+          ${handFor(food.category).map(h => `
+            <button type="button" class="btn btn-sm" data-hand="${h.grams}"
+              title="${esc(h.say)} Roughly ${esc(h.like)}.">${esc(h.label)}</button>`).join('')}
+        </div>
+        ${compare(food) ? `<p class="dim" style="font-size:.76rem">${esc(compare(food))}</p>` : ''}
+      </div>
+
+      <p class="muted" id="qPreview" style="font-size:var(--step--1)"></p>
+      <p class="dim" style="font-size:.74rem">${esc(GUESSING_NOTE)}</p>`,
     onMount: dlg => {
       const serv = dlg.querySelector('#qServ');
       const grams = dlg.querySelector('#qG');
@@ -206,6 +218,17 @@ export async function askQuantity(food) {
       };
       serv.addEventListener('input', () => sync('serv'));
       grams.addEventListener('input', () => sync('g'));
+
+      // A hand measure is grams, converted into this food's own servings so
+      // everything downstream — the ring, the day's total, saved meals —
+      // carries on working in the units it already uses.
+      dlg.querySelectorAll('[data-hand]').forEach(b => b.addEventListener('click', () => {
+        const q = quantityFor(food, +b.dataset.hand);
+        serv.value = q;
+        if (food.grams) grams.value = Math.round(q * food.grams);
+        sync('serv');
+      }));
+
       sync('serv');
     },
   });

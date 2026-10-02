@@ -63,7 +63,7 @@ function render(el) {
         </div>
         ${weights.length > 1
           ? lineChart(weights.map(w => ({ date: w.date, value: w.kg })), {
-              height: 180, label: 'Bodyweight', fmt: v => `${v} kg`,
+              height: 180, label: 'Bodyweight', fmt: v => fmtWeight(v, U),
               // The dashed line is the regression: bodyweight swings a kilo on
               // water alone, and the slope is the only part worth reading.
               trend: trend ? { start: trend.fitted(0), end: trend.fitted(trend.spanDays) } : null,
@@ -123,7 +123,7 @@ function render(el) {
           const diff = comparable ? c.weightKg - prev.weightKg : null;
           return `<tr>
             <td class="dim">${esc(c.date)}${c.note ? ` <span title="${esc(c.note)}">·</span>` : ''}</td>
-            <td style="text-align:right" class="num">${c.weightKg?.toFixed(1) ?? '—'} kg</td>
+            <td style="text-align:right" class="num">${fmtWeight(c.weightKg, U)}</td>
             <td style="text-align:right" class="num ${diff < 0 ? 'stat-delta up' : diff > 0 ? 'stat-delta down' : 'dim'}">
               ${comparable ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)}` : '—'}</td>
             ${MEASURES.filter(m => d.checkIns.some(x => x[m.key]))
@@ -244,7 +244,7 @@ function checkpointSection(plan, d) {
            ${maintenance.spanDays} day${maintenance.spanDays === 1 ? '' : 's'} of weigh-ins so far.`
         : `${esc(describeFactor(maintenance.factor))}. Worked out from ${num(maintenance.meanKcal)} kcal a day
            against a ${maintenance.trendPerWeek > 0 ? 'gain' : 'loss'} of
-           ${Math.abs(maintenance.trendPerWeek).toFixed(2)} kg a week over ${maintenance.spanDays} days.`}
+           ${toDisplay(Math.abs(maintenance.trendPerWeek), U)} ${weightLabel(U)} a week over ${maintenance.spanDays} days.`}
     </p>
     <div class="grid grid-3" style="gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
       ${mini('Days logged', `${a.loggedDays} / ${a.days}`)}
@@ -278,7 +278,7 @@ function checkpointSection(plan, d) {
         ${marks.map(c => `<div class="checkpoint is-${c.status}${c === plan.next ? ' checkpoint-next' : ''}">
           <span class="checkpoint-dot"></span>
           <div class="grow" style="min-width:0">
-            <strong style="font-size:.88rem">${c.targetKg.toFixed(1)} kg</strong>
+            <strong style="font-size:.88rem">${fmtWeight(c.targetKg, U)}</strong>
             <p class="dim" style="font-size:.73rem;margin-top:2px">
               ${esc(c.date)} · ${c.past ? relDate(c.date) : `in ${Math.max(0, Math.round((Date.parse(c.date) - Date.now()) / 864e5))} days`}
             </p>

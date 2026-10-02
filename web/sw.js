@@ -10,7 +10,7 @@
  * cache and does its own offline queueing; a service worker second-guessing
  * that would be fighting it.
  */
-const CACHE = 'ferox-v13.0.0';
+const CACHE = 'ferox-v14.0.0';
 const SHELL = [
   './', 'index.html', 'dashboard.html', 'workouts.html', 'nutrition.html',
   'progress.html', 'records.html', 'medals.html', 'friends.html', 'profile.html',
@@ -25,7 +25,7 @@ const SHELL = [
   'assets/brand/logo.svg', 'assets/brand/wolf.svg',
   'assets/js/core/config.js', 'assets/js/core/firebase.js', 'assets/js/core/units.js',
   'assets/js/core/social.js', 'assets/js/pages/_handle.js',
-  'assets/js/core/crypto.js', 'assets/js/pages/_chat.js', 'assets/js/core/pacers.js', 'assets/js/core/readiness-icons.js', 'u.html', 'assets/js/pages/u.js',
+  'assets/js/core/crypto.js', 'assets/js/pages/_chat.js', 'assets/js/core/pacers.js', 'assets/js/core/portions.js', 'assets/js/core/readiness-icons.js', 'u.html', 'assets/js/pages/u.js',
   'assets/js/core/icons.js', 'assets/js/core/seed.js',
   'assets/js/core/exercises.js', 'assets/js/core/anatomy.js', 'assets/js/core/strength.js',
   'assets/js/core/musclemap.js',

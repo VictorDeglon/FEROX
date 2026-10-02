@@ -74,7 +74,7 @@ export function exerciseDetail(ex, { profile = null, onPick = null } = {}) {
 
       ${est ? `<div class="row-between" style="padding-top:12px;border-top:1px solid var(--line)">
         <span class="muted" style="font-size:var(--step--1)">Estimated one-rep max for you</span>
-        <span class="num" style="font-size:var(--step--1)">${Math.round(est)} kg</span>
+        <span class="num" style="font-size:var(--step--1)">${fmtWeight(est, store.unit, { decimals: 0 })}</span>
       </div>
       <p class="dim" style="font-size:var(--step--2);margin-top:-8px">
         From your bodyweight, age and stated experience — before you have lifted it. FEROX opens

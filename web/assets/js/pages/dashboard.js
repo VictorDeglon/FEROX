@@ -219,13 +219,14 @@ function checkpointCard(plan) {
     <p class="dim" style="font-size:.76rem;margin-top:10px">
       ${dir === 'hold'
         ? 'Holding steady at your current calories.'
-        : `On plan you ${dir} about ${perWeek} kg a week.`}
+        : `On plan you ${dir} about ${toDisplay(perWeek, store.unit)} ${weightLabel(store.unit)} a week.`}
     </p>
 
     ${last ? `<div class="row-between" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
       <span class="muted" style="font-size:.8rem">Last checkpoint</span>
       <span class="chip ${last.status === 'on-track' ? 'chip-ok' : last.status === 'behind' ? 'chip-warn' : 'chip-ember'}">
-        ${last.status === 'on-track' ? 'On track' : last.status === 'ahead' ? `${Math.abs(last.deltaKg)} kg ahead` : `${Math.abs(last.deltaKg)} kg behind`}
+        ${last.status === 'on-track' ? 'On track'
+          : `${fmtWeight(Math.abs(last.deltaKg), store.unit)} ${last.status === 'ahead' ? 'ahead' : 'behind'}`}
       </span>
     </div>` : ''}
 
