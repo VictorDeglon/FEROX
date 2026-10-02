@@ -371,13 +371,43 @@ small { font-size: var(--step--1); }
     backdrop-filter: blur(16px);
     border-top: 1px solid var(--line);
   }
-  .tabbar a {
+  /* The More button is a <button>, not a link, so it needs saying twice. */
+  .tabbar a, .tabbar button {
     display: grid; place-items: center; gap: 3px;
     font-size: .62rem; font-weight: 600; color: var(--text-3);
+    background: none; border: 0; cursor: pointer; font-family: inherit;
   }
-  .tabbar a svg { width: 21px; height: 21px; }
-  .tabbar a[aria-current='page'] { color: var(--ember); }
+  .tabbar a svg, .tabbar button svg { width: 21px; height: 21px; }
+  .tabbar a[aria-current='page'],
+  .tabbar button[aria-current='page'] { color: var(--ember); }
 }
+
+/*
+ * The sheet behind the More tab.
+ *
+ * Everything the five-tab bar cannot hold — Records, Medals, Friends,
+ * Profile, Docs and Seasons — lives here. Before it existed those pages had
+ * no route at all on a phone, because the sidebar that holds them is
+ * `display: none` below 900px.
+ */
+.sheet {
+  width: min(460px, calc(100vw - 24px));
+  margin-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom) + 10px);
+}
+@media (max-width: 899px) {
+  .sheet { position: fixed; inset: auto 12px 0 12px; margin: 0 0 calc(var(--tabbar) + env(safe-area-inset-bottom) + 10px); }
+}
+.more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.more-grid a {
+  display: grid; place-items: center; gap: 7px;
+  padding: 16px 8px; border-radius: var(--r-md);
+  background: var(--surf-2); border: 1px solid var(--line);
+  font-size: .76rem; font-weight: 600; color: var(--text-2);
+  text-decoration: none; text-align: center;
+}
+.more-grid a svg { width: 21px; height: 21px; }
+.more-grid a:hover { border-color: var(--line-hi); color: var(--text); }
+.more-grid a[aria-current='page'] { color: var(--ember); border-color: var(--ember); }
 
 /* grids -------------------------------------------------------------- */
 /* Grid and flex children default to min-width:auto, which lets a nowrap child

@@ -6,6 +6,7 @@ import {
 } from '../core/ui.js';
 import { icon, googleGlyph } from '../core/icons.js';
 import { auth } from '../core/auth.js';
+import { handleFlow } from './_handle.js';
 import { googleReady } from '../core/config.js';
 import { MEDALS } from '../core/seed.js';
 import { makeAvatar, formatBytes, AVATAR_PX } from '../core/image.js';
@@ -454,26 +455,66 @@ function mini(label, value, unit = '') {
   </div>`;
 }
 
+/**
+ * Name and picture are yours to change freely. The handle is not — it has to
+ * be unique across everybody, so it goes through its own dialog where
+ * availability is checked and the claim is a transaction.
+ *
+ * This used to be a plain text input that lowercased whatever was typed and
+ * saved it, which meant two people could hold the same handle and the second
+ * one silently won.
+ */
 async function editProfile() {
   const p = store.data.profile;
+  const signedIn = Boolean(auth.uid);
+
   const res = await modal({
     title: 'Edit profile',
     body: `
       <div class="field">
         <label for="pn">Display name</label>
-        <input class="input" id="pn" name="name" value="${esc(auth.user?.name ?? p.name)}" required>
+        <input class="input" id="pn" name="name" maxlength="40"
+          value="${esc(p.name || auth.user?.name || '')}" required>
+        <p class="dim" style="font-size:.76rem;margin-top:5px">
+          What people see. Change it as often as you like.</p>
       </div>
+
       <div class="field">
-        <label for="ph">Handle</label>
-        <input class="input" id="ph" name="handle" value="${esc(p.handle)}">
+        <label>Handle</label>
+        ${signedIn
+          ? `<div class="row-between" style="gap:10px;padding:9px 12px;border:1px solid var(--line);
+                  border-radius:var(--r-md);background:var(--surf-2)">
+               <span class="num" style="font-size:.9rem">${p.handle ? `@${esc(p.handle)}` : 'Not claimed yet'}</span>
+               <button type="button" class="btn btn-sm" id="chgHandle">${p.handle ? 'Change' : 'Claim'}</button>
+             </div>
+             <p class="dim" style="font-size:.76rem;margin-top:5px">
+               Unique to you, and how friends find you.</p>`
+          : `<div class="row-between" style="gap:10px;padding:9px 12px;border:1px solid var(--line);
+                  border-radius:var(--r-md);background:var(--surf-2)">
+               <span class="dim" style="font-size:.86rem">Sign in to claim one</span>
+             </div>
+             <p class="dim" style="font-size:.76rem;margin-top:5px">
+               A handle has to be unique across everybody, so it needs an account.</p>`}
       </div>`,
+
+    onMount(dlg) {
+      dlg.querySelector('#chgHandle')?.addEventListener('click', async () => {
+        // Save the name first so the handle dialog publishes the current one
+        // alongside it, rather than whatever was there when the page loaded.
+        const typed = dlg.querySelector('#pn').value.trim();
+        if (typed && typed !== p.name) await store.updateProfile({ name: typed });
+        await handleFlow({ first: !p.handle });
+        dlg.querySelector('[data-close]')?.click();
+      });
+    },
   });
+
   if (!res) return;
-  await store.updateProfile({
-    name: res.name.trim(),
-    handle: res.handle.trim().toLowerCase().replace(/\s+/g, '_') || 'athlete',
-  });
-  toast('Profile updated', 'ok');
+  const name = res.name.trim().slice(0, 40);
+  if (name && name !== p.name) {
+    await store.updateProfile({ name });
+    toast('Profile updated', 'ok');
+  }
 }
 
 /** Change the answers that drive the plan, then rebuild the targets from them. */

@@ -42,6 +42,63 @@ service cloud.firestore {
       }
     }
 
+    /**
+     * The public face of an athlete: a handle, a nickname, a picture and the
+     * handful of numbers they are happy for other people to see.
+     *
+     * Readable by anyone signed in — that is the point of it — and writable
+     * only by its owner. What keeps this safe is not the rule, it is the
+     * allow-list in `PUBLIC_FIELDS` in core/social.js: the private log stays
+     * in `users/{uid}` and nothing copies a field here unless it is named
+     * there. Bodyweight, measurements, meals and notes are not.
+     *
+     * The size cap is the only thing standing between this and somebody using
+     * their public profile as free hosting.
+     */
+    match /profiles/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.data.keys().size() <= 12
+                   && (!('nickname' in request.resource.data)
+                       || request.resource.data.nickname is string
+                       && request.resource.data.nickname.size() <= 40)
+                   && (!('handle' in request.resource.data)
+                       || request.resource.data.handle is string
+                       && request.resource.data.handle.size() <= 20);
+    }
+
+    /**
+     * Handle ownership, and the search index.
+     *
+     * The handle is the document id, which is what makes it unique — Firestore
+     * has no unique constraint, and this is the only way to get one that two
+     * simultaneous writers cannot both win.
+     *
+     * `create` requires the document not to exist, which Firestore enforces
+     * for `create` specifically rather than `write`, so splitting the two
+     * verbs here is load-bearing: with a single `write` rule, claiming a
+     * handle somebody already owns would be an update and would succeed.
+     *
+     * An owner may update their own row (a new nickname or picture) and
+     * delete it when changing handle. Nobody can touch anyone else's.
+     */
+    match /handles/{handle} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.keys().hasOnly(['uid', 'nickname', 'picture'])
+                    && handle.size() >= 3 && handle.size() <= 20
+                    && handle.matches('^[a-z0-9_]+$');
+
+      allow update: if request.auth != null
+                    && resource.data.uid == request.auth.uid
+                    && request.resource.data.uid == request.auth.uid;
+
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
     // Anything not named above is closed. This is the default, but a reader
     // should not have to know that to be sure of it.
     match /{document=**} {
