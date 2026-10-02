@@ -162,10 +162,10 @@ function render(el) {
           <div class="card-head"><h3>Preferences</h3></div>
           <div class="stack" style="gap:14px">
             <div class="field">
-              <label for="unit">Weight unit</label>
+              <label for="unit">Units</label>
               <select class="select" id="unit">
-                <option value="kg"${p.unit === 'kg' ? ' selected' : ''}>Kilograms</option>
-                <option value="lb"${p.unit === 'lb' ? ' selected' : ''}>Pounds</option>
+                <option value="kg"${p.unit !== 'lb' ? ' selected' : ''}>Metric — kg and cm</option>
+                <option value="lb"${p.unit === 'lb' ? ' selected' : ''}>Imperial — lb and ft</option>
               </select>
             </div>
             <div class="field">
@@ -241,7 +241,12 @@ function render(el) {
   el.querySelector('#editGoals').addEventListener('click', editGoals);
   el.querySelector('#signOut')?.addEventListener('click', async () => { await auth.signOut(); location.href = 'index.html'; });
 
-  el.querySelector('#unit').addEventListener('change', e => store.updateProfile({ unit: e.target.value }));
+  el.querySelector('#unit').addEventListener('change', async e => {
+    // Display only — nothing stored is touched, so this is reversible and
+    // cannot lose a decimal. The page redraws so every number on it flips.
+    await store.setUnit(e.target.value);
+    toast(e.target.value === 'lb' ? 'Showing pounds and feet' : 'Showing kilograms and centimetres', 'ok');
+  });
   el.querySelector('#height').addEventListener('change', e => store.updateProfile({ heightCm: +e.target.value }));
 
   el.querySelector('#exportBtn').addEventListener('click', () => {

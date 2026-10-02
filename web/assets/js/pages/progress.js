@@ -1,5 +1,6 @@
 /** Progress — volume, body composition, consistency, focus and checkpoints. */
 import { store } from '../core/store.js';
+import { fmtWeight, weight as toDisplay, weightLabel } from '../core/units.js';
 import { bootPage, esc, num, toast, relDate } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { lineChart, barChart, heatmap, breakdown, VIZ } from '../core/chart.js';
@@ -18,6 +19,7 @@ document.getElementById('wBtn').addEventListener('click', () => weighInFlow());
 
 function render(el) {
   const d = store.data;
+  const U = store.unit;
   const s = store.stats();
   const weights = d.weights;
   const first = weights[0], last = weights.at(-1);
@@ -32,11 +34,11 @@ function render(el) {
 
   el.innerHTML = `
     <section class="grid grid-4">
-      ${stat('Total volume', num(s.volume), 'kg', `${s.sessions} sessions`)}
+      ${stat('Total volume', num(toDisplay(s.volume, U, { decimals: 0 })), weightLabel(U), `${s.sessions} sessions`)}
       ${stat('Time trained', num(Math.round(s.minutes / 60)), 'hrs', `~${Math.round(avgSession)} min / session`)}
       ${stat('Best streak', s.bestStreak, 'days', s.streak ? `${s.streak} running now` : 'Not running')}
-      ${stat('Bodyweight', last ? last.kg.toFixed(1) : '—', last ? 'kg' : '',
-             delta ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} kg since start` : 'Log one to start')}
+      ${stat('Bodyweight', last ? toDisplay(last.kg, U) : '—', last ? weightLabel(U) : '',
+             delta ? `${delta > 0 ? '+' : ''}${toDisplay(delta, U)} ${weightLabel(U)} since start` : 'Log one to start')}
     </section>
 
     <div class="row-between wrap" style="gap:12px">
@@ -48,8 +50,8 @@ function render(el) {
 
     <section class="grid grid-2">
       <div class="card card-pad-lg">
-        <div class="card-head"><h3>Training volume</h3><span class="chip num">${num(store.volumeSeries(range).reduce((t, p) => t + p.value, 0))} kg</span></div>
-        ${barChart(store.volumeSeries(range), { height: 180, label: 'Volume per day', fmt: v => `${num(v)} kg` })}
+        <div class="card-head"><h3>Training volume</h3><span class="chip num">${num(toDisplay(store.volumeSeries(range).reduce((t, p) => t + p.value, 0), U, { decimals: 0 }))} ${weightLabel(U)}</span></div>
+        ${barChart(store.volumeSeries(range), { height: 180, label: 'Volume per day', fmt: v => `${num(toDisplay(v, U, { decimals: 0 }))} ${weightLabel(U)}` })}
         <p class="dim" style="font-size:.75rem;margin-top:10px">Reps × weight, summed per day. Gaps are rest days.</p>
       </div>
 
@@ -57,7 +59,7 @@ function render(el) {
         <div class="card-head">
           <h3>Bodyweight</h3>
           ${trend ? `<span class="chip ${trend.perWeek < 0 ? 'chip-ok' : trend.perWeek > 0 ? 'chip-warn' : ''}">
-            ${trend.perWeek > 0 ? '+' : ''}${trend.perWeek.toFixed(2)} kg / week</span>` : ''}
+            ${trend.perWeek > 0 ? '+' : ''}${toDisplay(trend.perWeek, U, { decimals: U === 'lb' ? 1 : 2 })} ${weightLabel(U)} / week</span>` : ''}
         </div>
         ${weights.length > 1
           ? lineChart(weights.map(w => ({ date: w.date, value: w.kg })), {

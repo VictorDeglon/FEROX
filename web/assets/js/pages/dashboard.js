@@ -1,5 +1,6 @@
 /** Today — the landing surface once you're in the app. */
 import { store, todayISO } from '../core/store.js';
+import { weight as toDisplay, weightLabel, fmtWeight } from '../core/units.js';
 import { bootPage, esc, num, kcal, pct, relDate, toast, modal } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { ring, heatmap, lineChart } from '../core/chart.js';
@@ -55,7 +56,7 @@ function render(el) {
     <section class="grid grid-4">
       ${tile('Streak', s.streak, 'days', s.streak >= 3 ? `Best ${s.bestStreak}` : 'Keep it going', 'flame', s.streak > 0)}
       ${tile('This week', weekSessions, `/ ${goals.sessionsPerWeek}`, weekSessions >= goals.sessionsPerWeek ? 'Target hit' : `${goals.sessionsPerWeek - weekSessions} to go`, 'calendar')}
-      ${tile('Volume today', num(todayVolume), 'kg', today.length ? `${today.length} session${today.length > 1 ? 's' : ''}` : 'Nothing yet', 'dumbbell')}
+      ${tile('Volume today', num(toDisplay(todayVolume, store.unit, { decimals: 0 })), weightLabel(store.unit), today.length ? `${today.length} session${today.length > 1 ? 's' : ''}` : 'Nothing yet', 'dumbbell')}
       ${tile('Medals', d.medals.length, `/ ${MEDALS.length}`, `${MEDALS.length - d.medals.length} to unlock`, 'medal')}
     </section>
 
@@ -88,7 +89,7 @@ function render(el) {
 
         <div class="card card-pad-lg">
           <div class="card-head"><h3>Volume trend</h3><a class="card-link" href="progress.html">All charts →</a></div>
-          ${lineChart(store.volumeSeries(30), { height: 150, label: 'Daily volume', fmt: v => `${num(v)} kg` })}
+          ${lineChart(store.volumeSeries(30), { height: 150, label: 'Daily volume', fmt: v => `${num(toDisplay(v, store.unit, { decimals: 0 }))} ${weightLabel(store.unit)}` })}
         </div>
       </div>
 
@@ -115,7 +116,7 @@ function render(el) {
               <span style="color:var(--ember);display:grid;place-items:center;width:20px">${icon('dumbbell')}</span>
               <div class="grow" style="min-width:0">
                 <strong>${esc(sess.name)}</strong><br>
-                <small>${relDate(sess.date)} · ${sess.durationMin} min · ${num(store.sessionVolume(sess))} kg</small>
+                <small>${relDate(sess.date)} · ${sess.durationMin} min · ${num(toDisplay(store.sessionVolume(sess), store.unit, { decimals: 0 }))} ${weightLabel(store.unit)}</small>
               </div>
             </div>`).join('')}</div>`
             : `<div class="empty">${icon('dumbbell')}<strong>No sessions yet</strong>
@@ -209,7 +210,7 @@ function checkpointCard(plan) {
     ${next ? `<div class="checkpoint checkpoint-next is-pending">
       <span class="checkpoint-dot"></span>
       <div class="grow" style="min-width:0">
-        <strong style="font-size:.9rem">${next.targetKg.toFixed(1)} kg</strong>
+        <strong style="font-size:.9rem">${fmtWeight(next.targetKg, store.unit)}</strong>
         <p class="dim" style="font-size:.74rem;margin-top:2px">by ${esc(next.date)}</p>
       </div>
       <span class="chip num">${relDate(next.date) === 'Today' ? 'today' : `${Math.max(0, Math.round((Date.parse(next.date) - Date.now()) / 864e5))}d`}</span>

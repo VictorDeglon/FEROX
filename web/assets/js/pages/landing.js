@@ -4,6 +4,7 @@ import { auth } from '../core/auth.js';
 import { googleReady } from '../core/config.js';
 import { esc, toggleTheme, revealOnScroll, firstImage, modal } from '../core/ui.js';
 import { store, Store } from '../core/store.js';
+import { detectUnit } from '../core/units.js';
 import { ring } from '../core/chart.js';
 import { MEDALS } from '../core/seed.js';
 
@@ -14,6 +15,33 @@ document.getElementById('ctaMark').innerHTML = brandMark(64);
 document.getElementById('heroMedal').innerHTML = icon('flame');
 document.getElementById('heroMedal').classList.add('medal-disc');
 Object.assign(document.getElementById('heroMedal').querySelector('svg').style, { width: '20px', height: '20px' });
+
+/* units -------------------------------------------------------------------
+ *
+ * Guessed from the browser's own locale — no geolocation request, so nothing
+ * leaves the device to work out whether someone thinks in pounds. The guess
+ * is only a guess, which is why the toggle is here on the first screen rather
+ * than buried in a profile the visitor has not reached yet.
+ *
+ * Stored under its own key because there is no athlete yet; onboarding reads
+ * it as the starting answer.
+ */
+const UNIT_KEY = 'ferox.v2.unit';
+const readUnit = () => {
+  try { return localStorage.getItem(UNIT_KEY) || detectUnit(); } catch { return detectUnit(); }
+};
+const unitBtn = document.getElementById('unitBtn');
+const syncUnit = () => {
+  const u = readUnit();
+  unitBtn.textContent = u === 'lb' ? 'lb / ft' : 'kg / cm';
+  unitBtn.title = `Showing ${u === 'lb' ? 'pounds and feet' : 'kilograms and centimetres'} — tap to switch`;
+};
+unitBtn.addEventListener('click', () => {
+  const next = readUnit() === 'lb' ? 'kg' : 'lb';
+  try { localStorage.setItem(UNIT_KEY, next); } catch { /* private mode */ }
+  syncUnit();
+});
+syncUnit();
 
 /* theme ------------------------------------------------------------------ */
 const themeBtn = document.getElementById('themeBtn');

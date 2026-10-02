@@ -1,12 +1,14 @@
 /** Workouts — routine library plus your training log. */
 import { store } from '../core/store.js';
+import { fmtWeight, weight as toDisplay, weightLabel, roundToPlates } from '../core/units.js';
 import { bootPage, esc, num, relDate, toast, confirmDialog } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { ROUTINES, EXERCISES, MUSCLES, byId, exerciseName } from '../core/seed.js';
 import { mountCatalog } from './_catalog.js';
 import { logSessionFlow } from './_log.js';
 import { askReadiness, readinessBar } from './_readiness.js';
-import { buildWeek, weeklyFrequency, templateForSeason, modeFor, VOLUME } from '../core/split.js';
+import { buildWeek, weeklyFrequency, templateForSeason, modeFor, VOLUME,
+  trainingConsistency, consistencyBoost } from '../core/split.js';
 import { seasonById, currentSlot } from '../core/seasons.js';
 import { strengthProfile, strengthRanking, predicted1RM, observed1RM, isLoaded } from '../core/strength.js';
 import { seasonIcon } from '../core/season-icons.js';
@@ -93,6 +95,21 @@ function plan(pane, root) {
       ${wk < 3 ? `<p class="dim" style="font-size:var(--step--2);margin-top:12px">
         Week ${wk + 1} runs ${Math.round((({0:1.15,1:1.08,2:1.03}[wk] ?? 1) - 1) * 100)}% above your steady state — it settles by week four.</p>` : ''}
 
+      ${(() => {
+        // Why this week is heavier or lighter than the last one, said plainly.
+        // A plan that silently changes its mind is indistinguishable from a
+        // plan that is broken.
+        const c = trainingConsistency(store.data, p);
+        const b = consistencyBoost(c);
+        if (store.data.sessions.length < 3) return '';
+        const pct = Math.round(Math.abs(b - 1) * 100);
+        if (pct < 2) return '';
+        return `<p class="dim" style="font-size:var(--step--2);margin-top:12px">
+          You have trained ${Math.round(c * 100)}% of what you set out to over the last four weeks, so
+          this week carries ${b > 1 ? `${pct}% more work` : `${pct}% less`}.
+          ${b > 1 ? 'Keep showing up and it keeps climbing.' : 'It comes back as you do.'}</p>`;
+      })()}
+
       ${week.deload ? `<p class="dim" style="font-size:var(--step--2);margin-top:12px">
         <strong>Deload week.</strong> Half the sets, near-full weight. The bar stays heavy because that
         is what holds your strength; the volume comes off because that is what is making you tired.</p>` : ''}
@@ -121,7 +138,7 @@ function plan(pane, root) {
                 <td><strong>${esc(e.name)}</strong>${e.finisher ? ' <span class="chip chip-warn">finisher</span>' : ''}
                   <br><small class="dim">${esc(e.muscle)} · ${e.rest}s rest</small></td>
                 <td style="text-align:right" class="num">
-                  <strong>${e.sets} × ${e.reps}${e.load ? ` @ ${e.load.kg} kg` : ''}</strong>
+                  <strong>${e.sets} × ${e.reps}${e.load ? ` @ ${fmtWeight(roundToPlates(e.load.kg, store.unit), store.unit)}` : ''}</strong>
                   <br><small class="dim">${e.load
                     ? `${e.rir} in reserve · ${loadSource(e.load)}`
                     : `${e.rir} in reserve`}</small></td>
@@ -188,7 +205,7 @@ function trendCard(rank, p) {
       }).join('')}
     </div>
     <p class="dim" style="font-size:var(--step--2);margin-top:12px">
-      Measured against what the standards predict for ${p.weightKg ? `${p.weightKg} kg` : 'your bodyweight'},
+      Measured against what the standards predict for ${p.weightKg ? fmtWeight(p.weightKg, store.unit) : 'your bodyweight'},
       age ${p.age ?? '—'} and your stated experience. A group that is ahead earns heavier weight;
       one that is behind earns an extra set, which is the other way round on purpose.
     </p>
@@ -266,7 +283,7 @@ function history(pane) {
   pane.innerHTML = `<div class="card card-pad-lg">
     <div class="card-head">
       <h3>${sessions.length} sessions</h3>
-      <span class="chip">${num(sessions.reduce((t, s) => t + store.sessionVolume(s), 0))} kg lifted</span>
+      <span class="chip">${num(toDisplay(sessions.reduce((t, s) => t + store.sessionVolume(s), 0), store.unit, { decimals: 0 }))} ${weightLabel(store.unit)} lifted</span>
     </div>
     <div class="table-wrap"><table class="data">
       <thead><tr><th>Session</th><th>When</th><th>Time</th><th>Volume</th><th>Exercises</th><th></th></tr></thead>
@@ -275,7 +292,7 @@ function history(pane) {
           <td><strong>${esc(s.name)}</strong>${s.note ? `<br><small class="dim">${esc(s.note)}</small>` : ''}</td>
           <td class="dim">${relDate(s.date)}</td>
           <td class="num">${s.durationMin} min</td>
-          <td class="num">${num(store.sessionVolume(s))} kg</td>
+          <td class="num">${num(toDisplay(store.sessionVolume(s), store.unit, { decimals: 0 }))} ${weightLabel(store.unit)}</td>
           <td class="dim" style="max-width:260px">${esc((s.entries ?? []).map(e => exerciseName(e.ex)).join(', ')) || '—'}</td>
           <td style="text-align:right"><button class="btn btn-ghost btn-sm" data-rm="${s.id}" aria-label="Delete session">${icon('trash')}</button></td>
         </tr>`).join('')}</tbody>

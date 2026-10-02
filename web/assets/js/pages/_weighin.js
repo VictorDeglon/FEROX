@@ -13,6 +13,7 @@
  * one that tells you whether a cut is going well.
  */
 import { store, todayISO } from '../core/store.js';
+import { weight as toDisplay, lbToKg, kgToLb, weightLabel, fmtWeight } from '../core/units.js';
 import { esc, toast } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { bodyFatFromLean, leanFromBodyFat } from '../core/metabolism.js';
@@ -44,6 +45,7 @@ export function weighInFlow({ date = todayISO(), scheduled = false } = {}) {
     const existing = d.checkIns.find(c => c.date === date);
     const last = d.checkIns.filter(c => c.date !== date).at(-1);
     const seed = existing ?? {};
+    const U = store.unit;
     const startWeight = seed.weightKg ?? last?.weightKg ?? d.profile.weightKg ?? 78;
 
     const since = last ? Math.round((Date.parse(date) - Date.parse(last.date)) / 864e5) : null;
@@ -61,15 +63,16 @@ export function weighInFlow({ date = todayISO(), scheduled = false } = {}) {
 
         <p class="muted" style="font-size:var(--step--1);margin-top:-6px">
           ${last
-            ? `Last one ${since === 0 ? 'earlier today' : since === 1 ? 'yesterday' : `${since} days ago`} at ${last.weightKg?.toFixed(1) ?? '—'} kg.`
+            ? `Last one ${since === 0 ? 'earlier today' : since === 1 ? 'yesterday' : `${since} days ago`} at ${fmtWeight(last.weightKg, U)}.`
             : 'Your first one. Weigh in at the same time of day from now on — first thing, after the bathroom, before food — or the trend is noise.'}
         </p>
 
         <div class="field-row">
           <div class="field">
-            <label for="wiWeight">Weight (kg) <span style="color:var(--ember)">*</span></label>
-            <input class="input" id="wiWeight" name="weightKg" type="number" step="0.1" min="25" max="400"
-              value="${startWeight}" required inputmode="decimal">
+            <label for="wiWeight">Weight (${weightLabel(U)}) <span style="color:var(--ember)">*</span></label>
+            <input class="input" id="wiWeight" name="weightKg" type="number"
+              step="${U === 'lb' ? 0.5 : 0.1}" min="${U === 'lb' ? 55 : 25}" max="${U === 'lb' ? 880 : 400}"
+              value="${toDisplay(startWeight, U)}" required inputmode="decimal">
           </div>
           <div class="field">
             <label for="wiDate">Date</label>
@@ -83,19 +86,21 @@ export function weighInFlow({ date = todayISO(), scheduled = false } = {}) {
           </summary>
           <div class="stack" style="gap:12px;margin-top:12px">
             <div class="field-row">
-              ${MEASURES.slice(0, 2).map(m => measureField(m, seed)).join('')}
+              ${MEASURES.slice(0, 2).map(m => measureField(m, seed, U)).join('')}
             </div>
             <p class="dim" style="font-size:var(--step--2);margin-top:-6px">
               Enter either one and the other is worked out for you.</p>
             <div class="field-row">
-              ${MEASURES.slice(2, 4).map(m => measureField(m, seed)).join('')}
+              ${MEASURES.slice(2, 4).map(m => measureField(m, seed, U)).join('')}
             </div>
             <div class="field-row">
-              ${measureField(MEASURES[4], seed)}
+              ${measureField(MEASURES[4], seed, U)}
               <div class="field">
-                <label for="wiHeight">Height (cm)</label>
-                <input class="input" id="wiHeight" name="heightCm" type="number" min="100" max="250"
-                  value="${d.profile.heightCm ?? ''}" placeholder="unchanged">
+                <label for="wiHeight">Height (${U === 'lb' ? 'in' : 'cm'})</label>
+                <input class="input" id="wiHeight" name="heightCm" type="number"
+                  min="${U === 'lb' ? 39 : 100}" max="${U === 'lb' ? 98 : 250}" step="${U === 'lb' ? 0.5 : 1}"
+                  value="${d.profile.heightCm ? (U === 'lb' ? Math.round(d.profile.heightCm / 2.54 * 2) / 2 : d.profile.heightCm) : ''}"
+                  placeholder="unchanged">
               </div>
             </div>
             <div class="field">
@@ -163,27 +168,31 @@ export function weighInFlow({ date = todayISO(), scheduled = false } = {}) {
     dlg.querySelector('form').addEventListener('submit', async e => {
       e.preventDefault();
       const f = Object.fromEntries(new FormData(e.target));
-      const kgIn = +f.weightKg;
+      const U = store.unit;
+      // Typed in whatever the athlete reads; stored in kilograms, always.
+      const typed = +f.weightKg;
+      const kgIn = U === 'lb' ? lbToKg(typed) : typed;
       if (!Number.isFinite(kgIn) || kgIn <= 0) { toast('A weight is the one thing we need', 'bad'); return; }
 
       const rec = await store.logCheckIn({
         date: f.date || date,
         weightKg: kgIn,
         bodyFat: +f.bodyFat || undefined,
-        leanKg: +f.leanKg || undefined,
-        waistCm: +f.waistCm || undefined,
+        leanKg: measureIn('leanKg', +f.leanKg || undefined, U),
+        waistCm: measureIn('waistCm', +f.waistCm || undefined, U),
         restingHr: +f.restingHr || undefined,
         sleepH: +f.sleepH || undefined,
         energy: +f.energy || undefined,
-        heightCm: +f.heightCm || undefined,
+        heightCm: (+f.heightCm || undefined) == null ? undefined
+          : U === 'lb' ? (+f.heightCm || 0) * 2.54 || undefined : +f.heightCm || undefined,
         note: (f.note ?? '').trim() || undefined,
       });
 
       const prev = store.data.checkIns.filter(c => c.date < rec.date).at(-1);
       const move = prev?.weightKg ? rec.weightKg - prev.weightKg : 0;
       toast(move
-        ? `Logged ${rec.weightKg.toFixed(1)} kg — ${move > 0 ? '+' : ''}${move.toFixed(1)} kg since ${prev.date}`
-        : `Logged ${rec.weightKg.toFixed(1)} kg`, 'ok');
+        ? `Logged ${fmtWeight(rec.weightKg, U)} — ${move > 0 ? '+' : ''}${toDisplay(move, U)} ${weightLabel(U)} since ${prev.date}`
+        : `Logged ${fmtWeight(rec.weightKg, U)}`, 'ok');
       finish(rec);
     });
 
@@ -194,12 +203,34 @@ export function weighInFlow({ date = todayISO(), scheduled = false } = {}) {
   });
 }
 
-function measureField({ key, label, unit, min, max, step, hint }, seed) {
+/**
+ * Lean mass is a weight and the waist is a length, so both follow the
+ * athlete's system. Body fat, heart rate, sleep and energy are percentages,
+ * beats and hours — the same number everywhere on earth.
+ */
+const IMPERIALISED = { leanKg: 'weight', waistCm: 'length' };
+
+/** Metric value -> what the athlete types. */
+export const measureOut = (key, v, unit) => {
+  if (v == null || unit !== 'lb' || !IMPERIALISED[key]) return v;
+  return Math.round((IMPERIALISED[key] === 'weight' ? kgToLb(v) : v / 2.54) * 10) / 10;
+};
+/** What the athlete typed -> what gets stored. */
+export const measureIn = (key, v, unit) => {
+  if (v == null || unit !== 'lb' || !IMPERIALISED[key]) return v;
+  return IMPERIALISED[key] === 'weight' ? lbToKg(v) : v * 2.54;
+};
+
+function measureField({ key, label, unit, min, max, step, hint }, seed, u = 'kg') {
+  const imp = u === 'lb' && IMPERIALISED[key];
+  const shown = imp ? (IMPERIALISED[key] === 'weight' ? 'lb' : 'in') : unit;
+  const lo = imp ? Math.round(measureOut(key, min, u)) : min;
+  const hi = imp ? Math.round(measureOut(key, max, u)) : max;
   return `<div class="field">
-    <label for="wi-${key}">${esc(label)} (${esc(unit)})</label>
+    <label for="wi-${key}">${esc(label)} (${esc(shown)})</label>
     <input class="input" id="wi-${key}" name="${key}" type="number"
-      min="${min}" max="${max}" step="${step}" inputmode="decimal"
-      value="${seed[key] ?? ''}" placeholder="—" title="${esc(hint)}">
+      min="${lo}" max="${hi}" step="${step}" inputmode="decimal"
+      value="${measureOut(key, seed[key], u) ?? ''}" placeholder="—" title="${esc(hint)}">
   </div>`;
 }
 
