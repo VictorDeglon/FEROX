@@ -31,6 +31,24 @@ export function todayStr() {
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 10);
 }
+/**
+ * Who to call this person on screen.
+ *
+ * The profile wins over the account. `auth.user.name` is whatever Google has
+ * on file, and it only ever *seeds* the nickname — if it kept winning, the
+ * name someone picks here would be saved and then never displayed anywhere,
+ * which is exactly what was happening.
+ */
+export const displayName = () =>
+  (store.data?.profile?.name || '').trim() || auth.user?.name || 'Athlete';
+
+/** The avatar to draw: the uploaded one first, then Google's. */
+export const displayUser = () => ({
+  ...(auth.user ?? { provider: 'guest' }),
+  name: displayName(),
+  picture: store.data?.profile?.picture || auth.user?.picture || '',
+});
+
 export const initials = name => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 export const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
@@ -454,14 +472,18 @@ export function mountShell({ title, actions = '' }) {
 
   const chip = shell.querySelector('#userChip');
   const syncUser = () => {
-    const u = auth.user ?? { name: 'Guest', provider: 'guest' };
+    const u = auth.signedIn ? displayUser() : { name: 'Guest', provider: 'guest' };
     chip.innerHTML = `${avatarHtml(u, 'avatar avatar-sm')}
       <div style="min-width:0;line-height:1.25">
         <div style="font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name)}</div>
         <div class="dim" style="font-size:.68rem">${u.provider === 'google' ? 'Google account' : 'On this device'}</div>
       </div>`;
   };
-  auth.onChange(syncUser); syncUser();
+  auth.onChange(syncUser);
+  // A nickname change is a store change, not an auth change — without this the
+  // header keeps the old name until the next full page load.
+  store.onChange(syncUser);
+  syncUser();
 
   shell.querySelector('#moreTab')?.addEventListener('click', moreSheet);
 
@@ -513,13 +535,20 @@ export async function bootPage({ title, actions = '' }, render) {
   await store.init({ uid: auth.uid });
   syncThemeFromStore();
 
-  // Keep the public profile roughly in step. Fire-and-forget: it throttles
-  // itself in localStorage, so this is free on the overwhelming majority of
-  // page loads, and nothing on this page waits for it.
+  // Keep the public profile in step, on boot and on every change after it.
+  //
+  // Subscribing to the store rather than only running once is what makes a
+  // new nickname or picture reach other people straight away instead of on
+  // their next page load. It is not chatty: `shouldPublish` reads a throttle
+  // record out of localStorage and returns false without touching the network
+  // for everything except an identity change or an hourly stat refresh, so
+  // logging a set costs nothing here.
   if (auth.uid) {
-    import('./social.js')
-      .then(m => m.syncPublicProfile(auth.uid, store.data, store.stats()))
-      .catch(() => {});
+    import('./social.js').then(m => {
+      const push = () => m.syncPublicProfile(auth.uid, store.data, store.stats());
+      push();
+      store.onChange(push);
+    }).catch(() => {});
   }
 
   // Nobody sees the app before it knows who they are — an empty dashboard with

@@ -1,9 +1,9 @@
 /** Friends — the training leaderboard. */
 import { store } from '../core/store.js';
-import { bootPage, esc, num, toast, modal, confirmDialog, avatarHtml, initials } from '../core/ui.js';
+import { bootPage, esc, num, toast, modal, confirmDialog, avatarHtml, initials, displayName } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { auth } from '../core/auth.js';
-import { searchPeople, profilesByUid } from '../core/social.js';
+import { searchPeople, profilesByUid, recommendPeople, publicProfileFrom } from '../core/social.js';
 import { weight as toDisplay, weightLabel } from '../core/units.js';
 import { handleFlow } from './_handle.js';
 
@@ -36,9 +36,9 @@ function render(el) {
   const s = store.stats();
   const me = {
     id: 'me', you: true,
-    name: auth.user?.name ?? store.data.profile.name,
+    name: displayName(),
     handle: store.data.profile.handle,
-    picture: auth.user?.picture ?? '',
+    picture: store.data.profile.picture || auth.user?.picture || '',
     streak: s.streak, sessions: s.sessions, volume: Math.round(s.volume), medals: store.data.medals.length,
   };
 
@@ -84,6 +84,16 @@ function render(el) {
 
       <div class="stack" style="gap:16px">
         <div class="card card-pad-lg">
+          <div class="card-head">
+            <h3>People to train with</h3>
+            <span class="dim" style="font-size:var(--step--2)">suggested</span>
+          </div>
+          <div class="stack" style="gap:8px;margin-top:10px" id="sugList">
+            <p class="dim" style="font-size:.78rem">Looking…</p>
+          </div>
+        </div>
+
+        <div class="card card-pad-lg">
           <div class="card-head"><h3>Your standing</h3></div>
           <div class="stack" style="gap:11px">
             ${Object.entries(METRICS).map(([k, v]) => {
@@ -109,6 +119,9 @@ function render(el) {
         </div>
       </div>
     </section>`;
+
+  const sug = el.querySelector('#sugList');
+  if (sug) renderSuggestions(sug).catch(() => { sug.innerHTML = ''; });
 
   el.querySelectorAll('[data-m]').forEach(b =>
     b.addEventListener('click', () => { metric = b.dataset.m; render(el); }));
@@ -260,3 +273,65 @@ async function refreshFriends() {
   return changed;
 }
 
+/* ------------------------------------------------------------ suggestions */
+
+/**
+ * People worth training alongside.
+ *
+ * Rendered after the board rather than with it, because it needs the network
+ * and the leaderboard does not — the page should never wait on this.
+ *
+ * It aims for five every time and falls back to whoever is training when
+ * there are not five matches, because "no suggestions" on a young app is a
+ * section nobody opens twice. Fewer than five only happens when the app
+ * genuinely has fewer than five other athletes.
+ */
+async function renderSuggestions(host) {
+  if (!auth.uid || !store.data.profile.handle) { host.innerHTML = ''; return; }
+
+  const me = publicProfileFrom(store.data, store.stats(), auth.uid);
+  if (me.discoverable === false) {
+    host.innerHTML = `<p class="dim" style="font-size:.78rem">
+      Suggestions are off while you are not discoverable. Turn it back on in your profile.</p>`;
+    return;
+  }
+
+  const skip = new Set([auth.uid, ...store.data.friends.map(f => f.uid).filter(Boolean)]);
+  let rows = [];
+  try { rows = await recommendPeople(me, skip, 5); } catch { /* offline */ }
+
+  if (!rows.length) {
+    host.innerHTML = `<p class="dim" style="font-size:.78rem">
+      Nobody to suggest yet — FEROX is still small. Search by handle if you know somebody.</p>`;
+    return;
+  }
+
+  host.innerHTML = rows.map(r => `
+    <div class="row-between" style="gap:10px;padding:9px;border:1px solid var(--line);
+         border-radius:var(--r-md);background:var(--surf-1)">
+      <a class="row" style="gap:9px;min-width:0;align-items:center;text-decoration:none;color:inherit"
+         href="u.html?h=${encodeURIComponent(r.handle)}">
+        ${avatarHtml({ name: r.nickname || r.handle, picture: r.picture }, 'avatar avatar-sm')}
+        <span style="min-width:0">
+          <span style="display:block;font-size:.85rem;font-weight:600;overflow:hidden;
+                       text-overflow:ellipsis;white-space:nowrap">${esc(r.nickname || r.handle)}</span>
+          <span class="dim" style="font-size:.72rem">@${esc(r.handle)} · ${esc(r.why)}</span>
+        </span>
+      </a>
+      <button type="button" class="btn btn-sm" data-sug="${esc(r.uid)}"
+        data-handle="${esc(r.handle)}" data-name="${esc(r.nickname || r.handle)}"
+        data-pic="${esc(r.picture ?? '')}">Add</button>
+    </div>`).join('');
+
+  host.onclick = async e => {
+    const b = e.target.closest('[data-sug]');
+    if (!b) return;
+    b.disabled = true;
+    await store.addFriend({
+      uid: b.dataset.sug, handle: b.dataset.handle, name: b.dataset.name,
+      picture: b.dataset.pic, streak: 0, sessions: 0, volume: 0, medals: 0,
+    });
+    toast('Added', 'ok');
+    renderSuggestions(host);        // refill the slot they just used
+  };
+}

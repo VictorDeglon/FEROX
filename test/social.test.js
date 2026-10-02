@@ -112,3 +112,62 @@ test('publishing is throttled, so a logged set is not a public write', () => {
   assert.ok(shouldPublish({ ...base, picture: 'new.jpg' }, { ...base, at: now }, now));
   assert.ok(shouldPublish({ ...base, handle: 'vic' }, { ...base, at: now }, now));
 });
+
+/* --------------------------------------------------- discovery and matching */
+
+const { ageBand, matchScore, matchReason, AGE_BANDS } =
+  await import('../web/assets/js/core/social.js');
+
+test('age is published as a band, never as a number', () => {
+  // A number is identifying and buys the feature nothing — "roughly my age"
+  // is the whole requirement.
+  assert.equal(ageBand(17), 'u20');
+  assert.equal(ageBand(25), '20s');
+  assert.equal(ageBand(39), '30s');
+  assert.equal(ageBand(40), '40s');
+  assert.equal(ageBand(72), '50p');
+  assert.equal(ageBand(null), '');
+  assert.equal(ageBand(0), '');
+  assert.equal(ageBand(NaN), '');
+
+  const pub = publicProfileFrom(
+    { profile: { handle: 'v', age: 27, goal: 'muscle' }, medals: [] }, {}, 'u1');
+  assert.equal(pub.band, '20s');
+  assert.ok(!('age' in pub), 'the exact age must never reach the public document');
+});
+
+test('opting out removes the matching data, not just the visibility', () => {
+  const opted = publicProfileFrom(
+    { profile: { handle: 'v', age: 27, goal: 'muscle', region: 'Europe', discoverable: false }, medals: [] },
+    {}, 'u1');
+  assert.equal(opted.discoverable, false);
+  assert.equal(opted.goal, '', 'goal should be blanked, not merely ignored');
+  assert.equal(opted.band, '');
+  assert.equal(opted.region, '');
+  // The profile itself still works — opting out of discovery is not deleting
+  // yourself, so a friend who already has you keeps seeing your numbers.
+  assert.equal(opted.handle, 'v');
+});
+
+test('suggestions are ranked by how much is actually shared', () => {
+  const me = { goal: 'muscle', band: '20s', region: 'Europe' };
+  assert.equal(matchScore(me, { goal: 'muscle', band: '20s', region: 'Europe' }), 3);
+  assert.equal(matchScore(me, { goal: 'muscle', band: '30s', region: 'Europe' }), 2);
+  assert.equal(matchScore(me, { goal: 'fat-loss', band: '30s', region: 'Asia' }), 0);
+  assert.equal(matchScore(me, null), 0);
+  assert.equal(matchScore(null, me), 0);
+
+  // An empty field on either side is not a match, or everybody who has not
+  // filled anything in matches everybody else.
+  assert.equal(matchScore({ goal: '', band: '', region: '' }, { goal: '', band: '', region: '' }), 0);
+});
+
+test('every suggestion can say why it was suggested', () => {
+  const me = { goal: 'muscle', band: '20s', region: 'Europe' };
+  assert.match(matchReason(me, { goal: 'muscle', band: '20s', region: 'Europe' }), /same goal/);
+  assert.match(matchReason(me, { goal: 'muscle' }), /same goal/);
+  // No overlap still has to produce a sentence — a card with a blank reason
+  // reads as a bug.
+  assert.ok(matchReason(me, { streak: 9 }).length > 0);
+  assert.ok(matchReason(me, {}).length > 0);
+});

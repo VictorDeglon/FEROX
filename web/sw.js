@@ -10,7 +10,7 @@
  * cache and does its own offline queueing; a service worker second-guessing
  * that would be fighting it.
  */
-const CACHE = 'ferox-v9.1.0';
+const CACHE = 'ferox-v9.2.0';
 const SHELL = [
   './', 'index.html', 'dashboard.html', 'workouts.html', 'nutrition.html',
   'progress.html', 'records.html', 'medals.html', 'friends.html', 'profile.html',
