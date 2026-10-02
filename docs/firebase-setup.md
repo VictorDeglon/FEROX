@@ -7,8 +7,30 @@ the site works exactly as it always has: guest only, everything in
 localStorage, sign-in button visibly disabled and honest about why.
 
 The live project is **`feroxfitness`**
-([console](https://console.firebase.google.com/project/feroxfitness/overview)).
-Everything below assumes you are setting up your own.
+([console](https://console.firebase.google.com/project/feroxfitness/overview)),
+deployed at <https://feroxfitness.web.app>. Everything below assumes you are
+setting up your own.
+
+> **State of the live project**
+>
+> Done: web app registered and its config committed, Hosting deployed, the
+> Firestore and Identity Toolkit APIs enabled, Firebase Auth initialised, and
+> `localhost` + `victordeglon.github.io` on the authorised domains.
+>
+> Two things remain, and neither is code:
+>
+> 1. **The Firestore database does not exist**, and creating it needs a
+>    project *owner* — `datastore.databases.create` is not in `roles/editor`.
+>    An owner runs
+>    `gcloud firestore databases create --location=europe-west2 --project feroxfitness`,
+>    after which `npm run deploy:rules` works (the rules already compile
+>    cleanly against the project's own rules service).
+> 2. **Google is not enabled** under Authentication → Sign-in method. Use the
+>    console: the API refuses the config without a `client_secret`, and the
+>    console provisions one itself rather than making you handle it.
+>
+> Until both are done the app degrades as designed — sign-in reports
+> `auth/operation-not-allowed` in plain words and the log stays on the device.
 
 ## What runs where
 
