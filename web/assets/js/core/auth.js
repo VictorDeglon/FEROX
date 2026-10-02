@@ -144,6 +144,12 @@ class Auth extends EventTarget {
     return () => this.removeEventListener('change', fn);
   }
 
+  /** Sign-in failures that arrived without a click to attach them to. */
+  onAuthError(fn) {
+    if (this.lastError) fn(this.lastError);      // it may already have happened
+    this.addEventListener('autherror', e => fn(e.detail));
+  }
+
   /**
    * Re-attach to a Firebase session that outlived the page.
    *
@@ -157,7 +163,20 @@ class Auth extends EventTarget {
     // localStorage, and Google is not asked to confirm it because it was never
     // treated as proof of anything in the first place.
     if (!firebaseConfigured()) return Promise.resolve(this.#session);
-    this.#watching ??= boot().then(({ auth, fb }) => new Promise(resolve => {
+    this.#watching ??= boot().then(async ({ auth, fb }) => {
+      // A redirect sign-in reports *success* through onAuthStateChanged, but
+      // its failures are only ever delivered here. Without this, someone sent
+      // down the redirect path by a blocked popup lands back on the page with
+      // no account and no explanation.
+      try {
+        await fb.getRedirectResult(auth);
+      } catch (err) {
+        this.lastError = err?.code ?? 'auth/redirect-failed';
+        console.warn('[ferox] Google redirect sign-in failed:', this.lastError);
+        this.dispatchEvent(new CustomEvent('autherror', { detail: this.lastError }));
+      }
+
+      return new Promise(resolve => {
       let settled = false;
       fb.onAuthStateChanged(auth, user => {
         if (user) this.#set({ user: toUser(user), verified: true });
@@ -166,7 +185,8 @@ class Auth extends EventTarget {
         else if (this.#session?.verified) this.#set(null);
         if (!settled) { settled = true; resolve(this.#session); }
       });
-    })).catch(() => this.#session);
+      });
+    }).catch(() => this.#session);
     return this.#watching;
   }
 
@@ -191,7 +211,38 @@ class Auth extends EventTarget {
       <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/></svg>
       <span>${text}</span></button>`;
 
-    el.querySelector('button').addEventListener('click', () => this.signInWithGoogle());
+    const btn = el.querySelector('button');
+    const say = msg => {
+      let note = el.querySelector('.auth-err');
+      if (!note) {
+        note = document.createElement('p');
+        note.className = 'auth-err dim';
+        note.style.cssText = 'font-size:.78rem;margin-top:8px';
+        el.append(note);
+      }
+      note.textContent = msg;
+    };
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await this.signInWithGoogle();
+      } catch (err) {
+        // An unhandled rejection here is a dead button: the athlete clicks,
+        // nothing happens, and nothing explains why. The first of these is
+        // the state a project is in before Google is switched on in the
+        // Firebase console, which is exactly when someone is most likely to
+        // be clicking it.
+        say({
+          'auth/operation-not-allowed': 'Google sign-in is not switched on for this deployment yet. The guest path works exactly the same.',
+          'auth/unauthorized-domain': 'This address is not on the project’s authorised domains, so Google refused the sign-in.',
+          'auth/network-request-failed': 'Could not reach Google. Check your connection, or carry on as a guest.',
+        }[err?.code] ?? 'Sign-in failed, and your log is untouched. Carry on as a guest and nothing is lost.');
+        console.warn('[ferox] sign-in failed:', err?.code ?? err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
   }
 
   /**

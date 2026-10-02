@@ -147,6 +147,15 @@ if (googleReady()) {
     + 'Stay a guest and nothing leaves this one.';
   // Someone who signed in last time should not be asked to do it again.
   auth.restore();
+
+  // A redirect sign-in that failed comes back as a fresh page load with no
+  // account and nothing to show for it, so say what happened.
+  auth.onAuthError(code => {
+    note.textContent = {
+      'auth/operation-not-allowed': 'Google sign-in is not switched on for this deployment yet — carry on as a guest, it is the same app.',
+      'auth/unauthorized-domain': 'This address is not on the project’s authorised domains, so Google refused the sign-in.',
+    }[code] ?? 'That sign-in did not complete. Nothing was lost — try again, or carry on as a guest.';
+  });
 } else {
   host.innerHTML = fallbackButton();
   note.innerHTML = 'Google Sign-In is not configured on this deployment yet. See <code>docs/firebase-setup.md</code> to switch it on.';
