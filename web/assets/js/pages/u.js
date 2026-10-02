@@ -18,6 +18,8 @@ wireAvatarFallback();
 import { auth } from '../core/auth.js';
 import { profileByHandle, normaliseHandle } from '../core/social.js';
 import { pacerByHandle } from '../core/pacers.js';
+import { decorate, isAutumn } from '../core/seasonal.js';
+import { PROFILE_ACCENTS, accentById } from '../core/social.js';
 import { googleReady, CONFIG } from '../core/config.js';
 import { weight as toDisplay, weightLabel } from '../core/units.js';
 
@@ -54,10 +56,19 @@ function message(title, body, cta = true) {
  * double-quoted attribute — JSON's own quotes closed the attribute. It uses
  * the shared helper now, which has no inline handler at all.
  */
-function avatar(p, size = 72) {
-  const box = `width:${size}px;height:${size}px;font-size:${Math.round(size / 2.8)}px`;
-  return `<span style="${box};display:inline-grid">
-    ${avatarHtml({ name: p.nickname || p.handle, picture: p.picture }, 'avatar')}</span>`;
+function avatar(p, size = 104) {
+  /*
+   * The size goes on the avatar element itself, not on a wrapper around it.
+   * `.avatar` is 34px by default, so wrapping it in a 104px box left a small
+   * circle in the corner of a large one — which, with the October frame
+   * centred on the *wrapper*, read as the decoration being misaligned when
+   * it was the avatar that was.
+   */
+  const inner = avatarHtml({ name: p.nickname || p.handle, picture: p.picture },
+    'avatar avatar-xl');
+  // October hangs leaves off the frame. Outside it, this returns `inner`
+  // untouched — see core/seasonal.js.
+  return decorate(inner, size, { seed: p.handle ?? '' });
 }
 
 const tile = (label, value, note = '') => `
@@ -73,46 +84,65 @@ function render(p, isMe) {
     ? new Date(p.joined).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
     : null;
 
+  /*
+   * The accent is the one thing an athlete chooses about how their page
+   * looks. One short string on the public document, used for the banner
+   * wash, the rule under the name and the stat values — enough to make a
+   * page feel like somebody's without letting anybody build something
+   * unreadable, which is what a free colour picker always ends up being.
+   */
+  const accent = p.pacer ? (p.accent || accentById().hex) : accentById(p.accent).hex;
+  document.documentElement.style.setProperty('--u-accent', accent);
+
+  const stat = (label, value, note) => `
+    <div class="u-stat">
+      <span class="u-stat-v">${esc(String(value))}</span>
+      <span class="u-stat-l">${esc(label)}</span>
+      ${note ? `<span class="u-stat-n">${esc(note)}</span>` : ''}
+    </div>`;
+
   pane.innerHTML = `
-    ${card(`
-      <div class="row" style="gap:14px;align-items:center">
+    <section class="u-hero">
+      <div class="u-wash" aria-hidden="true"></div>
+      <div class="u-id">
         ${avatar(p)}
-        <div class="grow" style="min-width:0">
-          <h1 style="font-size:var(--step-1);overflow:hidden;text-overflow:ellipsis">
-            ${esc(p.nickname || p.handle)}</h1>
-          <p class="dim" style="font-size:var(--step--1)">@${esc(p.handle)}${p.place ? ` · ${esc(p.place)}` : ''}</p>
-          ${p.pacer ? `<p class="chip chip-pacer" style="margin-top:6px">FEROX pacer</p>` : ''}
-          ${joined ? `<p class="dim" style="font-size:.76rem;margin-top:2px">Training here since ${esc(joined)}</p>` : ''}
-        </div>
-        ${isMe
-          ? `<a class="btn btn-sm" href="profile.html">${icon('settings')}<span>Edit</span></a>`
-          : ''}
-      </div>`)}
-
-    ${card(`
-      <div class="grid grid-2" style="gap:12px">
-        ${tile('Streak', `${p.streak ?? 0}`, p.streak === 1 ? 'day' : 'days')}
-        ${tile('Sessions', num(p.sessions ?? 0), 'logged')}
-        ${tile('Volume', num(toDisplay(p.volume ?? 0, U, { decimals: 0 })), `${weightLabel(U)} lifted`)}
-        ${tile('Medals', num(p.medals ?? 0), 'earned')}
-        ${tile('Friends', num(p.friends ?? 0), p.friends === 1 ? 'athlete' : 'athletes')}
+        <h1 class="u-name">${esc(p.nickname || p.handle)}</h1>
+        <p class="u-handle">@${esc(p.handle)}</p>
+        ${p.pacer ? `<span class="chip chip-pacer">FEROX pacer</span>` : ''}
+        ${p.place ? `<p class="u-meta">${esc(p.place)}</p>` : ''}
+        ${p.tagline ? `<p class="u-tagline">${esc(p.tagline)}</p>` : ''}
+        ${joined ? `<p class="u-meta">Training here since ${esc(joined)}</p>` : ''}
+        ${isMe ? `<a class="btn btn-sm" style="margin-top:12px" href="profile.html">
+          ${icon('settings')}<span>Edit your page</span></a>` : ''}
       </div>
-      <p class="dim" style="font-size:.74rem">
-        Streak, sessions, volume, medals and a friend count are the only things a profile shows.
-        Bodyweight, measurements and everything eaten stay private.</p>`)}
+    </section>
 
-    ${p.pacer ? card(`
+    <section class="u-stats">
+      ${stat('Streak', p.streak ?? 0, (p.streak === 1 ? 'day' : 'days'))}
+      ${stat('Sessions', num(p.sessions ?? 0), 'logged')}
+      ${stat('Volume', num(toDisplay(p.volume ?? 0, U, { decimals: 0 })), `${weightLabel(U)} lifted`)}
+      ${stat('Medals', num(p.medals ?? 0), 'earned')}
+      ${stat('Friends', num(p.friends ?? 0), p.friends === 1 ? 'athlete' : 'athletes')}
+    </section>
+
+    ${p.pacer ? `<div class="card card-pad-lg stack" style="gap:10px">
       <p class="muted" style="font-size:var(--step--1)">${esc(p.bio)}</p>
       <p class="dim" style="font-size:.8rem">${esc(p.style)}</p>
       <p class="dim" style="font-size:.74rem;border-top:1px solid var(--line);padding-top:10px">
         <strong>${esc(p.nickname)} is a pacer, not a person.</strong> A character to train
-        against, with a pace that is deliberately just ahead of yours. Nobody is behind the
-        account, it cannot be messaged, and you can switch pacers off on the Friends page.</p>`) : ''}
+        against, with a pace deliberately just ahead of yours. Nobody is behind the account,
+        it cannot be messaged, and pacers switch off on the Friends page.</p>
+    </div>` : ''}
 
-    ${isMe || p.pacer ? '' : card(`
+    <p class="dim" style="font-size:.74rem;text-align:center;max-width:46ch;margin:0 auto">
+      A profile shows a streak, sessions, volume, medals and a friend count. Bodyweight,
+      measurements and everything eaten stay private.</p>
+
+    ${isMe || p.pacer ? '' : `<div class="card card-pad-lg stack" style="gap:12px">
       <p class="muted" style="font-size:var(--step--1)">
-        Track your own training the same way — free, no account needed to start.</p>
-      <a class="btn btn-primary" style="justify-self:start" href="./">Open FEROX</a>`)}`;
+        Track your own training the same way — free, and no account needed to start.</p>
+      <a class="btn btn-primary" style="justify-self:start" href="./">Open FEROX</a>
+    </div>`}`;
 }
 
 /* ------------------------------------------------------------------ boot */

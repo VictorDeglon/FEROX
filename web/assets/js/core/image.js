@@ -45,7 +45,7 @@ const dims = src => ({
  * Turn a user-selected file into a small square data URL.
  * @returns {Promise<{dataUrl:string, bytes:number, from:{w:number,h:number}}>}
  */
-export async function makeAvatar(file, size = AVATAR_PX, { focusY = null } = {}) {
+export async function makeAvatar(file, size = AVATAR_PX, { focusY = null, quality = 0.85 } = {}) {
   if (!file) throw new Error('No file chosen.');
   if (file.type && !ACCEPT.test(file.type)) {
     throw new Error('That is not an image FEROX can read. Try a PNG or JPEG.');
@@ -86,9 +86,9 @@ export async function makeAvatar(file, size = AVATAR_PX, { focusY = null } = {})
 
   // WebP first; Safari versions that cannot encode it silently return a PNG,
   // which toDataURL signals by the prefix, so fall back to JPEG in that case.
-  let dataUrl = canvas.toDataURL('image/webp', 0.85);
+  let dataUrl = canvas.toDataURL('image/webp', quality);
   if (!dataUrl.startsWith('data:image/webp')) {
-    dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    dataUrl = canvas.toDataURL('image/jpeg', quality);
   }
 
   // Still heavy (busy photos compress poorly) — step the quality down once.
@@ -107,3 +107,47 @@ export async function makeAvatar(file, size = AVATAR_PX, { focusY = null } = {})
 
 export const formatBytes = n =>
   n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+
+/**
+ * A thumbnail small enough to live in a public document.
+ *
+ * The full avatar is ~256px and 9–25 KB, which is right for the device that
+ * owns it and far too big to publish — a public profile should be a few
+ * hundred bytes and the rules cap the field at 500 characters, so uploaded
+ * avatars simply never reached anybody else. Friends saw initials.
+ *
+ * 40 pixels at quality 0.6 comes out around 700–1,200 bytes of base64, which
+ * is small enough to carry in the profile document and in the search index
+ * without either becoming expensive. It is blurry at full size and perfect at
+ * the 28–34px every avatar is actually rendered at.
+ *
+ * `focusY` is passed through so the thumbnail is cropped the same way the
+ * large one was — otherwise somebody positions their face carefully and then
+ * their friends see their chin.
+ */
+export const MICRO_PX = 40;
+export const MICRO_MAX = 3000;          // characters of data URL
+
+export async function makeMicroAvatar(file, { focusY = null } = {}) {
+  const { dataUrl } = await makeAvatar(file, MICRO_PX, { focusY, quality: 0.6 });
+  return dataUrl.length <= MICRO_MAX ? dataUrl : '';
+}
+
+/** The same, from an already-decoded large avatar rather than the file. */
+export async function microFromDataUrl(dataUrl) {
+  if (!dataUrl?.startsWith('data:image/')) return '';
+  try {
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = MICRO_PX;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, MICRO_PX, MICRO_PX);
+    let out = canvas.toDataURL('image/webp', 0.6);
+    if (!out.startsWith('data:image/webp')) out = canvas.toDataURL('image/jpeg', 0.6);
+    return out.length <= MICRO_MAX ? out : '';
+  } catch { return ''; }
+}

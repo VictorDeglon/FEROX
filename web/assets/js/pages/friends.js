@@ -1,6 +1,7 @@
 /** Friends — the training leaderboard. */
 import { store } from '../core/store.js';
-import { bootPage, esc, num, toast, modal, confirmDialog, avatarHtml, initials, displayName } from '../core/ui.js';
+import { bootPage, esc, num, toast, modal, confirmDialog, avatarHtml, initials,
+  displayName, clearRequestBadge } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { auth } from '../core/auth.js';
 import { searchPeople, profilesByUid, recommendPeople, publicProfileFrom,
@@ -90,33 +91,39 @@ function render(el) {
     </div>
 
     <section class="grid grid-main">
-      <div class="card card-pad-lg">
-        <div class="table-wrap"><table class="data">
-          <thead><tr><th style="width:44px">#</th><th>Athlete</th><th style="text-align:right">${esc(m.label)}</th><th></th></tr></thead>
-          <tbody>${board.map((p, i) => `
-            <tr style="${p.you ? 'background:var(--ember-soft)' : ''}">
-              <td class="num" style="font-family:var(--font-display);font-weight:800;color:${i < 3 ? 'var(--ember)' : 'var(--text-3)'}">${i + 1}</td>
-              <td>
-                <div class="row" style="gap:10px">
-                  ${avatarHtml(p, 'avatar avatar-sm')}
-                  <div style="min-width:0">
-                    ${p.handle
-                      ? `<a href="u.html?h=${encodeURIComponent(p.handle)}" style="color:inherit">
-                           <strong>${esc(p.name)}</strong></a>`
-                      : `<strong>${esc(p.name)}</strong>`}
-                    ${p.you ? ' <span class="chip chip-ember" style="padding:1px 7px;font-size:.64rem">You</span>' : ''}
-                    ${p.pacer ? ' <span class="chip chip-pacer" title="A FEROX pacer — a character to train against, not a real person">Pacer</span>' : ''}
-                    <br><small class="dim">@${esc(p.handle ?? 'athlete')}</small>
-                  </div>
-                </div>
-              </td>
-              <td style="text-align:right" class="num"><strong>${esc(m.fmt(p[m.key] ?? 0))}</strong></td>
-              <td style="text-align:right">${p.you || p.pacer ? '' : `
+      <div class="stack" style="gap:8px">
+        ${board.map((p, i) => {
+          // The bar behind each row is that athlete's score as a share of the
+          // leader's, so the gap between first and fourth is something you
+          // see rather than something you work out from two numbers.
+          const top = Math.max(1, board[0]?.[m.key] ?? 1);
+          const pct = Math.max(2, Math.round(((p[m.key] ?? 0) / top) * 100));
+          const rank = i + 1;
+          return `
+          <article class="lb-row${p.you ? ' you' : ''}${rank <= 3 ? ' podium' : ''}">
+            <span class="lb-bar" style="width:${pct}%" aria-hidden="true"></span>
+            <span class="lb-rank" data-rank="${rank}">${rank}</span>
+            ${avatarHtml(p, 'avatar avatar-sm')}
+            <span class="lb-who">
+              <span class="lb-name">
+                ${p.handle
+                  ? `<a href="u.html?h=${encodeURIComponent(p.handle)}">${esc(p.name)}</a>`
+                  : esc(p.name)}
+                ${p.you ? '<span class="chip chip-ember lb-tag">You</span>' : ''}
+                ${p.pacer ? '<span class="chip chip-pacer lb-tag">Pacer</span>' : ''}
+              </span>
+              <span class="lb-handle">@${esc(p.handle ?? 'athlete')}</span>
+            </span>
+            <span class="lb-score">${esc(m.fmt(p[m.key] ?? 0))}</span>
+            <span class="lb-acts">
+              ${p.you || p.pacer ? '' : `
                 ${p.uid ? `<button class="btn btn-ghost btn-sm" data-dm="${esc(p.uid)}"
                    aria-label="Message ${esc(p.name)}">${icon('link')}</button>` : ''}
-                <button class="btn btn-ghost btn-sm" data-rm="${p.id}" aria-label="Remove ${esc(p.name)}">${icon('trash')}</button>`}</td>
-            </tr>`).join('')}</tbody>
-        </table></div>
+                <button class="btn btn-ghost btn-sm" data-rm="${p.id}"
+                  aria-label="Remove ${esc(p.name)}">${icon('trash')}</button>`}
+            </span>
+          </article>`;
+        }).join('')}
       </div>
 
       <div class="stack" style="gap:16px">
@@ -432,7 +439,7 @@ async function renderRequests(el) {
          border-radius:var(--r-md);background:var(--surf-1)">
       <a class="row" style="gap:9px;min-width:0;align-items:center;text-decoration:none;color:inherit"
          href="u.html?h=${encodeURIComponent(at(r.other))}">
-        ${avatarHtml({ name: name(r.other), picture: people.get(r.other)?.picture }, 'avatar avatar-sm')}
+        ${avatarHtml({ name: name(r.other), picture: people.get(r.other)?.picture }, 'avatar')}
         <span style="min-width:0">
           <span style="display:block;font-size:.85rem;font-weight:600">${esc(name(r.other))}</span>
           <span class="dim" style="font-size:.72rem">
@@ -459,6 +466,7 @@ async function renderRequests(el) {
     try {
       if (acc) { await acceptFriend(auth.uid, acc.dataset.accept); toast('Connected', 'ok'); }
       else { await removeFriendship(auth.uid, drop.dataset.drop); toast('Removed', 'ok'); }
+      clearRequestBadge();
     } catch (err) {
       toast('That did not work', 'bad');
       console.info('[ferox] request action:', err?.code ?? err);

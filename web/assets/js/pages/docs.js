@@ -1,16 +1,27 @@
-/** Docs — how FEROX works, the research behind it, privacy and terms. */
+/** Docs — how FEROX works, the knowledge base, the research behind it, privacy and terms. */
 import { bootPage, esc } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { RESEARCH } from '../core/research.js';
 import { SEASONS } from '../core/seasons.js';
+import { KNOWLEDGE, CATEGORIES, categoryLabel, searchKnowledge } from '../core/knowledge.js';
 
 const UPDATED = '29 September 2026';
-let tab = location.hash.slice(1) || 'about';
+/*
+ * The hash is a tab name or, for a deep link into the knowledge base,
+ * `learn/<entry-id>` — docs.html#learn/abs opens that one entry expanded.
+ */
+const [hashTab, hashEntry] = (location.hash.slice(1) || 'about').split('/');
+let tab = hashTab;
+let learnQuery = '';
+let learnCat = null;
+let learnFeroxOnly = false;
+let learnOpen = hashEntry || null;
 
 await bootPage({ title: 'Docs' }, render);
 
 const TABS = [
   ['about', 'How it works'],
+  ['learn', 'Learn'],
   ['research', 'The research'],
   ['privacy', 'Privacy'],
   ['terms', 'Terms'],
@@ -30,7 +41,16 @@ function render(el) {
   }));
 
   const pane = el.querySelector('#pane');
-  ({ about, research, privacy, terms })[tab](pane);
+  // Cross-links between tabs switch in place rather than reloading the page.
+  pane.addEventListener('click', e => {
+    const go = e.target.closest('[data-go]');
+    if (!go) return;
+    e.preventDefault();
+    tab = go.dataset.go;
+    history.replaceState(null, '', `#${tab}`);
+    render(el);
+  });
+  (({ about, learn, research, privacy, terms })[tab] ?? about)(pane);
 }
 
 const h = (t, s) => `<div><h2 style="font-size:var(--step-2)">${esc(t)}</h2>${s ? `<p class="dim" style="font-size:var(--step--1);margin-top:4px">${esc(s)}</p>` : ''}</div>`;
@@ -81,13 +101,115 @@ function about(pane) {
       ${p('If something hurts, stop and see a professional. No app can see your knee.')}`)}`;
 }
 
+/* ------------------------------------------------------------------- learn */
+
+/**
+ * The knowledge base: a hundred questions people ask a gym, with the papers.
+ *
+ * Search is instant and client-side — the whole list is already in memory —
+ * so there is no debounce and no loading state. Only the list re-renders on a
+ * keystroke, so the search box keeps focus and its caret. A hundred cards is
+ * well within what the browser does in a frame.
+ *
+ * Deep links: docs.html#learn/<id> opens that entry expanded and scrolls to
+ * it, and opening an entry updates the hash so the link can be copied.
+ */
+function learn(pane) {
+  const feroxCount = KNOWLEDGE.filter(k => k.ferox).length;
+  pane.innerHTML = `
+    ${h('Learn', `${KNOWLEDGE.length} things people ask a gym, answered with the research. ${feroxCount} of them are built into how FEROX plans your training.`)}
+
+    <label class="search-wrap">
+      ${icon('search')}
+      <input id="kq" class="input search-input" type="search" autocomplete="off" spellcheck="false"
+        placeholder="Search — abs, calorie deficit, progressive overload, how much protein…"
+        aria-label="Search the knowledge base" value="${esc(learnQuery)}">
+    </label>
+
+    <div class="row wrap" style="gap:7px" id="kcats">
+      <button class="chip${learnCat === null ? ' chip-ember' : ''}" data-cat="">All</button>
+      ${CATEGORIES.map(c => `<button class="chip${learnCat === c.id ? ' chip-ember' : ''}" data-cat="${c.id}">${esc(c.label)}</button>`).join('')}
+      <button class="chip${learnFeroxOnly ? ' chip-ember' : ''}" data-ferox="1" title="Only the ideas FEROX acts on">${icon('sparkle')} Used in FEROX</button>
+    </div>
+
+    <div id="klist" class="stack" style="gap:var(--sp-s)"></div>`;
+
+  const q = pane.querySelector('#kq');
+  q.addEventListener('input', () => { learnQuery = q.value; renderList(); });
+  pane.querySelectorAll('#kcats [data-cat]').forEach(b => b.addEventListener('click', () => {
+    learnCat = b.dataset.cat || null;
+    learn(pane);
+    pane.querySelector('#kq').focus();
+  }));
+  pane.querySelector('[data-ferox]').addEventListener('click', () => {
+    learnFeroxOnly = !learnFeroxOnly;
+    learn(pane);
+  });
+
+  renderList();
+  if (learnOpen) pane.querySelector(`[data-k="${learnOpen}"]`)?.scrollIntoView({ block: 'start' });
+
+  function renderList() {
+    let hits = searchKnowledge(learnQuery, { cat: learnCat });
+    if (learnFeroxOnly) hits = hits.filter(k => k.ferox);
+    const list = pane.querySelector('#klist');
+    if (!hits.length) {
+      list.innerHTML = card(p(`Nothing matches “${esc(learnQuery)}”. Try a shorter word — “protein”, “sleep”, “squat” — or clear the filters.`));
+      return;
+    }
+    const count = hits.length === KNOWLEDGE.length ? `All ${hits.length}` : `${hits.length} of ${KNOWLEDGE.length}`;
+    list.innerHTML = `
+      <p class="dim" style="font-size:var(--step--2)">${count}${learnQuery ? ', best match first' : ''}</p>
+      ${hits.map(entry).join('')}`;
+    list.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => {
+      if (!d.open) return;
+      learnOpen = d.dataset.k;
+      history.replaceState(null, '', `#learn/${learnOpen}`);
+    }));
+  }
+
+  function entry(k) {
+    const badge = k.ferox
+      ? `<span class="chip chip-ember" style="font-size:var(--step--2);padding:2px 8px">${icon('sparkle')} Used in FEROX</span>`
+      : '';
+    return `
+      <details class="card card-pad-lg" data-k="${esc(k.id)}" ${k.id === learnOpen ? 'open' : ''}>
+        <summary style="cursor:pointer;list-style:none">
+          <div class="row-between" style="gap:12px;align-items:flex-start">
+            <div class="stack" style="gap:5px;min-width:0">
+              <div class="row wrap" style="gap:7px;align-items:center">
+                <span class="eyebrow">${esc(categoryLabel(k.cat))}</span>${badge}
+              </div>
+              <h3 style="font-size:var(--step-1)">${esc(k.title)}</h3>
+              <p class="muted" style="font-size:var(--step--1)">${esc(k.summary)}</p>
+            </div>
+            <span class="dim" style="flex:none;width:16px;margin-top:4px">${icon('chevron')}</span>
+          </div>
+        </summary>
+        <div class="stack" style="gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+          ${p(esc(k.body))}
+          ${k.ferox ? `<div class="onb-note" style="background:var(--surf-3)">${icon('sparkle')}<span><strong>In FEROX:</strong> ${esc(k.ferox)}</span></div>` : ''}
+          <div class="stack" style="gap:6px">
+            <p class="eyebrow">The evidence</p>
+            ${k.evidence.map(e => `
+              <div class="row-between wrap" style="gap:10px">
+                <span class="dim" style="font-size:var(--step--2);flex:1;min-width:16ch">${esc(e.cite)}</span>
+                <a class="btn btn-ghost btn-sm" href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">${icon('link')}<span>Read it</span></a>
+              </div>`).join('')}
+          </div>
+        </div>
+      </details>`;
+  }
+}
+
 /* ---------------------------------------------------------------- research */
 
 function research(pane) {
   pane.innerHTML = `
-    ${h('The research', 'Why FEROX does what it does. Every claim here has a paper behind it.')}
+    ${h('The research', 'The ten findings that shaped FEROX most. Every claim here has a paper behind it.')}
 
-    ${card(`${p('These are summaries, not the papers themselves. Each links to the source so you can read it and disagree. Where the evidence is genuinely uncertain, the summary says so — that is more useful than false confidence.')}`)}
+    ${card(`${p('These are summaries, not the papers themselves. Each links to the source so you can read it and disagree. Where the evidence is genuinely uncertain, the summary says so — that is more useful than false confidence.')}
+      ${p('Looking for something specific — abs, protein, how deep to squat? The <a href="#learn" data-go="learn">Learn tab</a> has a searchable hundred.')}`)}
 
     ${RESEARCH.map(r => `
       <article class="card card-pad-lg stack" style="gap:11px">
@@ -174,9 +296,10 @@ function terms(pane) {
     ${card(`${h3('Acceptable use')}
       ${p('The source is public and MIT-licensed: fork it, change it, run your own. What you may not do is pass off a modified version as official FEROX, or use the name or mark to imply an endorsement that does not exist.')}`)}
 
-    ${card(`${h3('You must be 16 or older')}
-      ${p('FEROX has accounts, public profiles and private messaging, so there is an age limit: <strong>you must be at least 16 to create an account</strong>. Under 16, use it as a guest — every training feature works, nothing is published, and no one can contact you.')}
-      ${p('If we learn an account belongs to someone under 16 it is deleted along with its messages. If you are a parent or guardian and believe your child has created one, use the contact address below and it will be removed.')}`)}
+    ${card(`${h3('You must be 13 or older')}
+      ${p('FEROX has accounts, public profiles and private messaging, so there is an age limit: <strong>you must be at least 13 to claim a handle</strong>. Under 13, use it as a guest — every training feature works, nothing is published, and nobody can contact you.')}
+      ${p('Thirteen is the minimum the law allows, not a line that is right everywhere. The UK sets the digital age of consent at 13, and so does US federal law, but several EU countries set it at 16 — Ireland, Germany and the Netherlands among them. If you live somewhere with a higher age and you are under it, you need a parent or guardian to agree before you create an account.')}
+      ${p('If we learn an account belongs to somebody below the age that applies to them it is deleted along with its messages. If you are a parent or guardian and believe your child has created one, use the contact address below and it will be removed.')}`)}
 
     ${card(`${h3('How to behave towards other people')}
       ${p('Messages are private between two people who have both agreed to connect, and they are encrypted so nobody at FEROX can read them. That is not a licence. Do not use FEROX to harass, threaten, bully or abuse anybody; to send sexual content, especially to or about a minor; to spam, scam or advertise; to impersonate another person; or to share anything unlawful.')}

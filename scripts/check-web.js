@@ -32,7 +32,14 @@ for (const file of files) {
   const refs = [
     ...[...src.matchAll(/(?:href|src)="([^"]+)"/g)].map(m => ({ u: m[1], base: root })),
     ...[...src.matchAll(/"src"\s*:\s*"([^"]+)"/g)].map(m => ({ u: m[1], base: root })),
-    ...[...src.matchAll(/\bfrom\s+'([^']+)'/g)].map(m => ({ u: m[1], base: dirname(file) })),
+    // Only real import/export statements, anchored at the start of a line.
+    // Matching a bare `from '...'` anywhere also matched English prose —
+    // "...recovery from ' + " inside a string literal was reported as a
+    // broken reference, which is the checker crying wolf about a file that
+    // was fine.
+    ...[...src.matchAll(/^\s*(?:import|export)[\s\S]{0,200}?\bfrom\s+'([^']+)'/gm)]
+      .map(m => ({ u: m[1], base: dirname(file) })),
+    ...[...src.matchAll(/^\s*import\s+'([^']+)'/gm)].map(m => ({ u: m[1], base: dirname(file) })),
   ];
   for (const { u, base } of refs) {
     if (!isLocal(u) || u.includes('${')) continue;      // skip template interpolations

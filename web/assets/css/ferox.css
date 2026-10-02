@@ -356,6 +356,7 @@ small { font-size: var(--step--1); }
 }
 .avatar-lg { width: 66px; height: 66px; font-size: 1.4rem; }
 .avatar-sm { width: 28px; height: 28px; font-size: .68rem; }
+.avatar-xl { width: 104px; height: 104px; font-size: 2.3rem; }
 
 /* mobile tab bar ----------------------------------------------------- */
 .tabbar { display: none; }
@@ -1471,4 +1472,212 @@ code.phrase {
   color: var(--ember-hi);
   background: color-mix(in srgb, var(--ember) 10%, transparent);
   padding: 1px 8px; font-size: .64rem; letter-spacing: .04em; text-transform: uppercase;
+}
+
+/* A pending friend request, visible from any page. */
+.has-dot { position: relative; }
+.nav-dot {
+  position: absolute; top: -2px; right: -4px; min-width: 16px; height: 16px;
+  padding: 0 4px; border-radius: 999px;
+  display: grid; place-items: center;
+  background: var(--ember); color: #fff;
+  font-family: var(--font-display); font-size: .6rem; font-weight: 800; line-height: 1;
+  box-shadow: 0 0 0 2px var(--surf-1);
+}
+.sidebar .nav-dot { top: 50%; right: 10px; transform: translateY(-50%); }
+.tabbar .nav-dot { top: 4px; right: calc(50% - 18px); }
+
+/* ==========================================================================
+   Seasonal — October only, see core/seasonal.js
+   ========================================================================== */
+
+.au-wrap { position: relative; display: inline-grid; place-items: center; line-height: 0; }
+
+/* The frame is bigger than the avatar because the leaves hang past the rim,
+   and it sits behind so nothing is ever drawn over somebody's face. */
+.au-frame {
+  position: absolute; inset: 50% auto auto 50%;
+  width: calc(var(--au-size) * 1.8); height: calc(var(--au-size) * 1.8);
+  /* `max-width: none` undoes the global `svg { max-width: 100% }`. The frame
+     is deliberately *wider* than the avatar it surrounds, so that percentage
+     clamped it back to the avatar's width and squashed the ring into an
+     ellipse sitting off to one side. Third time this reset has caught
+     something that is meant to overflow its container. */
+  max-width: none;
+  translate: -50% -50%;
+  pointer-events: none; z-index: 0; overflow: visible;
+}
+.au-wrap > :not(.au-frame):not(.au-front) { position: relative; z-index: 1; }
+
+/* The pumpkin laps over the rim, so it has to be in front of the avatar —
+   the leaves stay behind, because anything drawn across a face has stopped
+   decorating and started obscuring. */
+.au-front {
+  position: absolute; inset: 50% auto auto 50%;
+  width: calc(var(--au-size) * 1.8); height: calc(var(--au-size) * 1.8);
+  max-width: none; translate: -50% -50%;
+  pointer-events: none; z-index: 2; overflow: visible;
+  filter: drop-shadow(0 3px 7px rgb(0 0 0 / .55));
+}
+
+/* A slow sway, each leaf on its own delay, pivoting at the stem. Long and
+   shallow on purpose: this is in the corner of somebody's eye while they
+   read their own numbers. */
+.au-leaf {
+  animation: au-sway 10s ease-in-out infinite;
+  transform-box: fill-box;
+}
+.au-pumpkin { animation: au-bob 11s ease-in-out infinite; transform-box: fill-box; }
+
+@keyframes au-sway {
+  0%, 100% { transform: rotate(-2deg) translateY(0); }
+  50%      { transform: rotate(2deg) translateY(1px); }
+}
+@keyframes au-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-2px) rotate(2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .au-leaf, .au-pumpkin { animation: none; }
+}
+
+/* ==========================================================================
+   Public profile — u.html
+   ========================================================================== */
+
+:root { --u-accent: var(--ember); }
+
+.u-hero {
+  position: relative; overflow: hidden;
+  display: grid; place-items: center; text-align: center;
+  padding: clamp(28px, 7vw, 52px) 20px clamp(22px, 5vw, 34px);
+  border-radius: var(--r-xl);
+  background: var(--surf-1);
+  border: 1px solid var(--line);
+}
+/* The accent as a wash rather than a block of colour: somebody's chosen
+   colour should tint their page, not shout over the content on it. */
+.u-wash {
+  position: absolute; inset: -50% -20% auto -20%; height: 200%;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 0%,
+      color-mix(in srgb, var(--u-accent) 30%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.u-id { position: relative; display: grid; justify-items: center; gap: 3px; }
+.u-name {
+  font-size: clamp(1.4rem, 5vw, 2rem); line-height: 1.1; margin-top: 14px;
+  max-width: 18ch; overflow-wrap: anywhere;
+}
+.u-handle {
+  font-family: var(--font-display); font-weight: 700; font-size: var(--step--1);
+  color: var(--u-accent); letter-spacing: .01em;
+}
+.u-tagline {
+  margin-top: 8px; max-width: 34ch;
+  font-size: var(--step--1); color: var(--text-2); line-height: 1.5;
+}
+.u-meta { font-size: .76rem; color: var(--text-3); margin-top: 2px; }
+
+/* Five tiles that reflow rather than a fixed grid, so the row never leaves
+   one orphan on its own line at an awkward width. */
+.u-stats {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+}
+.u-stat {
+  display: grid; justify-items: center; gap: 2px; padding: 16px 10px;
+  background: var(--surf-1); border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.u-stat-v {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(1.15rem, 4vw, 1.5rem); line-height: 1;
+  color: var(--u-accent);
+}
+.u-stat-l { font-size: .74rem; font-weight: 600; color: var(--text-2); margin-top: 4px; }
+.u-stat-n { font-size: .66rem; color: var(--text-3); }
+
+/* Accent swatches on the profile. A fixed palette, not a picker — see
+   PROFILE_ACCENTS in core/social.js for why. */
+.u-swatch {
+  width: 30px; height: 30px; border-radius: 50%; padding: 0; cursor: pointer;
+  background: var(--sw); border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--line) inset;
+  transition: transform .16s var(--ease), border-color .16s;
+}
+.u-swatch:hover { transform: scale(1.08); }
+.u-swatch.on { border-color: var(--text); transform: scale(1.08); }
+
+/* ==========================================================================
+   Leaderboard
+   ========================================================================== */
+
+.lb-row {
+  position: relative; overflow: hidden;
+  display: grid; align-items: center; gap: 10px;
+  grid-template-columns: 26px auto 1fr auto auto;
+  padding: 11px 14px;
+  background: var(--surf-1); border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  transition: border-color .16s, transform .16s var(--ease);
+}
+.lb-row:hover { border-color: var(--line-hi); transform: translateX(2px); }
+.lb-row.you { border-color: color-mix(in srgb, var(--ember) 45%, transparent); }
+
+/* Each athlete's score as a share of the leader's, so the gap between first
+   and fourth is something you see rather than arithmetic you do. */
+.lb-bar {
+  position: absolute; inset: 0 auto 0 0; z-index: 0;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--ember) 13%, transparent), transparent);
+  pointer-events: none;
+}
+.lb-row.you .lb-bar {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--ember) 24%, transparent), transparent);
+}
+.lb-row > :not(.lb-bar) { position: relative; z-index: 1; }
+
+.lb-rank {
+  font-family: var(--font-display); font-weight: 800; font-size: .95rem;
+  color: var(--text-3); text-align: center;
+}
+.lb-row.podium .lb-rank { color: var(--ember); }
+.lb-row.podium .lb-rank[data-rank="1"] { font-size: 1.12rem; }
+
+.lb-who { min-width: 0; display: grid; gap: 1px; }
+.lb-name {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  font-weight: 600; font-size: .88rem;
+}
+.lb-name a { color: inherit; text-decoration: none; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-name a:hover { color: var(--ember); }
+.lb-tag { padding: 1px 6px; font-size: .6rem; flex: none; }
+.lb-handle { font-size: .72rem; color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.lb-score {
+  font-family: var(--font-display); font-weight: 800; font-size: .95rem;
+  white-space: nowrap;
+}
+.lb-acts { display: flex; gap: 2px; }
+
+/*
+ * The actions move to their own line well before a phone.
+ *
+ * 420px was far too late: five columns in 560 crushed "Mara Oyelaran" down
+ * to "Mar…" while two icon buttons sat in the space it needed. The name is
+ * the content; the buttons are not.
+ */
+@media (max-width: 680px) {
+  .lb-row { grid-template-columns: 22px auto 1fr auto; padding: 10px 12px; gap: 9px; }
+  .lb-acts { grid-column: 1 / -1; justify-content: flex-end; margin-top: -2px; }
+  .lb-score { font-size: .88rem; }
+}
+@media (max-width: 380px) {
+  .lb-name { font-size: .82rem; }
+  .lb-score { font-size: .8rem; }
 }

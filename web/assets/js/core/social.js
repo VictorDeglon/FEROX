@@ -42,6 +42,7 @@
  */
 import { boot } from './firebase.js';
 import { firebaseConfigured } from './config.js';
+import { isClean } from './moderation.js';
 
 /* ------------------------------------------------------------- handles */
 
@@ -83,6 +84,9 @@ export function validateHandle(raw) {
   if (h.length > HANDLE_MAX) return { ok: false, why: `At most ${HANDLE_MAX} characters.` };
   if (/^[0-9_]+$/.test(h)) return { ok: false, why: 'Needs at least one letter.' };
   if (RESERVED.has(h)) return { ok: false, why: 'That one is reserved.' };
+  // A handle is public and effectively permanent — it turns up in searches
+  // and on other people's leaderboards, and nobody chose to see it.
+  if (!isClean(h)) return { ok: false, why: 'Pick something else.' };
   return { ok: true, handle: h };
 }
 
@@ -234,6 +238,8 @@ export const PUBLIC_FIELDS = ['handle', 'nickname', 'picture', 'joined',
   // Matching fields. Deliberately coarse — a band and a continent, never an
   // age or a place — and switched off entirely by `discoverable: false`.
   'goal', 'band', 'region', 'discoverable',
+  // What an athlete chooses about how their page looks.
+  'accent', 'tagline',
   // The public half of this device's messaging key. Public by definition:
   // it is what other people encrypt *to*. The private half never leaves the
   // browser — see core/crypto.js.
@@ -270,10 +276,17 @@ const stat = v => (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
  * device that uploaded it. Making it public would mean paying to store and
  * serve files, which is the thing this design is built to avoid.
  */
+const MICRO_MAX = 3000;
+
 const publicPicture = url => {
   const v = String(url ?? '').trim();
-  if (!v || v.length > 500 || !v.startsWith('https://')) return '';
-  return v;
+  if (!v) return '';
+  // A 40px thumbnail (core/image.js) is ~1 KB and is the thing that makes an
+  // uploaded avatar visible to other people at all. Bounded hard, because
+  // this document is read by everyone who sees you in a list.
+  if (v.startsWith('data:image/') && v.length <= MICRO_MAX) return v;
+  if (v.startsWith('https://') && v.length <= 500) return v;
+  return '';
 };
 
 /** Build the public view of an athlete from their private document. */
@@ -283,7 +296,7 @@ export function publicProfileFrom(data, stats, uid) {
     uid,
     handle: p.handle ?? '',
     nickname: (p.name ?? '').trim().slice(0, 40),
-    picture: publicPicture(p.picture),
+    picture: publicPicture(p.micro || p.picture),
     joined: p.joined ?? '',
     streak: stat(stats?.streak),
     sessions: stat(stats?.sessions),
@@ -296,6 +309,10 @@ export function publicProfileFrom(data, stats, uid) {
     // profile: the right to not be suggested should remove the data that
     // does the suggesting, not leave it sitting there unused.
     pk: p.pk ?? '',
+    accent: PROFILE_ACCENTS.some(a => a.id === p.accent) ? p.accent : 'ember',
+    // One line, their own words. Capped hard because a public document is
+    // not a place to publish an essay at everyone else's expense.
+    tagline: String(p.tagline ?? '').trim().slice(0, 80),
     discoverable: p.discoverable !== false,
     goal: p.discoverable === false ? '' : (p.goal ?? ''),
     band: p.discoverable === false ? '' : ageBand(p.age),
@@ -780,3 +797,26 @@ export async function ensureMessagingKey(uid, profile) {
     return null;
   }
 }
+
+/* ------------------------------------------------------- page accents */
+
+/**
+ * The colours a public page can use.
+ *
+ * A fixed set rather than a colour picker. A picker guarantees somebody
+ * eventually chooses a yellow that is unreadable on the dark background, or a
+ * near-black that makes their page look broken — and then that is what every
+ * visitor sees. These six are chosen against the app's own surfaces and all
+ * of them clear contrast on both themes.
+ */
+export const PROFILE_ACCENTS = [
+  { id: 'ember', label: 'Ember', hex: '#FF3D2E' },
+  { id: 'amber', label: 'Amber', hex: '#F0A02E' },
+  { id: 'moss', label: 'Moss', hex: '#3FD08A' },
+  { id: 'tide', label: 'Tide', hex: '#4AA8FF' },
+  { id: 'iris', label: 'Iris', hex: '#A77DFF' },
+  { id: 'rose', label: 'Rose', hex: '#FF6FA5' },
+];
+
+export const accentById = id =>
+  PROFILE_ACCENTS.find(a => a.id === id) ?? PROFILE_ACCENTS[0];

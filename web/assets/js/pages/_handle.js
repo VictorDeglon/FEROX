@@ -27,6 +27,17 @@ import {
 const DEBOUNCE_MS = 350;
 
 /**
+ * The age at which an account may become public.
+ *
+ * Thirteen is the floor COPPA sets in the US and the digital-consent age the
+ * UK chose under Article 8, which lets member states pick anywhere from 13 to
+ * 16. Several EU countries chose 16 — Ireland, Germany and the Netherlands
+ * among them — so this is the lowest lawful line rather than a universally
+ * safe one, and the terms say so rather than implying otherwise.
+ */
+export const MIN_AGE = 13;
+
+/**
  * @param {{ first?: boolean }} opts `first` changes the copy for the sign-up
  *        case, where the person did not go looking for this dialog.
  * @returns {Promise<string|null>} the claimed handle, or null if they backed out
@@ -47,14 +58,14 @@ export async function handleFlow({ first = false } = {}) {
    * so nobody is asked twice, and a guest under 16 keeps the entire training
    * app with nothing published.
    */
-  if (Number.isFinite(p.age) && p.age > 0 && p.age < 16) {
+  if (Number.isFinite(p.age) && p.age > 0 && p.age < MIN_AGE) {
     await modal({
-      title: 'Handles start at 16',
+      title: `Handles start at ${MIN_AGE}`,
       submit: 'I understand',
       cancel: 'Close',
       body: `<p class="muted" style="font-size:var(--step--1)">
           A handle makes you findable and lets other people message you, so it
-          has an age limit of 16.</p>
+          has an age limit of ${MIN_AGE}.</p>
         <p class="muted" style="font-size:var(--step--1);margin-top:10px">
           Nothing else changes. Every exercise, the whole plan, nutrition,
           charts and medals keep working exactly as they do now — your training

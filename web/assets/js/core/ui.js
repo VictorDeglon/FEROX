@@ -636,6 +636,18 @@ export function mountShell({ title, actions = '' }) {
 
   shell.querySelector('#moreTab')?.addEventListener('click', moreSheet);
 
+  /*
+   * A pending friend request has to be visible from anywhere, or it sits
+   * unanswered until somebody happens to open Friends — which, for the
+   * person who sent it, is indistinguishable from being ignored.
+   *
+   * The count is read once per page load and cached for a few minutes, so
+   * this costs one query on the pages where it is cheap and nothing at all
+   * on the ones right after. Friends lives behind the More tab on a phone,
+   * so the dot goes on both.
+   */
+  if (auth.uid) markRequests(shell).catch(() => {});
+
   wireSecretConsole(shell);
 
   return content;
@@ -647,6 +659,7 @@ function appFooter() {
     <div class="row wrap" style="gap:18px;align-items:center;justify-content:space-between">
       <div class="row wrap" style="gap:16px">
         <a href="docs.html#about">How it works</a>
+        <a href="docs.html#learn">Learn</a>
         <a href="docs.html#research">Research</a>
         <a href="docs.html#privacy">Privacy</a>
         <a href="docs.html#terms">Terms</a>
@@ -659,6 +672,50 @@ function appFooter() {
     <p class="dim" style="font-size:var(--step--2);margin-top:12px">
       FEROX is a tracking tool, not medical advice. Free, open source, and yours to export any time.</p>
   </footer>`;
+}
+
+/** How long a request count is good for before it is worth asking again. */
+const REQ_TTL = 4 * 60 * 1000;
+const REQ_KEY = 'ferox.v2.reqcount';
+
+async function markRequests(shell) {
+  let n = 0;
+  try {
+    const cached = JSON.parse(localStorage.getItem(REQ_KEY) ?? 'null');
+    if (cached && Date.now() - cached.at < REQ_TTL) {
+      n = cached.n;
+    } else {
+      const { myFriendships } = await import('./social.js');
+      n = (await myFriendships(auth.uid)).incoming.length;
+      localStorage.setItem(REQ_KEY, JSON.stringify({ n, at: Date.now() }));
+    }
+  } catch { return; }
+  if (!n) return;
+
+  for (const sel of ['a[href="friends.html"]', '#moreTab']) {
+    for (const el of shell.querySelectorAll(sel)) {
+      if (el.querySelector('.nav-dot')) continue;
+      el.classList.add('has-dot');
+      const dot = document.createElement('span');
+      dot.className = 'nav-dot';
+      dot.textContent = n > 9 ? '9+' : String(n);
+      dot.setAttribute('aria-label', `${n} friend request${n === 1 ? '' : 's'}`);
+      el.append(dot);
+    }
+  }
+
+  // Say it once, on the first page of a session, rather than on every load.
+  try {
+    if (!sessionStorage.getItem('ferox.reqtoast')) {
+      sessionStorage.setItem('ferox.reqtoast', '1');
+      toast(`${n} friend request${n === 1 ? '' : 's'} waiting`, '');
+    }
+  } catch { /* private mode */ }
+}
+
+/** Forget the cached count — called when a request is answered. */
+export function clearRequestBadge() {
+  try { localStorage.removeItem(REQ_KEY); } catch { /* ignore */ }
 }
 
 /** Redirect to the landing page unless someone has started a session. */

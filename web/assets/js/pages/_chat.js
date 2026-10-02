@@ -11,6 +11,7 @@ import { modal, esc, toast } from '../core/ui.js';
 import { auth } from '../core/auth.js';
 import { sendMessage, watchMessages, profilesByUid } from '../core/social.js';
 import { cryptoReady, MAX_MESSAGE } from '../core/crypto.js';
+import { messageWarning } from '../core/moderation.js';
 
 const when = d => (d
   ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
@@ -59,6 +60,8 @@ export async function openChat(them) {
         but they can see that you two talk, and a message cannot be unsent.</p>`,
 
     onMount(dlg) {
+      // Warn once per message; pressing send again goes through.
+      const sentWarned = new Set();
       const thread = dlg.querySelector('#thread');
       const form = dlg.querySelector('#sendForm');
       const box = dlg.querySelector('#msg');
@@ -92,6 +95,20 @@ export async function openChat(them) {
       const send = async () => {
         const text = box.value.trim();
         if (!text) return;
+
+        /*
+         * A warning, not a block. The message is end-to-end encrypted, so
+         * nothing but these two devices can read it and a block here would
+         * be theatre on a feature whose whole design is that nobody in the
+         * middle can see anything. Asking once is the honest version.
+         */
+        const warn = messageWarning(text);
+        if (warn && !sentWarned.has(text)) {
+          sentWarned.add(text);
+          toast(warn, 'bad');
+          return;
+        }
+
         btn.disabled = true;
         // Clear optimistically: the listener paints the real message a moment
         // later, and leaving the text sitting there makes people send twice.
