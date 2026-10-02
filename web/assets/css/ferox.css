@@ -504,6 +504,12 @@ table.data td:first-child, table.data th:first-child { padding-left: 2px; }
 
 /* modal -------------------------------------------------------------- */
 dialog.modal {
+  /*
+   * `margin: auto` is how a native <dialog> centres itself, and the reset at
+   * the top of this file says `* { margin: 0 }` — which quietly beat the UA
+   * default and parked every modal in the top-left corner.
+   */
+  margin: auto; inset: 0;
   width: min(520px, calc(100vw - 32px)); padding: 0; border: 0;
   background: transparent; color: var(--text); overflow: visible;
 }
@@ -513,20 +519,71 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
 @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
 
 /* toast -------------------------------------------------------------- */
+/* notifications -------------------------------------------------------- */
+
 .toasts {
-  position: fixed; z-index: 90; left: 50%; translate: -50% 0;
-  bottom: calc(var(--tabbar) + 18px); display: grid; gap: 8px; width: max-content; max-width: calc(100vw - 32px);
+  position: fixed; z-index: 90;
+  top: calc(12px + env(safe-area-inset-top)); right: 12px;
+  display: grid; gap: 9px; justify-items: end;
+  width: min(340px, calc(100vw - 24px));
+  pointer-events: none;                    /* never block the page behind */
 }
-@media (min-width: 900px) { .toasts { bottom: 22px; left: auto; right: 22px; translate: none; } }
 .toast {
-  display: flex; align-items: center; gap: 9px;
-  padding: 11px 16px; border-radius: var(--r-pill);
-  background: var(--surf-3); border: 1px solid var(--line-hi);
-  box-shadow: var(--shadow-2); font-size: .86rem; font-weight: 500;
-  animation: rise .26s var(--ease);
+  pointer-events: auto; cursor: pointer;
+  position: relative; overflow: hidden;
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
+  width: 100%; padding: 12px 14px 14px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surf-2) 92%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
+  border: 1px solid var(--line-hi);
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / .7), 0 1px 0 0 rgb(255 255 255 / .04) inset;
+  font-size: .85rem; font-weight: 500; line-height: 1.35;
+  transform-origin: right center;
+  animation: toast-in .34s cubic-bezier(.16, 1, .3, 1);
 }
-.toast.ok  { border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
-.toast.bad { border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+.toast-ico { display: grid; place-items: center; width: 22px; height: 22px;
+  border-radius: 7px; background: var(--surf-3); color: var(--text-2); }
+.toast-ico svg { width: 14px; height: 14px; }
+.toast-text { min-width: 0; overflow-wrap: anywhere; }
+.toast-count { font-family: var(--font-display); font-size: .72rem; color: var(--text-3); }
+
+/* The bar that runs out. Also the colour that says which kind this is. */
+.toast-bar {
+  position: absolute; left: 0; bottom: 0; height: 2px; width: 100%;
+  background: linear-gradient(90deg, var(--ember-hi), var(--ember));
+  transform-origin: left center;
+  animation-name: toast-drain; animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.toast.ok  { border-color: color-mix(in srgb, var(--ok) 42%, transparent); }
+.toast.ok  .toast-ico { color: var(--ok); }
+.toast.ok  .toast-bar { background: linear-gradient(90deg, var(--ok), color-mix(in srgb, var(--ok) 55%, transparent)); }
+.toast.bad { border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.toast.bad .toast-ico { color: var(--bad); }
+.toast.bad .toast-bar { background: linear-gradient(90deg, var(--bad), color-mix(in srgb, var(--bad) 55%, transparent)); }
+
+/* Crushed into the right edge rather than merely faded. */
+.toast.crush { animation: toast-crush .4s cubic-bezier(.6, 0, .8, .2) forwards; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(26px) scaleX(.92); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes toast-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes toast-crush {
+  40%  { opacity: 1; transform: translateX(4px) scaleX(1.02); }
+  to   { opacity: 0; transform: translateX(18px) scaleX(0); filter: blur(1px); }
+}
+
+/* Reduced motion: no slide, no crush, and the bar stops counting down —
+   a moving bar is motion too. */
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .toast.crush { animation: none; opacity: 0; }
+  .toast-bar { animation: none; transform: scaleX(1); opacity: .5; }
+}
+
 @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
 
 /* ==========================================================================
