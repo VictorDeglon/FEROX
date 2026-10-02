@@ -3,13 +3,19 @@
  * A live set editor: pick exercises, fill reps x weight, save.
  */
 import { store, todayISO } from '../core/store.js';
+import { weight as toDisplay, lbToKg, weightLabel, roundToPlates } from '../core/units.js';
 import { esc, toast } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { EXERCISES, ROUTINES, MEDALS, byId } from '../core/seed.js';
 import { suggestLoad } from '../core/strength.js';
 import { mountCatalog } from './_catalog.js';
 
-const unitLabel = ex => ({ kg: 'kg', bw: 'body', sec: 'sec', km: 'km' }[ex.unit] ?? '');
+/**
+ * What goes after the number. A loaded lift follows the athlete's preference;
+ * seconds and kilometres are the exercise's own and never convert.
+ */
+const unitLabel = (ex, unit) =>
+  (ex.unit === 'kg' ? weightLabel(unit) : ({ bw: 'body', sec: 'sec', km: 'km' }[ex.unit] ?? ''));
 
 /** Most recent set logged for an exercise, so the editor can pre-fill sensibly. */
 function lastSet(exId) {
@@ -38,7 +44,7 @@ export function logSessionFlow(routineId, planDay) {
       note: e.load?.note,
       sets: Array.from({ length: e.sets }, () => ({
         reps: e.reps,
-        weight: e.load?.kg ?? lastSet(e.ex)?.weight ?? 0,
+        weight: e.load?.kg != null ? roundToPlates(e.load.kg, store.unit) : (lastSet(e.ex)?.weight ?? 0),
       })),
     }));
   } else if (routine) {
@@ -51,7 +57,7 @@ export function logSessionFlow(routineId, planDay) {
         note: suggested?.note,
         sets: Array.from({ length: b.sets }, () => ({
           reps: b.reps,
-          weight: suggested?.kg ?? lastSet(b.ex)?.weight ?? 0,
+          weight: suggested?.kg != null ? roundToPlates(suggested.kg, store.unit) : (lastSet(b.ex)?.weight ?? 0),
         })),
       };
     });
@@ -91,7 +97,7 @@ export function logSessionFlow(routineId, planDay) {
 
       <div class="field">
         <label for="sNote">Note (optional)</label>
-        <input class="input" id="sNote" name="note" placeholder="Felt strong, bumped bench 2.5 kg">
+        <input class="input" id="sNote" name="note" placeholder="Felt strong, bumped the bench">
       </div>
 
       <div class="row-between" style="gap:10px">
@@ -119,6 +125,7 @@ export function logSessionFlow(routineId, planDay) {
       host.innerHTML = `<p class="dim" style="font-size:.85rem;padding:10px 0">
         No exercises yet — add one below, or start from a routine on the Workouts page.</p>`;
     } else {
+      const u = store.unit;
       host.innerHTML = entries.map((entry, ei) => {
         const ex = byId(EXERCISES, entry.ex);
         return `<div class="card" style="padding:12px;background:var(--surf-2)">
@@ -137,10 +144,12 @@ export function logSessionFlow(routineId, planDay) {
                 <input class="input" style="min-height:36px;padding:6px 10px" type="number" min="0" max="999"
                   value="${set.reps}" data-e="${ei}" data-s="${si}" data-k="reps" aria-label="Reps">
                 <span class="dim" style="font-size:.74rem">reps</span>
-                <input class="input" style="min-height:36px;padding:6px 10px" type="number" min="0" max="999" step="0.5"
-                  value="${set.weight}" data-e="${ei}" data-s="${si}" data-k="weight" aria-label="Weight"
+                <input class="input" style="min-height:36px;padding:6px 10px" type="number" min="0" max="999"
+                  value="${ex.unit === 'kg' ? toDisplay(set.weight, u) : set.weight}"
+                  step="${ex.unit === 'kg' && u === 'lb' ? 5 : 0.5}"
+                  data-e="${ei}" data-s="${si}" data-k="weight" aria-label="Weight"
                   ${ex.kind === 'strength' && ex.unit === 'kg' ? '' : 'disabled'}>
-                <span class="dim" style="font-size:.74rem;width:32px">${unitLabel(ex)}</span>
+                <span class="dim" style="font-size:.74rem;width:32px">${unitLabel(ex, u)}</span>
                 <button type="button" class="btn btn-ghost btn-sm" data-delset="${ei}:${si}" aria-label="Remove set">${icon('x')}</button>
               </div>`).join('')}
             <button type="button" class="btn btn-ghost btn-sm" data-addset="${ei}" style="justify-self:start">${icon('plus')}<span>Add set</span></button>
@@ -148,14 +157,20 @@ export function logSessionFlow(routineId, planDay) {
         </div>`;
       }).join('');
     }
-    volEl.textContent = volume() ? `Volume: ${Math.round(volume()).toLocaleString()} kg` : '';
+    volEl.textContent = volume() ? `Volume: ${Math.round(toDisplay(volume(), store.unit, { decimals: 0 })).toLocaleString()} ${weightLabel(store.unit)}` : '';
   }
 
   dlg.addEventListener('input', e => {
     const t = e.target;
     if (t.dataset.k) {
-      entries[+t.dataset.e].sets[+t.dataset.s][t.dataset.k] = +t.value || 0;
-      volEl.textContent = volume() ? `Volume: ${Math.round(volume()).toLocaleString()} kg` : '';
+      const raw = +t.value || 0;
+      const entry = entries[+t.dataset.e];
+      // Weight is typed in the athlete's unit and stored in kilograms. Reps
+      // are a count and belong to neither system.
+      const isLoad = t.dataset.k === 'weight' && byId(EXERCISES, entry.ex)?.unit === 'kg';
+      entry.sets[+t.dataset.s][t.dataset.k] =
+        isLoad && store.unit === 'lb' ? lbToKg(raw) : raw;
+      volEl.textContent = volume() ? `Volume: ${Math.round(toDisplay(volume(), store.unit, { decimals: 0 })).toLocaleString()} ${weightLabel(store.unit)}` : '';
     }
   });
 
@@ -187,7 +202,7 @@ export function logSessionFlow(routineId, planDay) {
     entries.push({
       ex: ex.id,
       note: prev ? undefined : suggested?.note,
-      sets: [{ reps, weight: prev?.weight ?? suggested?.kg ?? 0 }],
+      sets: [{ reps, weight: prev?.weight ?? (suggested?.kg != null ? roundToPlates(suggested.kg, store.unit) : 0) }],
     });
     draw();
     host.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });

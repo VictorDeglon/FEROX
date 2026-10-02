@@ -1,5 +1,6 @@
 /** Records — personal bests, with an estimated one-rep max for barbell lifts. */
 import { store } from '../core/store.js';
+import { weight as toDisplay, weightLabel } from '../core/units.js';
 import { bootPage, esc, num, relDate } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { MUSCLES, EXERCISES, byId } from '../core/seed.js';
@@ -40,7 +41,7 @@ function render(el) {
 function card(p) {
   const isLift = p.kind === 'strength' && p.unit === 'kg';
   const headline = isLift
-    ? `${p.weight}<span class="stat-unit">kg × ${p.reps}</span>`
+    ? `${toDisplay(p.weight, store.unit)}<span class="stat-unit">${weightLabel(store.unit)} × ${p.reps}</span>`
     : `${p.reps}<span class="stat-unit">${p.unit === 'sec' ? 'sec' : p.unit === 'km' ? 'km' : 'reps'}</span>`;
 
   return `<article class="card card-pad-lg stack" style="gap:12px">
@@ -53,7 +54,7 @@ function card(p) {
     </div>
     <div class="stat">
       <span class="stat-value">${headline}</span>
-      ${isLift ? `<span class="dim" style="font-size:.78rem">Est. 1RM ${Math.round(p.score)} kg</span>` : ''}
+      ${isLift ? `<span class="dim" style="font-size:.78rem">Est. 1RM ${toDisplay(p.score, store.unit, { decimals: 0 })} ${weightLabel(store.unit)}</span>` : ''}
     </div>
     <div class="row-between">
       <span class="chip">${relDate(p.date)}</span>
@@ -80,7 +81,7 @@ function historyDialog(exId) {
   const dlg = document.createElement('dialog');
   dlg.className = 'modal';
   dlg.style.width = 'min(620px, calc(100vw - 24px))';
-  const unit = ex.kind === 'strength' && ex.unit === 'kg' ? 'kg est. 1RM'
+  const unit = ex.kind === 'strength' && ex.unit === 'kg' ? `${weightLabel(store.unit)} est. 1RM`
     : ex.unit === 'sec' ? 'sec' : ex.unit === 'km' ? 'km' : 'reps';
 
   dlg.innerHTML = `<div class="card card-pad-lg stack" style="gap:16px">

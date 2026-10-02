@@ -415,7 +415,21 @@ export function buildSession(day, p, season, readiness = 7, weekIndex = 0, data 
   const level = LEVELS.find(l => l.id === p.level) ?? LEVELS[2];
   const r = readinessFor(readiness);
   const deload = isDeloadWeek(weekIndex) ? DELOAD.sets : 1;
-  const scale = level.sets * r.sets * weekIntensity(weekIndex) * deload;
+
+  // Everything the athlete has told us, and everything they have done, lands
+  // on the session here. Experience and today's readiness were always in;
+  // the block ramp and the deload came with the volume work; consistency and
+  // the goal are the two that used to be collected and then ignored.
+  const consistency = data ? consistencyBoost(trainingConsistency(data, p)) : 1;
+  const goal = goalShift(p?.goal);
+
+  const scale = level.sets * r.sets * weekIntensity(weekIndex) * deload
+              * consistency * goal.sets;
+
+  // A deload keeps the bar heavy on purpose — it is the volume that sheds
+  // fatigue, and dropping the weight too makes the week useless as well as
+  // easy. See DELOAD.
+  const loadShift = goal.load * (isDeloadWeek(weekIndex) ? DELOAD.load : 1);
   const [lo, hi] = season?.repRange ?? [6, 10];
 
   // What the log says about each muscle group, so a group that is lagging can
@@ -452,7 +466,7 @@ export function buildSession(day, p, season, readiness = 7, weekIndex = 0, data 
 
     const entry = { ex: ex.id, name: ex.name, muscle: ex.muscle, pattern: ex.pattern, sets, reps,
                     rest: compound ? (season?.restSec ?? 120) : 60, rir: level.rir };
-    return withLoad(entry, p, data, mode, r);
+    return withLoad(entry, p, data, mode, r, loadShift);
   }).filter(Boolean);
 
   // Heavy restrictions (bodyweight only, plus joints to work around) can leave
@@ -484,7 +498,7 @@ export function buildSession(day, p, season, readiness = 7, weekIndex = 0, data 
       entries.push(withLoad({ ex: ex.id, name: ex.name, muscle: ex.muscle, pattern: ex.pattern,
         sets: Math.max(2, Math.round(mode.setsAcc * scale)),
         reps: ex.kind === 'time' ? Math.round(45 * r.load) : Math.round(lo + (hi - lo) * 0.85),
-        rest: 60, rir: level.rir }, p, data, mode, r));
+        rest: 60, rir: level.rir }, p, data, mode, r, loadShift));
     }
   }
 
@@ -514,12 +528,12 @@ export function buildSession(day, p, season, readiness = 7, weekIndex = 0, data 
  * Today's readiness scales the bar as well as the set count: a wrecked day at
  * full load is how people get hurt on the days they should have gone easy.
  */
-function withLoad(entry, p, data, mode, r) {
+function withLoad(entry, p, data, mode, r, shift = 1) {
   if (!isLoaded(entry.ex)) return entry;
   const load = progressLoad(entry.ex, data ?? { profile: p, sessions: [] }, {
     reps: entry.reps,
     rir: entry.rir,
-    intensity: mode.intensity * r.load,
+    intensity: mode.intensity * r.load * shift,
   }, p);
   return load ? { ...entry, load } : entry;
 }
@@ -748,3 +762,74 @@ export const isDeloadWeek = weekIndex => weekIndex > 0 && (weekIndex + 1) % MESO
  * demoralising.
  */
 export const DELOAD = { sets: 0.5, load: 0.92 };
+
+/* --------------------------------------------------- training consistency */
+
+/**
+ * How reliably the athlete has actually trained, 0–1, over recent weeks.
+ *
+ * `adherence()` in core/metabolism.js already measures whether someone eats
+ * what they said they would, but it only ever fed the calorie checkpoints —
+ * nothing about how consistently a person trains reached their training.
+ * That is the wrong way round: eating is what you adjust *from* consistency,
+ * and training is what consistency is *about*.
+ *
+ * Measured against their own stated `daysPerWeek`, not an absolute, so four
+ * sessions a week is perfect for someone who promised four and short for
+ * someone who promised six.
+ */
+export function trainingConsistency(data, profile = data?.profile, weeks = 4,
+                                     today = new Date().toISOString().slice(0, 10)) {
+  const want = Math.max(1, profile?.daysPerWeek ?? 4) * weeks;
+  const from = new Date(Date.parse(today) - (weeks * 7 - 1) * 864e5).toISOString().slice(0, 10);
+  const done = (data?.sessions ?? []).filter(s => s.date >= from && s.date <= today).length;
+  return Math.min(1, done / want);
+}
+
+/**
+ * Earn the right to train harder.
+ *
+ * `weekIntensity` ramps *down* — week one is deliberately the hardest, because
+ * motivation is highest the day someone installs this. That is good for week
+ * one and says nothing about week ten, and on its own it means a person who
+ * has trained four times a week for two months is handed exactly the session
+ * they were handed when they had never lifted anything.
+ *
+ * This is the other half: show up, and the work goes up. It is capped at
+ * +12% because this multiplies a prescription that is *already* progressing
+ * lift by lift through `progressLoad`, and two compounding sources of "more"
+ * is how a plan runs away from the person following it.
+ *
+ * Below half consistency it drops *below* one, which is the part that matters
+ * most. Someone returning after three missed weeks should not be handed the
+ * volume they had built up to before they stopped; that is how a comeback
+ * becomes another three weeks off.
+ */
+export function consistencyBoost(score) {
+  if (!Number.isFinite(score)) return 1;
+  if (score >= 0.5) return 1 + (score - 0.5) * 0.24;    // 1.00 -> 1.12
+  return 0.8 + score * 0.4;                              // 0.80 -> 1.00
+}
+
+/**
+ * What they are training *for*, applied to the training rather than only to
+ * the food.
+ *
+ * `profile.goal` drove the calorie target and nothing else, which meant a
+ * person cutting and a person bulking were handed identical sessions. In a
+ * deficit recovery is genuinely impaired, so volume comes down while the
+ * weight on the bar is held — that is the whole mechanism for keeping muscle
+ * while losing fat, and dropping the load instead is the classic way to lose
+ * both. In a surplus there is capacity for more work, so volume goes up.
+ *
+ * Strength does the opposite of hypertrophy on both axes: fewer, heavier.
+ */
+export const GOAL_SHIFT = {
+  'fat-loss': { sets: 0.88, load: 1.00 },
+  muscle:     { sets: 1.10, load: 1.00 },
+  recomp:     { sets: 1.00, load: 1.00 },
+  strength:   { sets: 0.92, load: 1.04 },
+  athletic:   { sets: 0.95, load: 0.98 },
+  health:     { sets: 0.92, load: 0.95 },
+};
+export const goalShift = goal => GOAL_SHIFT[goal] ?? { sets: 1, load: 1 };

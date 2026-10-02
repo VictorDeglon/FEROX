@@ -10,7 +10,7 @@
  * cache and does its own offline queueing; a service worker second-guessing
  * that would be fighting it.
  */
-const CACHE = 'ferox-v8.0.0';
+const CACHE = 'ferox-v8.1.0';
 const SHELL = [
   './', 'index.html', 'dashboard.html', 'workouts.html', 'nutrition.html',
   'progress.html', 'records.html', 'medals.html', 'friends.html', 'profile.html',
@@ -22,7 +22,7 @@ const SHELL = [
   'assets/brand/icon.webp', 'assets/brand/icon.png', 'assets/brand/favicon-32.png',
   'assets/brand/apple-touch-icon.png', 'assets/brand/maskable.png',
   'assets/brand/logo.svg', 'assets/brand/wolf.svg',
-  'assets/js/core/config.js', 'assets/js/core/firebase.js',
+  'assets/js/core/config.js', 'assets/js/core/firebase.js', 'assets/js/core/units.js',
   'assets/js/core/icons.js', 'assets/js/core/seed.js',
   'assets/js/core/exercises.js', 'assets/js/core/anatomy.js', 'assets/js/core/strength.js',
   'assets/js/core/musclemap.js',

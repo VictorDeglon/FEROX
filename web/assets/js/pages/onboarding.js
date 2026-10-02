@@ -6,6 +6,7 @@
  * because the fastest way to lose someone on step three is to make them feel
  * they are being assessed.
  */
+import { detectUnit, kgToLb, lbToKg, cmToFtIn, ftInToCm, weightLabel } from '../core/units.js';
 import { store } from '../core/store.js';
 import { auth } from '../core/auth.js';
 import { esc, toast, initTheme } from '../core/ui.js';
@@ -22,6 +23,12 @@ initTheme();
 
 const a = {
   name: '', sex: '', age: 24, heightCm: 178, weightKg: 78,
+  // Whatever they picked on the landing page wins over the locale guess —
+  // being asked the same question twice, and ignored the first time, is worse
+  // than guessing wrong.
+  unit: (() => {
+    try { return localStorage.getItem('ferox.v2.unit') || detectUnit(); } catch { return detectUnit(); }
+  })(),
   activity: 3, level: 3, goal: '', daysPerWeek: 4,
   equipment: 'gym', limits: [],
 };
@@ -64,8 +71,14 @@ const STEPS = [
             Used for the metabolic equation only — it changes the calorie estimate by about 160 kcal.</p>
         </div>
         ${slider('age', 'Age', a.age, 14, 80, 'years')}
-        ${slider('heightCm', 'Height', a.heightCm, 130, 215, 'cm')}
-        ${slider('weightKg', 'Weight', a.weightKg, 35, 200, 'kg')}
+        ${a.unit === 'lb'
+          ? `${slider('heightIn', 'Height', Math.round(a.heightCm / 2.54), 51, 85, 'in', null, v => {
+              const f = cmToFtIn(v * 2.54); return `${f.ft}′${f.in}″`; })}
+             ${slider('weightLb', 'Weight', Math.round(kgToLb(a.weightKg)), 77, 441, 'lb')}`
+          : `${slider('heightCm', 'Height', a.heightCm, 130, 215, 'cm')}
+             ${slider('weightKg', 'Weight', a.weightKg, 35, 200, 'kg')}`}
+        <button type="button" class="btn btn-ghost btn-sm" id="unitToggle" style="justify-self:start">
+          Switch to ${a.unit === 'lb' ? 'kg and cm' : 'lb and ft'}</button>
       </div>`,
   },
   {
@@ -164,13 +177,13 @@ function choice(id, label, hint, on, group, ico) {
   </button>`;
 }
 
-function slider(key, label, value, min, max, unit, labels) {
+function slider(key, label, value, min, max, unit, labels, fmt) {
   const pct = ((value - min) / (max - min)) * 100;
-  const shown = labels ? labels[value - min] : value;
+  const shown = fmt ? fmt(value) : labels ? labels[value - min] : value;
   return `<div class="stack" style="gap:4px">
     <div class="slider-head">
       <span class="eyebrow">${esc(label)}</span>
-      <span class="slider-value" data-out="${key}">${esc(shown)}${unit && !labels ? `<span class="slider-unit">${esc(unit)}</span>` : ''}</span>
+      <span class="slider-value" data-out="${key}">${esc(shown)}${unit && !labels && !fmt ? `<span class="slider-unit">${esc(unit)}</span>` : ''}</span>
     </div>
     <input type="range" class="slider" id="${key}" data-key="${key}" min="${min}" max="${max}"
       value="${value}" style="--pct:${pct}%" aria-label="${esc(label)}">
@@ -275,16 +288,33 @@ function paint() {
 
   const body = view.querySelector('#stepBody');
 
+  body.querySelector('#unitToggle')?.addEventListener('click', () => {
+    a.unit = a.unit === 'lb' ? 'kg' : 'lb';
+    paint();           // the step redraws with the other system's sliders
+  });
+
   body.querySelectorAll('.slider').forEach(el => {
     el.addEventListener('input', () => {
       const min = +el.min, max = +el.max, v = +el.value;
       el.style.setProperty('--pct', `${((v - min) / (max - min)) * 100}%`);
-      a[el.dataset.key] = v;
+      // The imperial sliders carry imperial values; the answer stays metric,
+      // so the rest of onboarding and everything downstream never has to know
+      // which system the questions were asked in.
+      if (el.dataset.key === 'heightIn') a.heightCm = v * 2.54;
+      else if (el.dataset.key === 'weightLb') a.weightKg = lbToKg(v);
+      else a[el.dataset.key] = v;
+
       const out = body.querySelector(`[data-out="${el.dataset.key}"]`);
       if (out) {
         const labels = { level: LEVELS.map(l => l.label), activity: ACTIVITY.map(x => x.label) }[el.dataset.key];
-        const unit = { age: 'years', heightCm: 'cm', weightKg: 'kg', daysPerWeek: 'per week' }[el.dataset.key];
-        out.innerHTML = labels ? esc(labels[v - min]) : `${v}${unit ? `<span class="slider-unit">${unit}</span>` : ''}`;
+        const unit = { age: 'years', heightCm: 'cm', weightKg: 'kg',
+                       weightLb: 'lb', daysPerWeek: 'per week' }[el.dataset.key];
+        if (el.dataset.key === 'heightIn') {
+          const f = cmToFtIn(v * 2.54);
+          out.innerHTML = `${f.ft}′${f.in}″`;
+        } else {
+          out.innerHTML = labels ? esc(labels[v - min]) : `${v}${unit ? `<span class="slider-unit">${unit}</span>` : ''}`;
+        }
       }
     });
   });
@@ -337,7 +367,7 @@ async function finish() {
     profile: {
       name: a.name.trim(),
       handle: a.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 20) || 'athlete',
-      sex: a.sex, age: a.age, heightCm: a.heightCm, weightKg: a.weightKg,
+      sex: a.sex, age: a.age, heightCm: a.heightCm, weightKg: a.weightKg, unit: a.unit,
       activity: a.activity, level: a.level, goal: a.goal,
       daysPerWeek: a.daysPerWeek, equipment: a.equipment, limits: a.limits,
     },

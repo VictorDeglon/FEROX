@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { bmr, tdee, targetsFor, summarise, suggestedSeason, GOALS, LEVELS, ACTIVITY, EQUIPMENT }
   from '../web/assets/js/core/profile.js';
 import { buildWeek, buildSession, weeklyFrequency, templateFor, readinessFor, weekIntensity,
-  TEMPLATES, MODES, modeFor, VOLUME, isDeloadWeek } from '../web/assets/js/core/split.js';
+  TEMPLATES, MODES, modeFor, VOLUME, isDeloadWeek, trainingConsistency,
+  consistencyBoost, goalShift } from '../web/assets/js/core/split.js';
 import { seasonById, SEASONS } from '../web/assets/js/core/seasons.js';
 import { availableExercises, EXERCISES, LEGACY_IDS, ROUTINES, exerciseById }
   from '../web/assets/js/core/seed.js';
@@ -475,4 +476,85 @@ test('an aerobic season is not marked down for low lifting volume', () => {
   const week = buildWeek(p, tempo, 7, 2);
   assert.deepEqual(week.audit.filter(a => a.status === 'high'), [],
     'an aerobic block should not be over any landmark');
+});
+
+/* ------------------------------------------- every factor reaches the plan */
+
+/** A log with `n` sessions in the last four weeks, ending today. */
+function withHistory(n, extra = {}) {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    profile: person(extra),
+    sessions: Array.from({ length: n }, (_, i) => ({
+      id: `s${i}`,
+      date: new Date(Date.parse(today) - i * 864e5).toISOString().slice(0, 10),
+      entries: [],
+    })),
+  };
+}
+
+test('showing up earns a harder session; disappearing does not', () => {
+  // The whole point: "progress increases intensity". weekIntensity ramps
+  // *down* from week one, so without this the tenth week of a perfect streak
+  // is the same session as the first week of never having trained.
+  const p = person({ daysPerWeek: 4, equipment: 'gym' });
+  const season = seasonById('winter-fire');
+  const sets = data => buildWeek(p, season, 7, 2, data).days
+    .flatMap(d => d.entries).reduce((t, e) => t + e.sets, 0);
+
+  const none = sets(withHistory(0));
+  const some = sets(withHistory(8));
+  const perfect = sets(withHistory(16));
+
+  assert.ok(perfect > none,
+    `a four-week streak (${perfect}) should out-work a cold start (${none})`);
+  assert.ok(some >= none && perfect >= some, 'the curve should not go backwards');
+  // ...and not run away with itself: this multiplies a prescription that is
+  // already progressing lift by lift.
+  assert.ok(perfect < none * 1.6, `${none} -> ${perfect} is too big a jump`);
+});
+
+test('consistency below half pulls the volume down, not just up', () => {
+  // Somebody coming back from three missed weeks must not be handed the
+  // volume they had built up to before they stopped.
+  const p = person({ daysPerWeek: 5, equipment: 'gym' });
+  const season = seasonById('winter-fire');
+  const sets = data => buildWeek(p, season, 7, 2, data).days
+    .flatMap(d => d.entries).reduce((t, e) => t + e.sets, 0);
+
+  assert.ok(sets(withHistory(1)) < sets(withHistory(20)),
+    'one session in a month should not earn a full workload');
+  assert.ok(consistencyBoost(0) < 1 && consistencyBoost(1) > 1);
+  assert.equal(consistencyBoost(0.5), 1, 'half consistency is the neutral point');
+});
+
+test('what you are training for changes the training, not only the calories', () => {
+  // profile.goal used to drive the calorie target and nothing else, so a
+  // person cutting and a person bulking got identical sessions.
+  const season = seasonById('ferox-recomp');
+  const data = withHistory(10);
+  const sets = goal => buildWeek(person({ goal, daysPerWeek: 4, equipment: 'gym' }),
+    season, 7, 2, { ...data, profile: person({ goal, daysPerWeek: 4, equipment: 'gym' }) })
+    .days.flatMap(d => d.entries).reduce((t, e) => t + e.sets, 0);
+
+  const cut = sets('fat-loss');
+  const bulk = sets('muscle');
+  assert.ok(bulk > cut,
+    `a surplus (${bulk} sets) should carry more volume than a deficit (${cut})`);
+
+  // A deficit trims volume and holds the bar — dropping the weight instead is
+  // how people lose the muscle they were dieting to keep.
+  assert.equal(goalShift('fat-loss').load, 1, 'a cut must not lighten the bar');
+  assert.ok(goalShift('fat-loss').sets < 1, 'a cut should trim volume');
+  assert.ok(goalShift('strength').load > 1 && goalShift('strength').sets < 1,
+    'strength is fewer and heavier');
+});
+
+test('consistency is measured against your own promise, not an absolute', () => {
+  const four = trainingConsistency(withHistory(16, { daysPerWeek: 4 }),
+    person({ daysPerWeek: 4 }), 4);
+  const six = trainingConsistency(withHistory(16, { daysPerWeek: 6 }),
+    person({ daysPerWeek: 6 }), 4);
+  assert.equal(four, 1, 'sixteen sessions is a perfect month at four a week');
+  assert.ok(six < 1, 'the same sixteen is short of a promise of six a week');
 });

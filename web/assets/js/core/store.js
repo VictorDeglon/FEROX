@@ -12,6 +12,7 @@
  */
 import { CONFIG, firebaseConfigured } from './config.js';
 import { boot } from './firebase.js';
+import { detectUnit } from './units.js';
 import { EXERCISES, FOODS, MEDALS, byId } from './seed.js';
 
 export const todayISO = (d = new Date()) => {
@@ -40,7 +41,7 @@ function emptyData() {
     version: 3,
     profile: {
       name: '', email: '', picture: '', handle: '',
-      unit: 'kg', joined: todayISO(),
+      unit: detectUnit(), joined: todayISO(),
       // Filled by onboarding; everything is editable afterwards.
       sex: '', age: null, heightCm: null, weightKg: null,
       activity: 3, level: 3, goal: '', daysPerWeek: 4,
@@ -176,6 +177,17 @@ class Store extends EventTarget {
    * person with two years of training in the cloud.
    */
   get freshAccount() { return this.#fresh; }
+
+  /**
+   * The athlete's display unit, 'kg' or 'lb'.
+   *
+   * Storage is metric regardless — see core/units.js. This is only ever asked
+   * when something is about to be shown or typed, never when it is saved.
+   */
+  get unit() { return this.#data.profile.unit === 'lb' ? 'lb' : 'kg'; }
+
+  /** Swap display units. Nothing stored changes; the numbers are the same. */
+  setUnit(unit) { return this.updateProfile({ unit: unit === 'lb' ? 'lb' : 'kg' }); }
 
   /** True when writes are going to Firestore rather than this device. */
   get isCloud() { return this.#adapter instanceof FirestoreAdapter; }
