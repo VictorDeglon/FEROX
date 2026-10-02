@@ -12,6 +12,7 @@ brief is [AGENTS.md](../../AGENTS.md).
 | **[Seasons and training modes](seasons.md)** | Twelve blocks, seven ways of training, and what changes between them. |
 | **[Food and meals](nutrition.md)** | The database, the plate builder, meals that save themselves, and photos. |
 | **[Weigh-ins and checkpoints](progress.md)** | Measuring your actual metabolism instead of trusting an equation. |
+| **[Learn: the knowledge base](learn.md)** | A hundred gym questions answered with the research, searchable. |
 | **[Privacy and your data](privacy.md)** | What leaves your device. The short answer is nothing. |
 | **[Themes and secrets](themes.md)** | There is more in here than you can see. |
 

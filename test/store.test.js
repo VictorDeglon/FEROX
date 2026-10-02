@@ -378,3 +378,59 @@ test('every egg has an id, a reveal and at least one phrase', () => {
     assert.ok(e.title && e.reveal);
   }
 });
+
+/* ------------------------------------------------------------- portions */
+
+const { handFor, quantityFor, compare, HAND, OBJECTS } =
+  await import('../web/assets/js/core/portions.js');
+const { FOODS } = await import('../web/assets/js/core/foods.js');
+
+test('a hand measure converts into the food\'s own servings', () => {
+  // Foods are stored per serving, not per 100 g, so "one palm" has to become
+  // a multiple of that serving or every total downstream is wrong.
+  const chicken = FOODS.find(f => f.name === 'Chicken breast, cooked');
+  assert.equal(quantityFor(chicken, 100), 1, 'a 100 g serving is one palm');
+
+  const oil = FOODS.find(f => f.name === 'Olive oil');
+  assert.ok(quantityFor(oil, 15) > 0.8 && quantityFor(oil, 15) < 1.3,
+    'a thumb of oil is about one tablespoon');
+
+  assert.ok(quantityFor({ grams: 0 }, 100) > 0, 'a missing serving weight must not divide by zero');
+  assert.ok(quantityFor(null, 100) > 0);
+});
+
+test('the measures offered suit the food', () => {
+  // Falling through to every measure offered a banana a "palm" and a
+  // "thumb", which is not how anybody measures fruit and reads as the app
+  // not knowing what the food is.
+  assert.deepEqual(handFor('Protein').map(h => h.id), ['palm']);
+  assert.deepEqual(handFor('Fruit').map(h => h.id), ['fist']);
+  assert.deepEqual(handFor('Drinks'), [], 'you do not measure a drink with your hand');
+  assert.ok(handFor('Nuts & fats').some(h => h.id === 'thumb'));
+  // An unknown category still returns something usable rather than nothing.
+  assert.ok(handFor('Something new').length > 0);
+});
+
+test('every comparison is a sentence, not a template with a hole in it', () => {
+  // "One serving is about a your phone" shipped once. Every object either
+  // takes an article or is marked as not needing one.
+  for (const f of FOODS.slice(0, 200)) {
+    const line = compare(f);
+    if (!line) continue;
+    assert.ok(!/\ba (your|the)\b/.test(line), `${f.name}: "${line}"`);
+    assert.ok(!/\ban [^aeiou]/.test(line), `${f.name}: wrong article in "${line}"`);
+    assert.match(line, /\.$/, `${f.name}: "${line}" does not end in a full stop`);
+  }
+  assert.equal(compare(null), '');
+  assert.equal(compare({ grams: 0 }), '');
+});
+
+test('the hand and object tables are coherent', () => {
+  for (const h of HAND) {
+    assert.ok(h.grams > 0 && h.grams < 500, `${h.label}: ${h.grams} g is not a hand`);
+    assert.ok(h.say && h.like, `${h.label} is missing its explanation`);
+  }
+  for (const o of OBJECTS) {
+    assert.ok(o.grams > 0 && o.grams < 1000, `${o.label}: ${o.grams} g`);
+  }
+});

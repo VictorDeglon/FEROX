@@ -42,7 +42,8 @@ web/                     the app — this is what Firebase Hosting serves, as-is
                          metabolism (measured maintenance + checkpoints),
                          plan (what the two of those say together),
                          themes (palettes), eggs (the secret console),
-                         research (study summaries), image (avatar resizing)
+                         research (study summaries), knowledge (the searchable
+                         hundred-question knowledge base), image (avatar resizing)
   assets/js/pages/       one module per page + _log.js (shared session editor),
                          _readiness.js (daily check-in), _weighin.js (weigh-ins),
                          _catalog.js (exercise browser), _plate.js (food search

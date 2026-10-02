@@ -1,6 +1,6 @@
 /** Profile — account, goals, units, themes, weigh-in cadence and data control. */
 import { store, RESET_CLEARS, RESET_KEEPS } from '../core/store.js';
-import { weight as toDisplay, weightLabel } from '../core/units.js';
+import { weight as toDisplay, weightLabel, fmtWeight, fmtHeight } from '../core/units.js';
 import {
   bootPage, esc, num, toast, modal, confirmPhrase, avatarHtml, displayName, displayUser,
   applyMode, applyPalette, currentMode, currentPalette,
@@ -8,9 +8,12 @@ import {
 import { icon, googleGlyph } from '../core/icons.js';
 import { auth } from '../core/auth.js';
 import { handleFlow } from './_handle.js';
+import { PROFILE_ACCENTS } from '../core/social.js';
+import { check as checkWords } from '../core/moderation.js';
+import { isAutumn } from '../core/seasonal.js';
 import { googleReady } from '../core/config.js';
 import { MEDALS } from '../core/seed.js';
-import { makeAvatar, formatBytes, AVATAR_PX } from '../core/image.js';
+import { makeAvatar, makeMicroAvatar, formatBytes, AVATAR_PX } from '../core/image.js';
 import { LEVELS, GOALS, ACTIVITY, EQUIPMENT, DIETS, targetsFor } from '../core/profile.js';
 import { seasonById, currentSlot } from '../core/seasons.js';
 import { PALETTES, MODES, availablePalettes } from '../core/themes.js';
@@ -76,8 +79,8 @@ function render(el) {
             ${mini('Days / week', p.daysPerWeek ?? '—')}
             ${mini('Equipment', EQUIPMENT.find(e => e.id === p.equipment)?.label ?? '—')}
             ${mini('Activity', (ACTIVITY.find(x => x.id === p.activity)?.label ?? '—').split(',')[0])}
-            ${mini('Weight', p.weightKg ? `${p.weightKg} kg` : '—')}
-            ${mini('Height', p.heightCm ? `${p.heightCm} cm` : '—')}
+            ${mini('Weight', p.weightKg ? fmtWeight(p.weightKg, store.unit) : '—')}
+            ${mini('Height', p.heightCm ? fmtHeight(p.heightCm, store.unit) : '—')}
             ${mini('Age', p.age ?? '—')}
             ${mini('Working around', p.limits?.filter(l => l !== 'none').length || 'Nothing')}
           </div>
@@ -164,6 +167,24 @@ function render(el) {
         <div class="card card-pad-lg">
           <div class="card-head"><h3>Preferences</h3></div>
           <div class="stack" style="gap:14px">
+            <div class="field">
+              <label for="tagline">Your line</label>
+              <input class="input" id="tagline" maxlength="80"
+                value="${esc(p.tagline ?? '')}" placeholder="Trains at 6am. Hates cardio.">
+              <p class="dim" style="font-size:.76rem;margin-top:5px">
+                One line on your public page. 80 characters.</p>
+            </div>
+            <div class="field">
+              <label for="accent">Page colour</label>
+              <div class="row wrap" style="gap:8px" id="accent">
+                ${PROFILE_ACCENTS.map(a => `
+                  <button type="button" class="u-swatch${(p.accent ?? 'ember') === a.id ? ' on' : ''}"
+                    data-accent="${a.id}" style="--sw:${a.hex}" title="${esc(a.label)}"
+                    aria-label="${esc(a.label)}"></button>`).join('')}
+              </div>
+              <p class="dim" style="font-size:.76rem;margin-top:5px">
+                Tints your public page. ${isAutumn() ? 'Leaves are on your frame for October.' : ''}</p>
+            </div>
             <div class="field">
               <label for="gym">Where you train</label>
               <select class="select" id="gym">
@@ -264,6 +285,31 @@ function render(el) {
   el.querySelector('#editTraining').addEventListener('click', editTraining);
   el.querySelector('#editGoals').addEventListener('click', editGoals);
   el.querySelector('#signOut')?.addEventListener('click', async () => { await auth.signOut(); location.href = 'index.html'; });
+
+  let tagTimer = null;
+  el.querySelector('#tagline')?.addEventListener('input', e => {
+    // Debounced: a keystroke should not be a write, and `syncPublicProfile`
+    // treats a tagline change as identity so it publishes straight away.
+    clearTimeout(tagTimer);
+    const v = e.target.value.slice(0, 80);
+    tagTimer = setTimeout(() => {
+      const ok = checkWords(v);
+      if (!ok.clean) { toast(ok.why, 'bad'); return; }
+      store.updateProfile({ tagline: v });
+    }, 600);
+  });
+
+  el.querySelectorAll('[data-accent]').forEach(b => b.addEventListener('click', async () => {
+    el.querySelectorAll('[data-accent]').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    await store.updateProfile({ accent: b.dataset.accent });
+    if (auth.uid) {
+      const { forgetPublished, syncPublicProfile } = await import('../core/social.js');
+      forgetPublished(auth.uid);
+      await syncPublicProfile(auth.uid, store.data, store.stats());
+    }
+    toast('Page colour saved', 'ok');
+  }));
 
   el.querySelector('#gym')?.addEventListener('change', async e => {
     await store.updateProfile({ equipment: e.target.value });
@@ -575,6 +621,8 @@ async function editProfile() {
 
   if (!res) return;
   const name = res.name.trim().slice(0, 40);
+  const verdict = checkWords(name);
+  if (!verdict.clean) { toast(verdict.why, 'bad'); return; }
   if (name && name !== p.name) {
     await store.updateProfile({ name });
     toast('Profile updated', 'ok');
@@ -721,6 +769,17 @@ async function cropFlow(file) {
   });
 
   if (!res) return;
-  await store.updateProfile({ picture: made.dataUrl });
-  toast(`Photo set — ${formatBytes(made.bytes)}`, 'ok');
+
+  // Two sizes, cropped the same way. The large one is for this device; the
+  // thumbnail is the only version small enough to publish, and without it
+  // friends see initials forever.
+  const micro = await makeMicroAvatar(file, { focusY }).catch(() => '');
+  await store.updateProfile({ picture: made.dataUrl, micro });
+
+  if (auth.uid) {
+    const { forgetPublished, syncPublicProfile } = await import('../core/social.js');
+    forgetPublished(auth.uid);
+    await syncPublicProfile(auth.uid, store.data, store.stats());
+  }
+  toast(micro ? `Photo set — friends will see it too` : `Photo set — ${formatBytes(made.bytes)}`, 'ok');
 }
