@@ -174,6 +174,9 @@ small { font-size: var(--step--1); }
   border: 1px solid var(--btn-line); border-radius: var(--r-pill);
   font-family: var(--font-display); font-weight: 700; font-size: .86rem;
   letter-spacing: .01em; cursor: pointer;
+  /* A two-line button is a layout bug, not a responsive design. Let the label
+     keep its line and let flex deal with the consequences. */
+  white-space: nowrap;
   transition: transform .16s var(--ease), background .16s, border-color .16s, opacity .16s;
 }
 .btn:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--line-hi); }
@@ -181,11 +184,45 @@ small { font-size: var(--step--1); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn svg { width: 17px; height: 17px; flex: none; }
 
+/*
+ * Flat ember, no gradient and no glow.
+ *
+ * The old primary was a three-stop gradient under a coloured drop shadow,
+ * which on a dark background reads as a button trying to get your attention
+ * rather than a button. One solid brand colour is louder on this palette, not
+ * quieter — it is the only saturated thing on the screen, so it does not need
+ * help. Hover lifts the colour instead of blooming a shadow.
+ */
 .btn-primary {
-  --btn-bg: var(--ember-grad); --btn-fg: #fff; --btn-line: transparent;
-  box-shadow: 0 6px 20px -8px var(--ember-ring);
+  --btn-bg: var(--ember); --btn-fg: #fff; --btn-line: transparent;
 }
-.btn-primary:hover:not(:disabled) { box-shadow: 0 10px 28px -8px var(--ember-ring); }
+.btn-primary:hover:not(:disabled) { --btn-bg: color-mix(in srgb, var(--ember) 88%, #fff); }
+.btn-primary:active:not(:disabled) { --btn-bg: var(--ember-lo); }
+
+/* The gradient is still the right answer once, on the hero's own call to
+   action, where it is the single focal point of the page rather than one
+   control among many. */
+.btn-hero { --btn-bg: var(--ember-grad); --btn-fg: #fff; --btn-line: transparent; }
+.btn-hero:hover:not(:disabled) { filter: saturate(1.08) brightness(1.04); }
+
+/*
+ * The quiet call to action, for the top bar.
+ *
+ * A nav bar is not where you shout. The hero below it is already a full-width
+ * gradient button saying the same thing, and two of them competing made the
+ * header look like an ad for the page it is attached to. This is the brand
+ * colour as an outline and a label — unmistakably the action, without being
+ * the loudest thing on screen before anyone has read a word.
+ */
+.btn-quiet {
+  --btn-bg: transparent;
+  --btn-fg: var(--ember);
+  --btn-line: color-mix(in srgb, var(--ember) 42%, transparent);
+}
+.btn-quiet:hover:not(:disabled) {
+  --btn-bg: var(--ember-soft);
+  --btn-line: color-mix(in srgb, var(--ember) 70%, transparent);
+}
 .btn-ghost { --btn-bg: transparent; }
 .btn-ghost:hover:not(:disabled) { --btn-bg: var(--surf-3); }
 .btn-lg { min-height: 50px; padding: 13px 26px; font-size: .95rem; }
@@ -933,7 +970,15 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
 /* `contain` is the load-bearing part: the art is square but a browser that has
    not measured it yet, or a rule that sets only one axis, must letterbox it
    rather than crop it. Nothing in the chrome may cut the wolf's ears off. */
-.brand-mark { flex: none; object-fit: contain; }
+/*
+ * `max-width: none` undoes the global `img { max-width: 100% }` for this one
+ * image. In the cramped inline-flex of the top bar that percentage resolves
+ * against a container which is itself being squeezed, and the mark collapses
+ * to zero width while keeping its height — the wolf simply vanishes from the
+ * header and leaves the wordmark sitting on its own. `flex: none` alone does
+ * not save it, because this is a max-width clamp rather than flex shrink.
+ */
+.brand-mark { flex: none; object-fit: contain; max-width: none; }
 
 /* A mark that sits on its own rather than beside the wordmark — the landing
    CTA, the footer. The box shrink-wraps whatever size the mark asked for, so
@@ -1266,6 +1311,25 @@ code.phrase {
 .nudge-body p { font-size: var(--step--2); color: var(--text-2); margin-top: 3px; }
 
 /* What other apps charge for --------------------------------------------- */
+/* plans ---------------------------------------------------------------- */
+
+#plans { display: grid; gap: 14px; }
+@media (min-width: 560px) { #plans { grid-template-columns: 1fr 1fr; } }
+
+.plan {
+  display: grid; gap: 14px; align-content: start;
+  padding: clamp(18px, 3vw, 24px);
+  background: var(--surf-1);
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+}
+/* The paid tier is marked with a hairline of brand colour and nothing else.
+   A gradient panel here would be the page shouting at the one place a reader
+   is already deciding whether they are being sold to. */
+.plan-featured { border-color: color-mix(in srgb, var(--ember) 38%, var(--line)); }
+.plan-price { font-family: var(--font-display); font-weight: 800; font-size: var(--step-1); }
+.plan-list { margin: 0; }
+.plan .btn { margin-top: 2px; }
+
 .price-table { display: grid; gap: 1px; background: var(--line); border-radius: var(--r-md); overflow: hidden; }
 .price-row {
   display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;

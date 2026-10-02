@@ -11,26 +11,21 @@ The live project is **`feroxfitness`**
 deployed at <https://feroxfitness.web.app>. Everything below assumes you are
 setting up your own.
 
-> **State of the live project**
+> **State of the live project** — fully up as of 2026-10-02.
 >
-> Done: web app registered and its config committed, Hosting deployed, the
-> Firestore and Identity Toolkit APIs enabled, Firebase Auth initialised, and
-> `localhost` + `victordeglon.github.io` on the authorised domains.
+> Hosting at <https://feroxfitness.web.app>, Firebase Auth with the Google
+> provider enabled, and Firestore `(default)` in **`us-west1`** with
+> `firestore.rules` deployed. Verified: an unauthenticated read of
+> `users/{somebody}` returns `PERMISSION_DENIED`.
 >
-> Two things remain, and neither is code:
+> Authorised domains cover `localhost`, `feroxfitness.firebaseapp.com`,
+> `feroxfitness.web.app` and `victordeglon.github.io`, so sign-in works from
+> the GitHub Pages deploy as well.
 >
-> 1. **The Firestore database does not exist**, and creating it needs a
->    project *owner* — `datastore.databases.create` is not in `roles/editor`.
->    An owner runs
->    `gcloud firestore databases create --location=europe-west2 --project feroxfitness`,
->    after which `npm run deploy:rules` works (the rules already compile
->    cleanly against the project's own rules service).
-> 2. **Google is not enabled** under Authentication → Sign-in method. Use the
->    console: the API refuses the config without a `client_secret`, and the
->    console provisions one itself rather than making you handle it.
->
-> Until both are done the app degrades as designed — sign-in reports
-> `auth/operation-not-allowed` in plain words and the log stays on the device.
+> One thing left, and only for CI: `firebase init hosting:github` to create the
+> `FIREBASE_SERVICE_ACCOUNT` secret `.github/workflows/firebase.yml` wants.
+> Until then that workflow is manual-dispatch and **GitHub Pages is the
+> automatic deploy**.
 
 ## What runs where
 

@@ -2,7 +2,7 @@
   "name": "ferox",
   "version": "2.0.0",
   "private": true,
-  "description": "FEROX — a free workout, nutrition and progress tracker. Static-first, synced with Firebase when you sign in.",
+  "description": "FEROX \u2014 a free workout, nutrition and progress tracker. Static-first, synced with Firebase when you sign in.",
   "type": "module",
   "license": "MIT",
   "author": "Victor Deglon",
@@ -16,6 +16,7 @@
     "deploy:hosting": "firebase deploy --only hosting",
     "deploy:rules": "firebase deploy --only firestore:rules",
     "test": "node --test test/*.test.js",
-    "check": "node scripts/check-web.js && node scripts/check-syntax.js"
+    "check": "node scripts/check-web.js && node scripts/check-syntax.js && node scripts/check-icons.js",
+    "icons": "node scripts/make-icons.js && node scripts/check-icons.js"
   }
 }

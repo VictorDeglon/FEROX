@@ -49,7 +49,8 @@ function about(pane) {
     ${h('How FEROX works', 'The short version of every decision in this app.')}
 
     ${card(`${h3('It is free, and it stays free')}
-      ${p('There is no subscription, no advertising and nothing is sold. FEROX runs entirely in your browser, and the code is public on GitHub for anyone to read. Nobody is monetising your training log because nobody but you has it.')}`)}
+      ${p('The whole trainer — every exercise, the programming, nutrition, the charts — is free, with no account and no card. It runs in your browser, so it costs nothing to give away, and the code is public on GitHub for anyone to check.')}
+      ${p('There is a paid tier, and it is worth being precise about what it is for. Pro covers the two things that cost real money per person: keeping your log synced across your devices, and reading a meal off a photograph. Nothing that works today will move behind it, there is no advertising, and your training log is never sold or shared — nobody but you has it.')}`)}
 
     ${card(`${h3('Your data is on your device')}
       ${p('Every session, meal and weigh-in is stored in your browser. It is not uploaded anywhere by default. You can export the lot as JSON from your profile at any time, and import it on another device. If you sign in with Google, that only adds a name and picture to your profile.')}`)}

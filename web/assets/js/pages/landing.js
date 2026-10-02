@@ -83,9 +83,10 @@ const FEATURES = [
   ['target', 'Targets that adapt',
     'FEROX measures your actual metabolism from your weigh-ins and your food log, rather than '
     + 'trusting an equation, and adjusts your calories to what your body is really doing.'],
-  ['shield', 'No account, no ads, no upsell',
-    'Everything above is free and switched on. There is no paid tier to unlock, because there is '
-    + 'nothing to sell you.'],
+  ['shield', 'No account, and no ads ever',
+    'Everything above is free and switched on, with no card and no sign-up. Pro adds syncing '
+    + 'and meal photos — the two things that cost real money to run — and nothing that is free '
+    + 'today ever moves behind it.'],
 ];
 document.getElementById('featureGrid').innerHTML = FEATURES.map(([ico, title, body]) => `
   <article class="feature card card-pad-lg reveal">
@@ -94,24 +95,71 @@ document.getElementById('featureGrid').innerHTML = FEATURES.map(([ico, title, bo
     <p>${esc(body)}</p>
   </article>`).join('');
 
-/* what other apps charge for --------------------------------------------- */
-const PAYWALLED = [
-  'A plan built for your body',
-  'Knowing what weight to lift',
-  'Automatic progressive overload',
-  'The full exercise library',
-  'Macro and calorie tracking',
-  'Custom meals and recipes',
-  'Progress charts and history',
-  'Exporting your own data',
-  'Removing the ads',
+/* plans -------------------------------------------------------------------
+ *
+ * The honest shape of this: everything that works offline in a browser is
+ * free, because it costs nothing to give away and holding it back would be
+ * a decision made purely to create a reason to pay. Pro is the two features
+ * that have a real marginal cost per user — a database holding your log, and
+ * a vision model reading your dinner.
+ *
+ * Nothing that is free today ever moves into Pro. If that line is ever
+ * crossed, this comment is the thing that was broken.
+ */
+const PLANS = [
+  {
+    id: 'free',
+    name: 'Free',
+    price: '£0',
+    per: 'forever',
+    blurb: 'The whole trainer. No account, no card.',
+    features: [
+      '1,369 exercises, searchable, with a body map',
+      'A plan that tells you the weight and adds to it',
+      'Weekly volume capped at what you can recover from',
+      'Nutrition, 457 foods and the plate builder',
+      'Every chart, record, medal and season',
+      'Works offline. Export everything as JSON, any time.',
+    ],
+    cta: 'Start free',
+    href: 'onboarding.html',
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: '£3.99',
+    per: 'a month',
+    blurb: 'For the parts that cost real money to run.',
+    featured: true,
+    features: [
+      'Your log on every device you own, synced',
+      'Photograph a meal and have it estimated',
+      'A weekly read on what your training is actually doing',
+      'Every colour palette unlocked',
+      'It keeps the free tier free',
+    ],
+    cta: 'Coming soon',
+    href: null,
+  },
 ];
-document.getElementById('priceTable').innerHTML = PAYWALLED.map(t => `
-  <div class="price-row">
-    <span class="price-them">£9.99/mo</span>
-    <span class="price-what">${esc(t)}</span>
-    <span class="price-us">Free</span>
-  </div>`).join('');
+
+document.getElementById('plans').innerHTML = PLANS.map(p => `
+  <article class="plan${p.featured ? ' plan-featured' : ''}">
+    <div class="row-between" style="align-items:baseline">
+      <h3 style="font-size:var(--step-1)">${esc(p.name)}</h3>
+      <div><span class="plan-price">${esc(p.price)}</span>
+        <span class="dim" style="font-size:.78rem">${esc(p.per)}</span></div>
+    </div>
+    <p class="muted" style="font-size:var(--step--1)">${esc(p.blurb)}</p>
+    <ul class="stack plan-list" style="gap:9px;list-style:none;padding:0">
+      ${p.features.map(f => `<li class="row" style="gap:9px;align-items:flex-start">
+        <span style="color:var(--ok);width:16px;flex:none;margin-top:2px">${icon('check')}</span>
+        <span class="muted" style="font-size:.86rem">${esc(f)}</span></li>`).join('')}
+    </ul>
+    ${p.href
+      ? `<a class="btn btn-primary btn-block" href="${p.href}">${esc(p.cta)}</a>`
+      : `<button class="btn btn-block" disabled>${esc(p.cta)}</button>`}
+  </article>`).join('');
 
 /* medals ----------------------------------------------------------------- */
 document.getElementById('medalGrid').innerHTML = MEDALS.slice(0, 8).map((m, i) => `
@@ -125,10 +173,11 @@ document.getElementById('medalGrid').innerHTML = MEDALS.slice(0, 8).map((m, i) =
 
 /* free list -------------------------------------------------------------- */
 document.getElementById('freeList').innerHTML = [
-  'Every feature, switched on, with no account',
+  'The whole trainer, with no account and no card',
   'Works offline once loaded — the gym basement is fine',
   'Nothing is sent anywhere unless you sign in — guests stay offline',
   'Your whole log exports as plain JSON in one tap',
+  'No ads, and nothing sold on. Not now, not later.',
   'Open source, so you can check all of the above',
 ].map(t => `<li class="row" style="gap:10px;align-items:flex-start">
   <span style="color:var(--ok);width:17px;flex:none;margin-top:2px">${icon('check')}</span>

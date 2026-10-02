@@ -5,7 +5,7 @@
   <img src="web/assets/brand/logo-onlight.svg" alt="FEROX" width="420">
 </picture>
 
-**A free workout, diet and progress tracker. No subscription, no ads, no data harvesting.**
+**A workout, diet and progress tracker. The whole trainer is free forever — no ads, no data harvesting.**
 
 [Open the app](https://victordeglon.github.io/FEROX/) · [Guides](docs/guide/) · [Firebase setup](docs/firebase-setup.md) · [Contributing notes](AGENTS.md)
 
