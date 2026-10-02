@@ -12,7 +12,9 @@
  * exactly what other people see.
  */
 import { brandMark, icon } from '../core/icons.js';
-import { esc, num, initials } from '../core/ui.js';
+import { esc, num, avatarHtml, wireAvatarFallback } from '../core/ui.js';
+
+wireAvatarFallback();
 import { auth } from '../core/auth.js';
 import { profileByHandle, normaliseHandle } from '../core/social.js';
 import { googleReady, CONFIG } from '../core/config.js';
@@ -46,13 +48,15 @@ function message(title, body, cta = true) {
     ${cta ? `<a class="btn btn-primary" style="justify-self:start" href="./">Open FEROX</a>` : ''}`);
 }
 
+/**
+ * This built its own inline `onerror` with `JSON.stringify` inside a
+ * double-quoted attribute — JSON's own quotes closed the attribute. It uses
+ * the shared helper now, which has no inline handler at all.
+ */
 function avatar(p, size = 72) {
-  return p.picture
-    ? `<img class="avatar" src="${esc(p.picture)}" alt="" width="${size}" height="${size}"
-         referrerpolicy="no-referrer" style="width:${size}px;height:${size}px"
-         onerror="this.replaceWith(Object.assign(document.createElement('span'),
-           {className:'avatar',textContent:${JSON.stringify(initials(p.nickname || p.handle))}}))">`
-    : `<span class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size / 2.8)}px">${esc(initials(p.nickname || p.handle))}</span>`;
+  const box = `width:${size}px;height:${size}px;font-size:${Math.round(size / 2.8)}px`;
+  return `<span style="${box};display:inline-grid">
+    ${avatarHtml({ name: p.nickname || p.handle, picture: p.picture }, 'avatar')}</span>`;
 }
 
 const tile = (label, value, note = '') => `

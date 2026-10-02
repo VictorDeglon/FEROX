@@ -13,7 +13,7 @@
  * one that tells you whether a cut is going well.
  */
 import { store, todayISO } from '../core/store.js';
-import { weight as toDisplay, lbToKg, kgToLb, weightLabel, fmtWeight } from '../core/units.js';
+import { weight as toDisplay, toStoredKg, kgToLb, weightLabel, fmtWeight } from '../core/units.js';
 import { esc, toast } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { bodyFatFromLean, leanFromBodyFat } from '../core/metabolism.js';
@@ -170,8 +170,7 @@ export function weighInFlow({ date = todayISO(), scheduled = false } = {}) {
       const f = Object.fromEntries(new FormData(e.target));
       const U = store.unit;
       // Typed in whatever the athlete reads; stored in kilograms, always.
-      const typed = +f.weightKg;
-      const kgIn = U === 'lb' ? lbToKg(typed) : typed;
+      const kgIn = toStoredKg(f.weightKg, U) ?? 0;
       if (!Number.isFinite(kgIn) || kgIn <= 0) { toast('A weight is the one thing we need', 'bad'); return; }
 
       const rec = await store.logCheckIn({
@@ -218,7 +217,9 @@ export const measureOut = (key, v, unit) => {
 /** What the athlete typed -> what gets stored. */
 export const measureIn = (key, v, unit) => {
   if (v == null || unit !== 'lb' || !IMPERIALISED[key]) return v;
-  return IMPERIALISED[key] === 'weight' ? lbToKg(v) : v * 2.54;
+  return IMPERIALISED[key] === 'weight'
+    ? toStoredKg(v, 'lb')
+    : Math.round(v * 2.54 * 10) / 10;
 };
 
 function measureField({ key, label, unit, min, max, step, hint }, seed, u = 'kg') {

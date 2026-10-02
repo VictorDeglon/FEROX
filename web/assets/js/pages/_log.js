@@ -3,7 +3,7 @@
  * A live set editor: pick exercises, fill reps x weight, save.
  */
 import { store, todayISO } from '../core/store.js';
-import { weight as toDisplay, lbToKg, weightLabel, roundToPlates } from '../core/units.js';
+import { weight as toDisplay, toStoredKg, weightLabel, roundToPlates } from '../core/units.js';
 import { esc, toast } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { EXERCISES, ROUTINES, MEDALS, byId } from '../core/seed.js';
@@ -169,7 +169,7 @@ export function logSessionFlow(routineId, planDay) {
       // are a count and belong to neither system.
       const isLoad = t.dataset.k === 'weight' && byId(EXERCISES, entry.ex)?.unit === 'kg';
       entry.sets[+t.dataset.s][t.dataset.k] =
-        isLoad && store.unit === 'lb' ? lbToKg(raw) : raw;
+        isLoad ? toStoredKg(raw, store.unit) ?? 0 : raw;
       volEl.textContent = volume() ? `Volume: ${Math.round(toDisplay(volume(), store.unit, { decimals: 0 })).toLocaleString()} ${weightLabel(store.unit)}` : '';
     }
   });

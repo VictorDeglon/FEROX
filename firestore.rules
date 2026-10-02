@@ -13,6 +13,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    /** A field is absent, or a string no longer than `max`. */
+    function str(field, max) {
+      return !(field in request.resource.data)
+          || (request.resource.data[field] is string
+              && request.resource.data[field].size() <= max);
+    }
+
+    /** A field is absent, or a number between zero and `max`. */
+    function count(field, max) {
+      return !(field in request.resource.data)
+          || (request.resource.data[field] is int
+              && request.resource.data[field] >= 0
+              && request.resource.data[field] <= max);
+    }
+
+
     /**
      * An athlete's whole log, one document, keyed by their Firebase uid.
      *
@@ -57,15 +73,31 @@ service cloud.firestore {
      */
     match /profiles/{uid} {
       allow read: if request.auth != null;
+
+      /*
+       * Every field is bounded. A public document is the one place another
+       * person's bytes end up on your screen, so the rules cap what can be
+       * stored rather than trusting the client that wrote it — a client the
+       * author controls completely.
+       *
+       * The picture cap matters most: without it a profile can carry a
+       * megabyte `data:` URL that every viewer downloads, which is free
+       * bandwidth for them and a bill for us.
+       */
       allow write: if request.auth != null
                    && request.auth.uid == uid
                    && request.resource.data.keys().size() <= 18
-                   && (!('nickname' in request.resource.data)
-                       || request.resource.data.nickname is string
-                       && request.resource.data.nickname.size() <= 40)
-                   && (!('handle' in request.resource.data)
-                       || request.resource.data.handle is string
-                       && request.resource.data.handle.size() <= 20);
+                   && str('nickname', 40)
+                   && str('handle', 20)
+                   && str('picture', 500)
+                   && str('goal', 20)
+                   && str('band', 8)
+                   && str('region', 16)
+                   && str('joined', 10)
+                   && count('streak', 100000)
+                   && count('sessions', 1000000)
+                   && count('volume', 10000000000)
+                   && count('medals', 1000);
     }
 
     /**

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { kgToLb, lbToKg, cmToFtIn, ftInToCm, weight, fmtWeight, fmtHeight,
-  roundToPlates, detectUnit, weightLabel, range } =
+  roundToPlates, detectUnit, weightLabel, range, toStoredKg } =
   await import('../web/assets/js/core/units.js');
 
 test('conversions round-trip without drifting', () => {
@@ -25,11 +25,12 @@ test('height converts to feet and inches, and carries at twelve', () => {
 });
 
 test('weights are shown to a precision the athlete actually has', () => {
-  // A tenth of a pound is a precision nobody has and no gym stocks.
+  // One decimal, both systems. More is noise; a whole number loses the half
+  // kilo that every plate set has.
   assert.equal(weight(82.5, 'kg'), 82.5);
-  assert.equal(weight(82.5, 'lb'), 182);
+  assert.equal(weight(82.5, 'lb'), 181.9);
   assert.equal(fmtWeight(100, 'kg'), '100 kg');
-  assert.equal(fmtWeight(100, 'lb'), '220 lb');
+  assert.equal(fmtWeight(100, 'lb'), '220.5 lb');
   assert.equal(fmtWeight(null, 'kg'), '—');
   assert.equal(fmtHeight(180, 'lb'), '5′11″');
   assert.equal(fmtHeight(180, 'kg'), '180 cm');
@@ -97,4 +98,21 @@ test('the unit is guessed from the locale, never from the network', () => {
   assert.equal(detectUnit(), 'kg', 'a hostile navigator must not break the app');
 
   if (real) Object.defineProperty(globalThis, 'navigator', real);
+});
+
+test('a typed weight is rounded before it is stored', () => {
+  // lbToKg(225) is 102.05820000000001. Storing that means the number in the
+  // document is not one anybody typed, it accumulates through every sum, and
+  // switching units twice does not return the value you started with.
+  assert.equal(toStoredKg(225, 'lb'), 102.1);
+  assert.equal(toStoredKg(100, 'kg'), 100);
+  assert.equal(toStoredKg(82.55, 'kg'), 82.6);
+  assert.equal(toStoredKg('', 'kg'), null);
+  assert.equal(toStoredKg('abc', 'lb'), null);
+
+  // Nothing stored ever carries more than one decimal.
+  for (let lb = 1; lb <= 500; lb += 1) {
+    const kg = toStoredKg(lb, 'lb');
+    assert.equal(Math.round(kg * 10) / 10, kg, `${lb} lb stored as ${kg}`);
+  }
 });
