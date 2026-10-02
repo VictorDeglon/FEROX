@@ -99,7 +99,9 @@ function render(el) {
         <div class="card card-pad-lg">
           <div class="card-head"><h3>Your data</h3></div>
           <p class="muted" style="font-size:.87rem">
-            FEROX is free and stores everything ${store.isRemote ? 'on your FEROX server' : 'in this browser'}.
+            FEROX is free and stores everything ${store.isCloud
+              ? 'in your Google account, so it follows you between devices'
+              : 'in this browser, on this device only'}.
             Export any time — it's plain JSON, yours to keep.</p>
           <div class="row wrap" style="gap:10px;margin-top:16px">
             <button class="btn btn-sm" id="exportBtn">${icon('download')}<span>Export JSON</span></button>
@@ -141,18 +143,18 @@ function render(el) {
                 <span class="chip chip-ok">${icon('check')}Google connected</span>
                 <p class="muted" style="font-size:.85rem">${esc(u.email || 'No email on this account')}</p>
                 ${auth.session?.verified
-                  ? `<p class="dim" style="font-size:.78rem">Verified by your FEROX server.</p>`
-                  : `<p class="dim" style="font-size:.78rem">Signed in for display only — no server is configured,
-                     so your data stays on this device.</p>`}
+                  ? `<p class="dim" style="font-size:.78rem">Your log syncs to this account.</p>`
+                  : `<p class="dim" style="font-size:.78rem">Signed in for display only — sync is not
+                     configured on this deployment, so your data stays on this device.</p>`}
                 <button class="btn btn-sm btn-block" id="signOut">${icon('logout')}<span>Sign out</span></button>
               </div>`
             : `<div class="stack" style="gap:12px">
                 <p class="muted" style="font-size:.86rem">You're using FEROX as a guest — no account,
                   nothing sent anywhere, and your whole log saved on this device. Sign in with Google
-                  only if you want a name and picture on your profile.</p>
+                  to sync it to your account and pick it up on your phone.</p>
                 <div id="gBtn"></div>
                 ${googleReady() ? '' : `<p class="dim" style="font-size:.76rem">
-                  Google Sign-In needs a client id — see <code>docs/google-oauth-setup.md</code>.</p>`}
+                  Sign-in needs a Firebase config — see <code>docs/firebase-setup.md</code>.</p>`}
               </div>`}
         </div>
 
@@ -209,7 +211,7 @@ function render(el) {
           <div class="card-head"><h3>Storage</h3></div>
           <div class="stack" style="gap:8px;font-size:.85rem">
             <div class="row-between"><span class="muted">Mode</span>
-              <span class="chip ${store.isRemote ? 'chip-ok' : ''}">${store.isRemote ? 'FEROX API' : 'This device'}</span></div>
+              <span class="chip ${store.isCloud ? 'chip-ok' : ''}">${store.isCloud ? 'Your Google account' : 'This device'}</span></div>
             <div class="row-between"><span class="muted">Member since</span><span class="dim">${esc(p.joined)}</span></div>
             <div class="row-between"><span class="muted">Records</span>
               <span class="num dim">${num(d.sessions.length + d.meals.length + d.weights.length)}</span></div>

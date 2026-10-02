@@ -6,7 +6,7 @@ import { ROUTINES, EXERCISES, MUSCLES, byId, exerciseName } from '../core/seed.j
 import { mountCatalog } from './_catalog.js';
 import { logSessionFlow } from './_log.js';
 import { askReadiness, readinessBar } from './_readiness.js';
-import { buildWeek, weeklyFrequency, templateForSeason, modeFor } from '../core/split.js';
+import { buildWeek, weeklyFrequency, templateForSeason, modeFor, VOLUME } from '../core/split.js';
 import { seasonById, currentSlot } from '../core/seasons.js';
 import { strengthProfile, strengthRanking, predicted1RM, observed1RM, isLoaded } from '../core/strength.js';
 import { seasonIcon } from '../core/season-icons.js';
@@ -57,6 +57,9 @@ function plan(pane, root) {
   const season = seasonById(store.data.seasons?.[slot.id]) ?? seasonById('ferox-recomp');
   const score = store.readinessFor() ?? 7;
   const week = buildWeek(p, season, score, store.weekIndex(), store.data);
+  // `buildWeek` has already capped the week against the landmarks; `week.audit`
+  // is only what survived that, which is why it is worth showing.
+
   const freq = weeklyFrequency(week);
   const main = ['Chest', 'Back', 'Legs', 'Shoulders'].filter(m => freq[m]);
   const tpl = templateForSeason(p.daysPerWeek, season);
@@ -89,7 +92,13 @@ function plan(pane, root) {
 
       ${wk < 3 ? `<p class="dim" style="font-size:var(--step--2);margin-top:12px">
         Week ${wk + 1} runs ${Math.round((({0:1.15,1:1.08,2:1.03}[wk] ?? 1) - 1) * 100)}% above your steady state — it settles by week four.</p>` : ''}
+
+      ${week.deload ? `<p class="dim" style="font-size:var(--step--2);margin-top:12px">
+        <strong>Deload week.</strong> Half the sets, near-full weight. The bar stays heavy because that
+        is what holds your strength; the volume comes off because that is what is making you tired.</p>` : ''}
     </div>
+
+    ${volumeCard(week)}
 
     ${trendCard(rank, p)}
 
@@ -304,4 +313,51 @@ function library(pane) {
     equipment: store.data.profile.equipment,
     limits: store.data.profile.limits,
   });
+}
+
+/**
+ * Weekly sets per muscle group, against the landmarks.
+ *
+ * This is the number that decides whether a week grows anything, and until now
+ * it was invisible — the app prescribed sets without ever showing their total.
+ * Each bar is drawn against MRV so the shape of the week reads at a glance:
+ * short bars are maintenance, the shaded band is the productive range.
+ */
+function volumeCard(week) {
+  const rows = Object.entries(week.volume);
+  if (!rows.length) return '';
+
+  const flagged = Object.fromEntries(week.audit.map(a => [a.group, a.status]));
+
+  return `<div class="card card-pad-lg">
+    <div class="card-head">
+      <h3>This week's volume</h3>
+      <span class="dim" style="font-size:var(--step--2)">hard sets per muscle</span>
+    </div>
+    <p class="muted" style="font-size:var(--step--2);margin-bottom:14px">
+      Counting each set once for the muscle doing the work and a half for the ones helping.
+      Ten to twenty is where almost all the growth happens.</p>
+
+    <div class="stack" style="gap:9px">
+      ${rows.map(([group, sets]) => {
+        const l = VOLUME[group];
+        const pct = Math.min(100, (sets / l.mrv) * 100);
+        const lo = (l.mev / l.mrv) * 100;
+        const hi = 100;
+        const state = flagged[group];
+        const colour = state === 'high' ? 'var(--warn)' : state === 'low' ? 'var(--dim)' : 'var(--ok)';
+        return `<div>
+          <div class="row-between" style="font-size:var(--step--2)">
+            <span class="muted">${esc(group)}</span>
+            <span class="num ${state ? 'dim' : ''}">${sets}${state === 'low' ? ' · maintaining' : state === 'high' ? ' · over' : ''}</span>
+          </div>
+          <div class="bar" style="margin-top:4px;position:relative">
+            <span style="position:absolute;left:${lo}%;right:${100 - hi}%;top:0;bottom:0;
+                         background:var(--surf-3);border-radius:inherit" aria-hidden="true"></span>
+            <i style="width:${pct}%;background:${colour};position:relative"></i>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
 }

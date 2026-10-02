@@ -441,7 +441,7 @@ function appFooter() {
       </div>
     </div>
     <p class="dim" style="font-size:var(--step--2);margin-top:12px">
-      FEROX is a tracking tool, not medical advice. Free, open source, and your data stays on your device.</p>
+      FEROX is a tracking tool, not medical advice. Free, open source, and yours to export any time.</p>
   </footer>`;
 }
 
@@ -455,10 +455,17 @@ export function requireSession() {
 
 /** Standard page bootstrap: session, shell, store, then render. */
 export async function bootPage({ title, actions = '' }, render) {
-  requireSession();
   const view = mountShell({ title, actions });
   view.innerHTML = `<div class="grid grid-3">${'<div class="skel" style="height:118px"></div>'.repeat(3)}</div>`;
-  await store.init({ token: auth.token });
+
+  // The shell paints from the cached session so the header is never blank,
+  // then Firebase gets the final word on who this is. Waiting matters: the
+  // Firestore rules key on a signed-in uid, so loading the log before the SDK
+  // has restored the account reads as an anonymous request and is refused.
+  await auth.restore();
+  requireSession();                       // guest fallback, once Firebase is sure
+
+  await store.init({ uid: auth.uid });
   syncThemeFromStore();
 
   // Nobody sees the app before it knows who they are — an empty dashboard with

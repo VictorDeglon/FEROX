@@ -7,18 +7,25 @@ for any agent (or human) picking the project up. Read it before changing code.
 
 **The web app must keep working with no backend, no build step and no network.**
 
-`web/` is plain HTML + ES modules + CSS. It is deployed straight to GitHub Pages
-and must run correctly when opened from a static host with the API switched off.
-Anything that breaks that — a bundler, a framework, a mandatory API call, a
-server-rendered template — is the wrong change for this repo.
+`web/` is plain HTML + ES modules + CSS. It is deployed straight to Firebase
+Hosting, byte-for-byte, and must run correctly as a static site with no
+Firebase project behind it at all. Anything that breaks that — a bundler, a
+framework, a mandatory network call, a server-rendered template — is the wrong
+change for this repo.
 
-The server in `server/` is *optional*. It adds verified Google sign-in and a log
-that follows you between devices. It must never become required.
+**Firebase is optional, and must stay optional.** With the placeholder config
+in `core/config.js`, `googleReady()` is false, the SDK is never downloaded and
+FEROX is a complete working app on local storage. Sign-in and Firestore sync
+are what someone opts *into*. A change that makes the app require an account,
+a network, or a Firebase project is the wrong change.
+
+The Firebase SDK is imported dynamically from Google's CDN (`core/firebase.js`)
+precisely so that this stays true: a guest downloads none of it.
 
 ## Layout
 
 ```
-web/                     the app — this is what GitHub Pages serves
+web/                     the app — this is what Firebase Hosting serves, as-is
   index.html             landing page
   {dashboard,workouts,nutrition,progress,seasons,records,medals,friends,profile}.html
   404.html  sw.js  manifest.webmanifest  .nojekyll
@@ -40,19 +47,19 @@ web/                     the app — this is what GitHub Pages serves
                          _readiness.js (daily check-in), _weighin.js (weigh-ins),
                          _catalog.js (exercise browser), _plate.js (food search
                          and the meal builder), _photo.js (meal photos)
-server/                  optional Express API
-  index.js               app + static host        static.js  no-API dev server
-  config.js  lib/{auth,store}.js  routes/{auth,data}.js
+firebase.json            Hosting config. cleanUrls is OFF on purpose — see below.
+firestore.rules          the entire access-control story. Read before changing.
+.firebaserc              project alias (feroxfitness)
 test/                    node:test suites (no runner to install)
 scripts/check-web.js     link checker for web/
+scripts/check-syntax.js  parses every module in web/ — the app has no build step
 scripts/add-mascot.js    wires a generated mascot image into the app
 scripts/make-icons.js    derives every square app icon from the mascot
 scripts/lib/png.js       a very small PNG decode/resize/pad/encode, no deps
 scripts/gen-exercises.js builds core/exercises.js from data/families.js
 scripts/gen-foods.js     builds core/foods.js from data/foods.js, checking macros
 docs/guide/              the guides, written for the person *using* the app
-docs/google-oauth-setup.md
-docs/skywalker-deploy.md tunnelled self-hosting for the optional API
+docs/firebase-setup.md   project setup, deploys, emulators, the free-tier maths
 docs/mascot-prompts.md   image-gen prompts matched to the brand palette
 ```
 
@@ -81,13 +88,15 @@ docs/mascot-prompts.md   image-gen prompts matched to the brand palette
 ## Commands
 
 ```bash
-npm install        # only needed for the server and tests
-npm run web        # static server on :5173 — exactly what Pages will serve
-npm start          # API + web on :4000
-npm run dev        # same, with --watch
-npm test           # node:test, ~106 checks, no network
-npm run check      # syntax check + web/ link checker
+npm run web        # Hosting emulator on :5173 — exactly what Hosting serves
+npm run dev        # hosting + auth + firestore emulators, plus the emulator UI
+npm test           # node:test, 143 checks, no network
+npm run check      # web/ link checker + parses every module in web/
+npm run deploy     # firebase deploy (hosting + rules)
 ```
+
+FEROX has **no dependencies**. `npm install` installs nothing; if you find
+yourself adding a package, that is a decision worth justifying in the PR.
 
 Run `npm test && npm run check` before committing. Both are fast and both run in CI.
 
@@ -122,16 +131,51 @@ richer way of writing the same fact, so `logCheckIn` mirrors its weight into
 `weights` and into `profile.weightKg`. Never write a bodyweight to one and not
 the others.
 
-**The server must agree with `emptyData()`.** `server/lib/store.js` has its own
-copy of the shape and `test/store.test.js` asserts the two have not drifted —
-an account that looks different depending on whether an API happens to be
-running is the bug that test exists to catch. The API's `PUT /api/data` keeps
-the *whole* document and only coerces the collections it knows about; it used
-to rebuild from a whitelist, which silently deleted onboarding, seasons and
-readiness on every save.
+**`emptyData()` must stay storable in Firestore.** Firestore is stricter than
+localStorage was and rejects the *whole write*, not the offending field, if it
+meets an `undefined`, an array directly inside an array, or a key starting with
+`__`. `test/store.test.js` walks a fresh document looking for all three, so an
+innocuous-looking new default cannot silently break every save. The adapter
+also round-trips through JSON before writing, which is what drops `undefined`.
 
-`core/seed.js` is the front door to the shared catalogue. The server imports the
-same file, so it is the single source of truth.
+**The log is one Firestore document, at `users/{uid}`.** One document, not a
+collection per list, because the client is offline-first and writes the whole
+log on every change — one atomic write means no merge protocol and no
+half-saved state. The cost is Firestore's 1 MiB per-document ceiling;
+`FirestoreAdapter.save` checks for it and fails with a sentence. If anyone ever
+reaches it, move `sessions` and `meals` into subcollections and leave the rest.
+
+`core/seed.js` is the front door to the shared catalogue — the single source of
+truth for exercises, routines, foods and medals.
+
+## Volume is the check the builder cannot do alone
+
+`buildSession` sees one day; the evidence is weekly. `VOLUME` in `core/split.js`
+holds per-group landmarks in **hard sets per muscle per week** — MEV, MAV, MRV —
+and `buildWeek` runs three things against them:
+
+- `weeklyVolume(week)` counts sets, giving the working muscle full credit and
+  each secondary muscle **half**. Counting a bench press as nothing for triceps
+  understates arms badly on a push/pull/legs split; counting it in full
+  overstates it just as badly.
+- `capVolume(week)` trims back inside MRV, accessories first and never below
+  two sets, so what gets cut is the fourth set of leg extensions rather than
+  the squat the session is built around. Before it existed a five-day mass
+  block prescribed **34 sets of legs a week**, which is not a hard week — it is
+  a week nobody finishes.
+- `auditVolume(week, season)` reports what survived the cap, and the workouts
+  page shows it.
+
+**The cap cannot always win, and that is correct.** A mass block routinely
+leaves arms and shoulders a few sets over because most of that number is
+secondary credit from pressing — there is barely any direct arm work left to
+cut, and cutting the bench press to protect the triceps is the wrong trade.
+`test/plan.test.js` asserts the distinction: over MRV is only allowed when
+every reachable set is already at the two-set floor.
+
+`isDeloadWeek` makes every fifth week a deload at **half the sets and 92% of
+the load**. That way round is deliberate — keeping the bar heavy preserves the
+strength adaptation, and cutting the sets is what actually sheds the fatigue.
 
 ## The generated catalogues
 
@@ -406,8 +450,9 @@ There are two, and both demand a typed phrase rather than a click:
 
 `RESET_CLEARS` and `RESET_KEEPS` are exported from `core/store.js` and the
 dialog renders them directly, so the list someone reads cannot drift from what
-the code does. There is no undo and, on a static deployment, no server-side copy
-to restore from — which is the whole reason for the typed phrase.
+the code does. There is no undo: a reset overwrites the Firestore document too,
+and there is no backup to restore from — which is the whole reason for the
+typed phrase.
 
 ## Seasons
 
@@ -468,14 +513,28 @@ the tagline changes.
 
 ## Auth
 
-`config.googleClientId` ships as a placeholder. `googleReady()` gates the UI, so
-an unconfigured deployment shows a disabled Google button and the guest path
-rather than a broken one. See `docs/google-oauth-setup.md`.
+`CONFIG.firebase` ships as a placeholder. `googleReady()` gates the UI, so an
+unconfigured deployment shows a disabled Google button and the guest path
+rather than a broken one. See `docs/firebase-setup.md`.
 
-In static mode the Google ID token is decoded **for display only** and is never
-treated as proof of identity — there is nothing to protect, since the data is
-device-local. When `apiBase` is set, the token is verified server-side against
-Google's keys and exchanged for a FEROX session. Keep that distinction intact.
+Two paths, and the distinction is load-bearing:
+
+- **Google** — Firebase Auth. A real verified account with a uid, and that uid
+  is what `firestore.rules` keys the log on. The only path trusted for data.
+- **Guest** — no account, no document, no network. Deliberately *not* Firebase
+  anonymous auth, which would mean creating a record in a datacentre for
+  someone who was promised the opposite, and would quietly falsify "nothing is
+  sent anywhere by default" — the first claim on the landing page.
+
+`store.init({ uid })` takes the uid and nothing else, so "signed in" and
+"synced" cannot disagree: there is one condition, not two code paths that have
+to be kept in step. `bootPage` awaits `auth.restore()` before loading, because
+Firestore rules key on a restored session and reading too early is refused.
+
+**`cleanUrls` is off in `firebase.json` on purpose.** Every link in `web/` is
+written with an explicit `.html`, and cleanUrls answers those with a 301 — a
+redirect on every navigation, and a service-worker cache keyed on URLs the
+pages never ask for. If you turn it on, rewrite every link first.
 
 ## Scope
 

@@ -1,10 +1,17 @@
 node_modules/
-.data/
-.env
-.env.*
-!.env.example
 .DS_Store
 *.log
+
+# Firebase CLI working files — deploy caches, emulator data, debug logs.
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.runtimeconfig.json
+
+# Service account keys must never be committed. CI reads them from a secret.
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
 
 # Local dev-server config for the Claude Code browser pane.
 .claude/

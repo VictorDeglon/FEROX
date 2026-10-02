@@ -370,7 +370,7 @@ small { font-size: var(--step--1); }
   border-color: color-mix(in srgb, var(--ember) 34%, var(--line));
   box-shadow: 0 0 24px -14px var(--ember-ring);
 }
-.tile-live .tile-ico { animation: glow-cta 3.2s ease-in-out infinite; }
+.tile-live .tile-ico { animation: glow-cta var(--fx-calm) ease-in-out infinite; }
 
 /* progress bars / rings --------------------------------------------- */
 .bar { height: 8px; border-radius: var(--r-pill); background: var(--surf-3); overflow: hidden; }
@@ -417,7 +417,7 @@ table.data td:first-child, table.data th:first-child { padding-left: 2px; }
 .medal.earned .medal-disc {
   background: var(--ember-grad); border-color: transparent; color: #fff;
   box-shadow: 0 8px 26px -10px var(--ember-ring);
-  animation: medal-glow 3.8s ease-in-out infinite;
+  animation: medal-glow var(--fx-calm) ease-in-out infinite;
 }
 @keyframes medal-glow {
   50% { box-shadow: 0 8px 34px -8px color-mix(in srgb, var(--ember) 85%, transparent); }
@@ -559,7 +559,7 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
   opacity: .55;
   z-index: -1;
   pointer-events: none;
-  animation: glow-breathe 4.5s ease-in-out infinite;
+  animation: glow-breathe var(--fx-calm) ease-in-out infinite;
 }
 
 /* A hairline that lights up along the top edge of a card. */
@@ -569,7 +569,7 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
   position: absolute; inset: 0 0 auto 0; height: 1px;
   background: linear-gradient(90deg, transparent, var(--glow-color, var(--ember)), transparent);
   opacity: .6;
-  animation: glow-sweep 5s ease-in-out infinite;
+  animation: glow-sweep var(--fx-calm) ease-in-out infinite;
 }
 
 /* Hover lift that gains a glow rather than just a shadow. */
@@ -593,10 +593,10 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
   content: '';
   position: absolute; inset: 0; border-radius: 50%;
   background: inherit;
-  animation: glow-ripple 2s ease-out infinite;
+  animation: glow-ripple var(--fx-base) ease-out infinite;
 }
 
-.btn-primary.glow-cta { animation: glow-cta 3.2s ease-in-out infinite; }
+.btn-primary.glow-cta { animation: glow-cta var(--fx-calm) ease-in-out infinite; }
 
 @keyframes glow-breathe { 50% { opacity: .85; transform: scale(1.04); } }
 @keyframes glow-sweep   { 0%, 100% { opacity: .15; } 50% { opacity: .75; } }
@@ -612,17 +612,44 @@ dialog.modal[open] { animation: pop .22s var(--ease); }
 
 .season-icon { width: 100%; height: 100%; display: block; overflow: visible; }
 
-.fx-flicker      { animation: fx-flicker 2.6s ease-in-out infinite; }
-.fx-flicker-core { animation: fx-flicker-core 1.7s ease-in-out infinite; }
-.fx-slow         { animation-duration: 6s; }
-.fx-ember        { animation: fx-ember 3.4s ease-out infinite; animation-delay: var(--d, 0s); opacity: 0; }
-.fx-drift        { animation: fx-drift 4s ease-in-out infinite; animation-delay: var(--d, 0s); }
-.fx-spin         { animation: fx-spin 9s linear infinite; }
-.fx-rewind       { animation: fx-rewind 4.5s cubic-bezier(.7, 0, .3, 1) infinite; }
-.fx-stack        { animation: fx-stack 3.4s ease-out infinite; animation-delay: var(--d, 0s); }
-.fx-trace        { animation: fx-trace 2.6s linear infinite; }
-.fx-cross        { animation: fx-cross 3.6s ease-in-out infinite; }
-.fx-pulse-soft   { animation: fx-pulse-soft 2.4s ease-in-out infinite; }
+/*
+ * Every ambient loop runs on one of four speeds, and each one reads its
+ * duration from `--fx-d` rather than hard-coding it.
+ *
+ * That indirection is load-bearing, not tidiness. `.fx-slow` used to be
+ * `animation-duration: 6s`, which only worked on `.fx-flicker` — the one rule
+ * declared *before* it. Every class below it set `animation:` as a shorthand,
+ * and a shorthand resets duration, so eight of the ten `fx-slow` combinations
+ * silently did nothing and the icons ran at wildly different speeds depending
+ * on which effect they happened to use. A custom property cannot be reset by
+ * the shorthand, so this composes in any order.
+ *
+ * The speeds themselves were also simply too quick. These are decorative loops
+ * running forever in the corner of the eye, several at a time on the seasons
+ * page — at 1.7–2.4s they read as agitated, and on a 120Hz display the extra
+ * smoothness makes them look faster still. Doubling them makes them ambient,
+ * which is what they were always for.
+ */
+:root {
+  --fx-quick: 3.4s;   /* was 1.7–2.4s — the ones that looked frantic */
+  --fx-base:  4.8s;
+  --fx-calm:  6.5s;
+  --fx-orbit: 12s;    /* full rotations, which need the most time of all */
+}
+
+.fx-flicker      { animation: fx-flicker      var(--fx-d, var(--fx-base))  ease-in-out infinite; }
+.fx-flicker-core { animation: fx-flicker-core var(--fx-d, var(--fx-quick)) ease-in-out infinite; }
+.fx-ember        { animation: fx-ember        var(--fx-d, var(--fx-calm))  ease-out infinite; animation-delay: var(--d, 0s); opacity: 0; }
+.fx-drift        { animation: fx-drift        var(--fx-d, var(--fx-calm))  ease-in-out infinite; animation-delay: var(--d, 0s); }
+.fx-spin         { animation: fx-spin         var(--fx-d, var(--fx-orbit)) linear infinite; }
+.fx-rewind       { animation: fx-rewind       var(--fx-d, var(--fx-calm))  cubic-bezier(.7, 0, .3, 1) infinite; }
+.fx-stack        { animation: fx-stack        var(--fx-d, var(--fx-calm))  ease-out infinite; animation-delay: var(--d, 0s); }
+.fx-trace        { animation: fx-trace        var(--fx-d, var(--fx-base))  linear infinite; }
+.fx-cross        { animation: fx-cross        var(--fx-d, var(--fx-calm))  ease-in-out infinite; }
+.fx-pulse-soft   { animation: fx-pulse-soft   var(--fx-d, var(--fx-base))  ease-in-out infinite; }
+
+/* Now actually works on every effect, not just the one above it. */
+.fx-slow         { --fx-d: var(--fx-orbit); }
 
 @keyframes fx-flicker {
   0%, 100% { transform: scale(1) skewX(0deg); }

@@ -1,9 +1,16 @@
 /**
  * FEROX service worker — offline support.
  * App shell is cache-first (it changes only on deploy); everything else falls
- * back to the network. Bump CACHE on release to invalidate.
+ * back to the network. Bump CACHE on release to invalidate — config.js is in
+ * the shell, so a Firebase config change that is not accompanied by a bump
+ * will not reach anyone who has already loaded the app.
+ *
+ * The Firebase SDK and Firestore itself are cross-origin and fall straight
+ * through the handler below untouched. Firestore keeps its own IndexedDB
+ * cache and does its own offline queueing; a service worker second-guessing
+ * that would be fighting it.
  */
-const CACHE = 'ferox-v6.0.0';
+const CACHE = 'ferox-v7.1.0';
 const SHELL = [
   './', 'index.html', 'dashboard.html', 'workouts.html', 'nutrition.html',
   'progress.html', 'records.html', 'medals.html', 'friends.html', 'profile.html',
@@ -15,7 +22,8 @@ const SHELL = [
   'assets/brand/icon.webp', 'assets/brand/icon.png', 'assets/brand/favicon-32.png',
   'assets/brand/apple-touch-icon.png', 'assets/brand/maskable.png',
   'assets/brand/logo.svg', 'assets/brand/wolf.svg',
-  'assets/js/core/config.js', 'assets/js/core/icons.js', 'assets/js/core/seed.js',
+  'assets/js/core/config.js', 'assets/js/core/firebase.js',
+  'assets/js/core/icons.js', 'assets/js/core/seed.js',
   'assets/js/core/exercises.js', 'assets/js/core/anatomy.js', 'assets/js/core/strength.js',
   'assets/js/core/musclemap.js',
   'assets/js/core/store.js', 'assets/js/core/auth.js', 'assets/js/core/ui.js',

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "command": "/opt/homebrew/bin/firebase",
+      "args": ["mcp", "--dir", "/Users/victor/Dev/Projects/FEROX"]
+    }
+  }
+}

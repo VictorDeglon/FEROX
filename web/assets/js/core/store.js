@@ -2,13 +2,16 @@
  * FEROX data layer.
  *
  * One public surface (`store`) backed by one of two adapters:
- *   LocalAdapter  — localStorage. Default. Works on GitHub Pages, offline, no server.
- *   RemoteAdapter — the FEROX API, used when CONFIG.apiBase is set and reachable.
+ *   LocalAdapter     — localStorage. The guest path, and the fallback whenever
+ *                      the cloud is unreachable. Offline, no account, no server.
+ *   FirestoreAdapter — one document per athlete at `users/{uid}`, used when
+ *                      someone is signed in with Google.
  *
- * Pages never touch an adapter directly, so moving a user's data to a server
- * (or later, to a native app's storage) is a change in exactly one place.
+ * Pages never touch an adapter directly, so this file is the only place that
+ * knows where an athlete's log physically lives.
  */
-import { CONFIG } from './config.js';
+import { CONFIG, firebaseConfigured } from './config.js';
+import { boot } from './firebase.js';
 import { EXERCISES, FOODS, MEDALS, byId } from './seed.js';
 
 export const todayISO = (d = new Date()) => {
@@ -102,22 +105,58 @@ class LocalAdapter {
   async save(data) { return this.write(data); }
 }
 
-class RemoteAdapter {
-  constructor(base, token) { this.base = base.replace(/\/$/, ''); this.token = token; }
-  async #req(path, init = {}) {
-    const res = await fetch(this.base + path, {
-      ...init,
-      headers: {
-        'content-type': 'application/json',
-        ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
-        ...init.headers,
-      },
-    });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    return res.json();
+/**
+ * The whole log as one Firestore document at `users/{uid}`.
+ *
+ * One document, not a collection per list, for the same reason the server
+ * before it kept one JSON file: the client is offline-first and writes the
+ * entire log on every change, so a single atomic write means there is no merge
+ * protocol to get wrong and no half-saved state to read back.
+ *
+ * The cost of that choice is Firestore's 1 MiB per-document ceiling. That is
+ * a long way off — roughly a decade of daily meals and five sessions a week —
+ * but it is a real ceiling rather than a theoretical one, so `save` checks and
+ * says so plainly instead of letting Firestore fail with `INVALID_ARGUMENT`.
+ * The fix, when someone eventually hits it, is to move `sessions` and `meals`
+ * into subcollections; everything else in this file stays as it is.
+ */
+class FirestoreAdapter {
+  /** Firestore's own hard limit, less headroom for field names and overhead. */
+  static LIMIT = 1_048_576 - 24_576;
+
+  constructor(uid) { this.uid = uid; }
+
+  async #doc() {
+    const { db, fs } = await boot();
+    return { fs, ref: fs.doc(db, 'users', this.uid) };
   }
-  async load() { return this.#req('/api/data'); }
-  async save(data) { await this.#req('/api/data', { method: 'PUT', body: JSON.stringify(data) }); return true; }
+
+  /** @returns the stored document, or null when this account has none yet. */
+  async load() {
+    const { fs, ref } = await this.#doc();
+    const snap = await fs.getDoc(ref);
+    if (!snap.exists()) return null;
+    // `updatedAt` is the server's, not the app's. Dropping it here keeps it
+    // out of the in-memory document — otherwise it round-trips as a Firestore
+    // Timestamp, gets JSON-stringified into {seconds,nanoseconds} on the next
+    // save, and quietly becomes a field the app neither sets nor understands.
+    const { updatedAt, ...data } = snap.data();
+    return data;
+  }
+
+  async save(data) {
+    const { fs, ref } = await this.#doc();
+    // Firestore rejects `undefined` outright; a JSON round-trip drops those
+    // keys and flattens anything exotic the app may have picked up on the way.
+    const clean = JSON.parse(JSON.stringify(data));
+    const bytes = new TextEncoder().encode(JSON.stringify(clean)).length;
+    if (bytes > FirestoreAdapter.LIMIT) {
+      throw new Error(`This log is ${(bytes / 1048576).toFixed(2)} MB, over the 1 MB `
+        + 'per-account limit. Export it from your profile and trim old sessions.');
+    }
+    await fs.setDoc(ref, { ...clean, updatedAt: fs.serverTimestamp() });
+    return true;
+  }
 }
 
 /* ------------------------------------------------------------------- store */
@@ -126,26 +165,61 @@ class Store extends EventTarget {
   #data = emptyData();
   #adapter = new LocalAdapter(CONFIG.storageKey);
   #ready = false;
+  #fresh = false;
 
   get data() { return this.#data; }
   get ready() { return this.#ready; }
-  get isRemote() { return this.#adapter instanceof RemoteAdapter; }
+  /**
+   * True when `init` found no document for this account and had to make one.
+   * The landing page uses it to tell "first sign-in ever" apart from "signing
+   * back in", which are the same event to Firebase and very different to a
+   * person with two years of training in the cloud.
+   */
+  get freshAccount() { return this.#fresh; }
 
-  /** Pick an adapter, load, backfill demo data for first-time guests. */
-  async init({ token } = {}) {
-    if (CONFIG.apiBase) {
-      const remote = new RemoteAdapter(CONFIG.apiBase, token);
+  /** True when writes are going to Firestore rather than this device. */
+  get isCloud() { return this.#adapter instanceof FirestoreAdapter; }
+
+  /**
+   * Pick an adapter and load.
+   *
+   * `uid` is the Firebase uid of a verified account, or null for a guest —
+   * see core/auth.js. Passing it is the single switch between "this device"
+   * and "this account", so the two can never disagree.
+   *
+   * A cloud load that fails falls back to local storage rather than throwing.
+   * Someone mid-workout with no signal should see their log, not an error, and
+   * Firestore's own cache means this only fires on a genuinely cold failure.
+   */
+  async init({ uid = null } = {}) {
+    if (uid && firebaseConfigured()) {
       try {
-        this.#data = this.#migrate(await remote.load());
-        this.#adapter = remote;
+        const cloud = new FirestoreAdapter(uid);
+        const doc = await cloud.load();
+        this.#adapter = cloud;
+
+        this.#fresh = !doc;
+
+        if (doc) {
+          this.#data = this.#migrate(doc);
+        } else {
+          // First sight of this account. Whatever is on this device is the
+          // best starting point there is — and landing.js has already asked
+          // whether to keep it, so an empty local store means they said no.
+          const local = new LocalAdapter(CONFIG.storageKey).read();
+          this.#data = local ? this.#migrate(local) : emptyData();
+          await cloud.save(this.#data);
+        }
+
         this.#ready = true;
         await this.#backfillMedals();
         this.#emit();
         return this;
-      } catch {
-        console.info('[ferox] API unreachable — falling back to local storage.');
+      } catch (err) {
+        console.info('[ferox] cloud log unavailable — using this device.', err?.message ?? err);
       }
     }
+
     const local = new LocalAdapter(CONFIG.storageKey);
     const existing = local.read();
     this.#adapter = local;
@@ -157,6 +231,25 @@ class Store extends EventTarget {
     await this.#backfillMedals();
     this.#emit();
     return this;
+  }
+
+  /**
+   * Forget this device's copy after it has been taken up into an account.
+   *
+   * Called once, by the landing page, when someone signs in and chooses to
+   * start fresh. Leaving a stale log behind would mean signing out drops them
+   * back into data they thought they had discarded.
+   */
+  clearLocal() {
+    try { localStorage.removeItem(CONFIG.storageKey); return true; }
+    catch { return false; }
+  }
+
+  /** Does this *device* hold a log, regardless of what the account holds? */
+  static deviceHasData() {
+    const raw = new LocalAdapter(CONFIG.storageKey).read();
+    if (!raw) return false;
+    return Boolean(raw.onboarded || raw.sessions?.length || raw.meals?.length || raw.weights?.length);
   }
 
   /**
@@ -667,7 +760,7 @@ class Store extends EventTarget {
 }
 
 export const store = new Store();
-export { emptyData, uid };
+export { emptyData, uid, Store };
 
 /** What `store.resetProgress()` deletes, in the order the dialog lists them. */
 export const RESET_CLEARS = [

@@ -21,7 +21,6 @@ globalThis.localStorage ??= (() => {
 })();
 
 const { emptyData, store, RESET_CLEARS, RESET_KEEPS } = await import('../web/assets/js/core/store.js');
-const { emptyData: serverEmpty } = await import('../server/lib/store.js');
 const { PALETTES, DEFAULT_PALETTE, availablePalettes, paletteById } =
   await import('../web/assets/js/core/themes.js');
 const { EGGS, eggFor, normalise } = await import('../web/assets/js/core/eggs.js');
@@ -44,16 +43,34 @@ test('a fresh document carries every collection the app reads', () => {
   assert.equal(d.settings.palette, DEFAULT_PALETTE);
 });
 
-test('the server and the client agree on a fresh document', () => {
-  // The two are written separately and have drifted before. An account that
-  // looks different depending on whether an API happens to be running is the
-  // exact failure this catches.
-  const client = emptyData();
-  const server = serverEmpty();
-  assert.deepEqual(Object.keys(server).sort(), Object.keys(client).sort());
-  assert.deepEqual(server.settings, client.settings);
-  assert.deepEqual(server.profile.goals, client.profile.goals);
-  assert.equal(server.version, client.version);
+test('a fresh document is storable in Firestore as-is', () => {
+  // Firestore is stricter than localStorage was, and rejects the whole write
+  // rather than the offending field. These are the three ways a document can
+  // be unstorable, and all of them are easy to reintroduce by adding an
+  // innocuous-looking default to emptyData().
+  const d = emptyData();
+
+  const walk = (node, path = '') => {
+    if (node === undefined) assert.fail(`undefined at ${path || 'root'} — Firestore rejects it`);
+    if (Array.isArray(node)) {
+      for (const [i, v] of node.entries()) {
+        assert.ok(!Array.isArray(v), `${path}[${i}] is an array inside an array, which Firestore forbids`);
+        walk(v, `${path}[${i}]`);
+      }
+      return;
+    }
+    if (node && typeof node === 'object') {
+      for (const [k, v] of Object.entries(node)) {
+        assert.ok(!k.startsWith('__'), `${path}.${k} — Firestore reserves field names starting with __`);
+        walk(v, `${path}.${k}`);
+      }
+    }
+  };
+
+  walk(d);
+  // The adapter round-trips through JSON before writing; that must not change
+  // anything, or what is read back is not what the app thought it saved.
+  assert.deepEqual(JSON.parse(JSON.stringify(d)), d);
 });
 
 /* -------------------------------------------------------------- migration */

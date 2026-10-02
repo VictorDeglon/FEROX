@@ -1,23 +1,55 @@
 /**
  * FEROX runtime configuration.
  *
- * The app is static-first: it runs entirely in the browser with no backend.
- * If `apiBase` points at a running FEROX server, the data layer transparently
- * switches to it (see store.js -> RemoteAdapter).
+ * The app is static-first: it runs entirely in the browser, and a guest never
+ * talks to a server at all. Signing in with Google switches the data layer
+ * over to Firestore so the log follows the account between devices — see
+ * store.js -> FirestoreAdapter.
  *
- * `googleClientId` is a PLACEHOLDER. Create your own OAuth client and paste the
- * id here — see docs/google-oauth-setup.md. Until then, Google Sign-In renders
- * a disabled button and the "Continue as guest" path is used instead.
+ * The `firebase` block below is not secret. A web API key identifies the
+ * project; it does not authorise anything. What keeps one athlete out of
+ * another's log is firestore.rules, which is the only thing standing between
+ * them — read it before you change it.
  */
 export const CONFIG = {
   appName: 'FEROX',
   tagline: 'Train. Track. Progress.',
 
-  // Replace with your own — ends in `.apps.googleusercontent.com`.
-  googleClientId: 'REPLACE_ME.apps.googleusercontent.com',
+  /**
+   * Google sign-in, the direct way: Google Identity Services in the browser.
+   *
+   * This is the path that works on any static host, including GitHub Pages,
+   * with nothing behind it. The ID token Google returns is decoded **for
+   * display only** — a name and a picture — and proves nothing, which is fine
+   * because in this mode the data never leaves the device anyway.
+   *
+   * A client id is not a secret. It is visible to anyone who loads the page by
+   * design, and committing it is correct. The client *secret* is a different
+   * thing and FEROX never uses one.
+   *
+   * The origin you serve from must be listed under **Authorised JavaScript
+   * origins** on this client in the Google Cloud console, or Google refuses to
+   * render the button.
+   */
+  googleClientId: '807907944000-mbj5n77ath2sijfaidp29dggb0kommbv.apps.googleusercontent.com',
 
-  // '' = pure static/local mode. Set to e.g. 'http://localhost:4000' to use the API.
-  apiBase: '',
+  /**
+   * Firebase project config, from `firebase apps:sdkconfig web`.
+   *
+   * When this is filled in it **takes precedence** over `googleClientId`:
+   * sign-in becomes a real verified account and the log syncs to Firestore.
+   * While it is a placeholder, FEROX uses the Google path above and keeps
+   * everything on the device. Both are honest states; only one is a lie, and
+   * that is claiming sync when there is none.
+   */
+  firebase: {
+    apiKey: 'REPLACE_ME',
+    authDomain: 'feroxfitness.firebaseapp.com',
+    projectId: 'feroxfitness',
+    storageBucket: 'feroxfitness.firebasestorage.app',
+    messagingSenderId: '807907944000',
+    appId: 'REPLACE_ME',
+  },
 
   /**
    * Optional endpoint that estimates a meal from a photograph.
@@ -37,10 +69,25 @@ export const CONFIG = {
   paletteKey: 'ferox.v2.palette',
 };
 
-/** True once a real Google client id has been configured. */
-export const googleReady = () => !CONFIG.googleClientId.startsWith('REPLACE_ME');
+/** True when the Firebase path is configured — verified accounts, cloud sync. */
+export const firebaseConfigured = () => !CONFIG.firebase.apiKey.startsWith('REPLACE_ME');
 
-/** Allow local experiments without editing this file: ?api=... / ?gid=... */
+/** True when the direct Google Identity Services path is configured. */
+export const gsiConfigured = () =>
+  Boolean(CONFIG.googleClientId) && !CONFIG.googleClientId.startsWith('REPLACE_ME');
+
+/**
+ * True when "Sign in with Google" can work at all, by either route.
+ *
+ * Named for what the UI asks about rather than what answers it: the pages care
+ * whether to render a live button or an honest disabled one, and should not
+ * have to know which of the two paths is behind it.
+ */
+export const googleReady = () => firebaseConfigured() || gsiConfigured();
+
+/** Force the local-only path without editing this file: ?local */
 const qs = new URLSearchParams(location.search);
-if (qs.get('api') !== null) CONFIG.apiBase = qs.get('api');
-if (qs.get('gid')) CONFIG.googleClientId = qs.get('gid');
+if (qs.get('local') !== null) {
+  CONFIG.firebase = { ...CONFIG.firebase, apiKey: 'REPLACE_ME' };
+  CONFIG.googleClientId = '';
+}

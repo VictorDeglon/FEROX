@@ -3,7 +3,7 @@ import { icon, brandMark, googleGlyph, social, SOCIALS } from '../core/icons.js'
 import { auth } from '../core/auth.js';
 import { googleReady } from '../core/config.js';
 import { esc, toggleTheme, revealOnScroll, firstImage, modal } from '../core/ui.js';
-import { store } from '../core/store.js';
+import { store, Store } from '../core/store.js';
 import { ring } from '../core/chart.js';
 import { MEDALS } from '../core/seed.js';
 
@@ -127,7 +127,7 @@ document.getElementById('medalGrid').innerHTML = MEDALS.slice(0, 8).map((m, i) =
 document.getElementById('freeList').innerHTML = [
   'Every feature, switched on, with no account',
   'Works offline once loaded — the gym basement is fine',
-  'Nothing is sent anywhere by default, ever',
+  'Nothing is sent anywhere unless you sign in — guests stay offline',
   'Your whole log exports as plain JSON in one tap',
   'Open source, so you can check all of the above',
 ].map(t => `<li class="row" style="gap:10px;align-items:flex-start">
@@ -143,10 +143,13 @@ if (googleReady()) {
     host.innerHTML = fallbackButton();
     note.textContent = 'Google Sign-In could not load — the guest path works exactly the same.';
   });
-  note.textContent = 'Signing in only adds your name and picture. Your training data stays on this device.';
+  note.textContent = 'Signing in syncs your log to your Google account, so it follows you between devices. '
+    + 'Stay a guest and nothing leaves this one.';
+  // Someone who signed in last time should not be asked to do it again.
+  auth.restore();
 } else {
   host.innerHTML = fallbackButton();
-  note.innerHTML = 'Google Sign-In is not configured on this deployment yet. See <code>docs/google-oauth-setup.md</code> to switch it on.';
+  note.innerHTML = 'Google Sign-In is not configured on this deployment yet. See <code>docs/firebase-setup.md</code> to switch it on.';
 }
 
 function fallbackButton() {
@@ -154,15 +157,30 @@ function fallbackButton() {
 }
 
 /**
- * Signing in when this device already holds a log. Until there is a server to
- * sync with, "import" means one real question: keep what is here, or start
- * over? Asking beats silently doing either.
+ * Signing in when this device already holds a log.
+ *
+ * Three cases, and only one of them is a question worth asking:
+ *   the account already has a log  — it wins, silently. Someone signing back
+ *                                    in wants their training, not a dialogue.
+ *   the account is new, device empty — straight to onboarding.
+ *   the account is new, device has a log — ask. Carrying it up or throwing it
+ *                                    away are both destructive in one
+ *                                    direction, so neither is a safe default.
  */
 auth.onChange(async session => {
-  if (!session) return;
-  await store.init({ token: auth.token });
+  if (!session?.verified) return;        // guests never reach this branch
 
-  if (!store.hasLocalData()) {
+  // Read the device before `init` runs: on a new account it adopts whatever is
+  // here, after which "did this device have a log?" is no longer answerable.
+  const deviceHadLog = Store.deviceHasData();
+
+  await store.init({ uid: auth.uid });
+
+  if (!store.freshAccount) {
+    location.href = store.data.onboarded ? 'dashboard.html' : 'onboarding.html';
+    return;
+  }
+  if (!deviceHadLog) {
     location.href = 'onboarding.html';
     return;
   }
@@ -176,12 +194,14 @@ auth.onChange(async session => {
         ${store.data.meals.length} meal${store.data.meals.length === 1 ? '' : 's'} logged
         and ${store.data.weights.length} weigh-in${store.data.weights.length === 1 ? '' : 's'}.</p>
       <p class="muted" style="font-size:var(--step--1);margin-top:10px">
-        Keep it and it carries over to your account. Start fresh and it is deleted from this device —
+        Keep it and it is copied up to your account, on every device you sign in to.
+        Start fresh and it is deleted from this device and not uploaded —
         export it first from your profile if you are not sure.</p>`,
   });
 
   if (keep === null) {
     await store.reset();
+    store.clearLocal();     // or signing out would hand the log straight back
     location.href = 'onboarding.html';
   } else {
     await store.updateProfile({

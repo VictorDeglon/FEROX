@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { bmr, tdee, targetsFor, summarise, suggestedSeason, GOALS, LEVELS, ACTIVITY, EQUIPMENT }
   from '../web/assets/js/core/profile.js';
 import { buildWeek, buildSession, weeklyFrequency, templateFor, readinessFor, weekIntensity,
-  TEMPLATES, MODES, modeFor } from '../web/assets/js/core/split.js';
+  TEMPLATES, MODES, modeFor, VOLUME, isDeloadWeek } from '../web/assets/js/core/split.js';
 import { seasonById, SEASONS } from '../web/assets/js/core/seasons.js';
 import { availableExercises, EXERCISES, LEGACY_IDS, ROUTINES, exerciseById }
   from '../web/assets/js/core/seed.js';
@@ -398,4 +398,81 @@ test('the catalogue is wired in and legacy ids still resolve', () => {
       assert.ok(exerciseById(b.ex), `routine ${r.id} references "${b.ex}", which does not resolve`);
     }
   }
+});
+
+/* ------------------------------------------------------------ volume */
+
+test('every season keeps each muscle group inside the recoverable range', () => {
+  // The builder works a day at a time and the landmarks are weekly, so this
+  // is the only place the two meet. Before `capVolume` existed a five-day
+  // mass block prescribed 34 sets of legs a week, which is not a hard week —
+  // it is a week nobody finishes.
+  for (const season of SEASONS) {
+    for (const days of [3, 4, 5, 6]) {
+      const p = person({ daysPerWeek: days, equipment: 'gym' });
+      const week = buildWeek(p, season, 7, 2);
+
+      for (const [group, sets] of Object.entries(week.volume)) {
+        if (sets <= VOLUME[group].mrv) continue;
+
+        // Over MRV is only acceptable when the cap had nothing left to take:
+        // every set it could reach is already at the two-set floor, and what
+        // remains is secondary credit from compounds in other groups. That is
+        // a real ceiling, not a missed trim — asserting it this way catches a
+        // regression in capVolume while allowing the case it cannot fix.
+        const atFloor = week.days.flatMap(d => d.entries)
+          .filter(e => e.muscle === group && e.pattern !== 'mobility')
+          .every(e => e.sets <= 2);
+
+        assert.ok(atFloor,
+          `${season.id} ${days}d: ${group} at ${sets} sets (MRV ${VOLUME[group].mrv}) `
+          + 'with sets still trimmable — capVolume did not do its job');
+      }
+    }
+  }
+});
+
+test('a deload week is genuinely lighter, and arrives on schedule', () => {
+  const p = person({ daysPerWeek: 4, equipment: 'gym' });
+  const season = seasonById('winter-fire');
+
+  assert.ok(!isDeloadWeek(0), 'week one is not a deload');
+  assert.ok(!isDeloadWeek(3));
+  assert.ok(isDeloadWeek(4), 'the fifth week of a block is the deload');
+  assert.ok(isDeloadWeek(9));
+
+  const hard = buildWeek(p, season, 7, 3);
+  const easy = buildWeek(p, season, 7, 4);
+  assert.equal(easy.deload, true);
+  assert.equal(hard.deload, false);
+
+  const total = w => Object.values(w.volume).reduce((a, b) => a + b, 0);
+  assert.ok(total(easy) < total(hard) * 0.8,
+    `deload (${total(easy)}) should be well under a hard week (${total(hard)})`);
+});
+
+test('volume counts secondary work at half credit, not zero and not full', () => {
+  // A push day's triceps volume lives almost entirely inside the pressing.
+  // Counting it as nothing understates arms badly on a PPL split; counting it
+  // in full overstates it just as badly.
+  const p = person({ daysPerWeek: 4, equipment: 'gym' });
+  const week = buildWeek(p, seasonById('foundation'), 7, 1);
+  const direct = week.days.flatMap(d => d.entries)
+    .filter(e => e.muscle === 'Arms' && e.pattern !== 'mobility')
+    .reduce((t, e) => t + e.sets, 0);
+
+  assert.ok(week.volume.Arms > direct,
+    'arms should pick up credit from pressing and pulling, not only direct work');
+  assert.ok(Number.isFinite(week.volume.Arms));
+});
+
+test('an aerobic season is not marked down for low lifting volume', () => {
+  // Tempo says in as many words that lifting drops to holding what you have.
+  // Flagging it as under-trained would be the audit misunderstanding the plan.
+  const p = person({ daysPerWeek: 5, equipment: 'gym' });
+  const tempo = SEASONS.find(s => modeFor(s).shape === 'aerobic');
+  if (!tempo) return;
+  const week = buildWeek(p, tempo, 7, 2);
+  assert.deepEqual(week.audit.filter(a => a.status === 'high'), [],
+    'an aerobic block should not be over any landmark');
 });

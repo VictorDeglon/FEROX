@@ -1,0 +1,74 @@
+name: Deploy to Firebase
+
+# Manual only, for now. GitHub Pages is the live deploy (see pages.yml);
+# this goes automatic once the Firebase project config is in config.js.
+on:
+  workflow_dispatch:
+
+# Let a running deploy finish; queue at most one more.
+concurrency:
+  group: firebase-hosting
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm test
+      - run: npm run check
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    # Required by google-github-actions/auth for keyless Workload Identity.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # web/ is deployable exactly as it sits in the repo — there is no build
+      # step by design, so there is nothing between this checkout and the CDN.
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: feroxfitness
+          channelId: live
+
+  # Rules are deployed separately and deliberately: they are the only access
+  # control FEROX has, so a change to them should be visible as its own step
+  # in the log rather than buried in a hosting deploy.
+  rules:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g firebase-tools
+
+      # The CLI authenticates from a credentials file, not a flag: an inline
+      # key would show up in the process list on a shared runner.
+      - name: Write service account
+        run: echo "$SA" > "$RUNNER_TEMP/sa.json"
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy rules
+        run: firebase deploy --only firestore:rules --project feroxfitness --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+
+      - name: Shred credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

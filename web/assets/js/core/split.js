@@ -9,8 +9,9 @@
  *      install a training app while they are motivated; week one should meet
  *      that, then settle into something survivable by week four.
  */
-import { availableExercises, EXERCISES, EQUIP_RANK, byId } from './seed.js';
+import { availableExercises, EXERCISES, EQUIP_RANK, byId, exerciseById } from './seed.js';
 import { LEVELS } from './profile.js';
+import { groupOf } from './anatomy.js';
 import { progressLoad, isLoaded, setBias, strengthProfile } from './strength.js';
 
 /**
@@ -413,7 +414,8 @@ export function buildSession(day, p, season, readiness = 7, weekIndex = 0, data 
   const pool = seasonPool(availableExercises(p), mode);
   const level = LEVELS.find(l => l.id === p.level) ?? LEVELS[2];
   const r = readinessFor(readiness);
-  const scale = level.sets * r.sets * weekIntensity(weekIndex);
+  const deload = isDeloadWeek(weekIndex) ? DELOAD.sets : 1;
+  const scale = level.sets * r.sets * weekIntensity(weekIndex) * deload;
   const [lo, hi] = season?.repRange ?? [6, 10];
 
   // What the log says about each muscle group, so a group that is lagging can
@@ -534,12 +536,66 @@ export function buildWeek(p, season, readiness = 7, weekIndex = 0, data = null) 
   // reaches for the same first-ranked isolation movement and the week reads as
   // four copies of one session with the compounds swapped.
   const used = new Set();
-  return {
+  const week = {
     name: tpl.name,
     note: tpl.note,
     mode,
+    deload: isDeloadWeek(weekIndex),
     days: tpl.days.map(d => buildSession(d, p, season, readiness, weekIndex, data, used)),
   };
+
+  capVolume(week, season);
+  week.volume = weeklyVolume(week);
+  week.audit = auditVolume(week, season);
+  return week;
+}
+
+/**
+ * Trim a week back inside the recoverable range.
+ *
+ * `buildSession` cannot do this: it sees one day and the landmarks are weekly,
+ * so a five-day mass block could hand out a perfectly reasonable session five
+ * times and still total thirty-four sets of legs — which it did, before this
+ * existed. That is not a hard week, it is a week nobody finishes.
+ *
+ * Sets come off accessories first and off the biggest offenders first, and
+ * never below two, so what gets cut is the fourth set of leg extensions rather
+ * than the squat that the session is actually built around. A compound is only
+ * touched when trimming every accessory was not enough.
+ *
+ * It cannot always win, and that is correct rather than a bug worth fixing.
+ * A mass block routinely leaves arms and shoulders a few sets over MRV because
+ * most of that number is *secondary* credit from pressing and pulling — there
+ * is barely any direct arm work left to cut, and cutting the bench press to
+ * protect the triceps is the wrong trade by a wide margin. What survives the
+ * cap is reported by `auditVolume` and shown to the athlete instead.
+ */
+function capVolume(week, season) {
+  for (let pass = 0; pass < 2; pass++) {
+    const over = auditVolume(week, season).filter(a => a.status === 'high');
+    if (!over.length) return;
+
+    for (const { group, target } of over) {
+      // Accessories on the first pass, anything on the second.
+      const COMPOUND = ['squat', 'hinge', 'h-push', 'v-push', 'h-pull', 'v-pull'];
+      let excess = weeklyVolume(week)[group] - target;
+
+      const entries = week.days
+        .flatMap(d => d.entries)
+        .filter(e => e.muscle === group && e.pattern !== 'mobility'
+                  && (pass === 1 || !COMPOUND.includes(e.pattern)))
+        .sort((a, b) => b.sets - a.sets);
+
+      for (const e of entries) {
+        if (excess <= 0) break;
+        const cut = Math.min(e.sets - 2, Math.ceil(excess));
+        if (cut <= 0) continue;
+        e.sets -= cut;
+        excess -= cut;
+        e.trimmed = true;      // so the UI can say why, rather than just differ
+      }
+    }
+  }
 }
 
 /**
@@ -560,3 +616,135 @@ export function weeklyFrequency(week) {
   }
   return tally;
 }
+
+/* ------------------------------------------------------------- volume */
+
+/**
+ * Weekly hard-set landmarks per muscle group.
+ *
+ * This is the best-evidenced number in hypertrophy training and the one thing
+ * the builder was not checking. The literature converges on a dose-response
+ * curve in *hard sets per muscle per week*: below roughly 10 the stimulus is
+ * maintenance at best, 10–20 is where almost all the growth happens, and past
+ * the mid-20s the returns flatten while fatigue does not.
+ *
+ *   mev  minimum effective volume — below this a group is being maintained,
+ *        not grown, which is a legitimate choice but should be a deliberate one
+ *   mav  the middle of the productive range; what a normal week should hit
+ *   mrv  maximum recoverable volume — past here is accumulating fatigue the
+ *        following week has to pay for
+ *
+ * Smaller muscles sit higher because they recover faster and because much of
+ * their volume arrives as secondary work. Legs and back sit lower per group
+ * because a set of squats is far more systemically expensive than a set of
+ * curls — the sets are not interchangeable and the landmarks should not
+ * pretend they are.
+ *
+ * These are a *check*, not a prescription. `buildSession` still decides the
+ * session; this says whether the week it produced lands in the right place.
+ */
+export const VOLUME = {
+  Chest:     { mev: 10, mav: 16, mrv: 22 },
+  Back:      { mev: 10, mav: 18, mrv: 25 },
+  Shoulders: { mev:  8, mav: 16, mrv: 24 },
+  Arms:      { mev:  8, mav: 14, mrv: 22 },
+  Legs:      { mev: 10, mav: 16, mrv: 22 },
+  Core:      { mev:  6, mav: 12, mrv: 20 },
+};
+
+/**
+ * A set's worth of stimulus, split between the muscles that did the work.
+ *
+ * Counting a bench press as one set for chest and nothing for triceps
+ * understates arm volume badly enough to matter — on a push/pull/legs split
+ * the triceps can do most of their week's work inside pressing. Counting it
+ * as a full set for both overstates it just as badly. Half credit for
+ * secondary involvement is the convention, it is what the fractional-volume
+ * literature uses, and it is close enough to be useful.
+ */
+const SECONDARY_CREDIT = 0.5;
+
+/**
+ * Hard sets per muscle group across a built week.
+ *
+ * Warm-ups are not in the plan at all, so every set counted here is a working
+ * set. Mobility is excluded for the same reason it is excluded from
+ * `weeklyFrequency`: a hip opener is good for you and it is not volume.
+ */
+export function weeklyVolume(week) {
+  const tally = Object.fromEntries(Object.keys(VOLUME).map(g => [g, 0]));
+
+  for (const day of week.days) {
+    for (const e of day.entries) {
+      if (e.pattern === 'mobility') continue;
+      const ex = exerciseById(e.ex);
+
+      // The group the exercise is filed under always gets full credit, so an
+      // entry whose muscles are not in the catalogue still counts for
+      // something rather than vanishing from the audit.
+      if (tally[e.muscle] !== undefined) tally[e.muscle] += e.sets;
+
+      for (const m of ex?.secondary ?? []) {
+        const g = groupOf(m);
+        if (g && g !== e.muscle && tally[g] !== undefined) {
+          tally[g] += e.sets * SECONDARY_CREDIT;
+        }
+      }
+    }
+  }
+
+  for (const g of Object.keys(tally)) tally[g] = Math.round(tally[g] * 10) / 10;
+  return tally;
+}
+
+/**
+ * Compare a week against the landmarks and say what is off.
+ *
+ * Deliberately returns findings rather than silently rebalancing the week.
+ * The builder has to satisfy the split, the season, the athlete's kit and
+ * their injuries at the same time, and a week that comes in two sets under
+ * MEV on shoulders because they train twice a week in a bodyweight-only
+ * Reset block is *correct*. Telling someone that is useful; quietly bolting
+ * on two more sets of lateral raises to hit a number is not.
+ *
+ * @returns {{group:string, status:'low'|'high', sets:number, target:number}[]}
+ */
+export function auditVolume(week, season = null) {
+  const tally = weeklyVolume(week);
+  const mode = modeFor(season);
+  const out = [];
+
+  for (const [group, got] of Object.entries(tally)) {
+    const l = VOLUME[group];
+    if (!l) continue;
+
+    // An aerobic block is not trying to hit MEV on chest and should not be
+    // marked down for it — Tempo says in as many words that lifting drops to
+    // holding what you have.
+    const floor = mode.shape === 'aerobic' || mode.shape === 'restorative'
+      ? Math.round(l.mev * 0.6) : l.mev;
+
+    if (got < floor) out.push({ group, status: 'low', sets: got, target: floor });
+    else if (got > l.mrv) out.push({ group, status: 'high', sets: got, target: l.mrv });
+  }
+  return out.sort((a, b) => Math.abs(b.sets - b.target) - Math.abs(a.sets - a.target));
+}
+
+/* ------------------------------------------------------------- deloads */
+
+/** Weeks in a block before the deload. Four hard, one easy, repeat. */
+export const MESOCYCLE = 5;
+
+/** True on the last week of a block — the one that is meant to feel easy. */
+export const isDeloadWeek = weekIndex => weekIndex > 0 && (weekIndex + 1) % MESOCYCLE === 0;
+
+/**
+ * How much of a normal week a deload is.
+ *
+ * Volume drops hard and intensity barely moves, which is the way round that
+ * the evidence supports: keeping the bar heavy preserves the strength
+ * adaptation while cutting the sets is what actually sheds the fatigue.
+ * Halving the weight instead produces a week that is both useless and
+ * demoralising.
+ */
+export const DELOAD = { sets: 0.5, load: 0.92 };
