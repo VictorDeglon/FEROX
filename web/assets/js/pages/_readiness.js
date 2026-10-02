@@ -9,8 +9,16 @@ import { store } from '../core/store.js';
 import { esc, toast } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { readinessFor, READINESS } from '../core/split.js';
+import { readinessIcon } from '../core/readiness-icons.js';
 
-const FACES = ['😵', '😩', '😫', '😕', '😐', '🙂', '😊', '😃', '😤', '🔥'];
+/**
+ * Kept as the accessible name for each score. The picture is drawn in
+ * core/readiness-icons.js — an emoji face asks how you *feel about* training
+ * rather than what you have in the tank, and renders as a different face on
+ * every platform.
+ */
+const FACE_LABELS = ['Wrecked', 'Drained', 'Rough', 'Flat', 'Okay',
+  'Steady', 'Good', 'Strong', 'Charged', 'Primed'];
 
 /** Ask how today feels. Resolves to the score, or null if dismissed. */
 export function askReadiness({ force = false } = {}) {
@@ -29,7 +37,7 @@ export function askReadiness({ force = false } = {}) {
           We scale the session to match. Training lighter beats not training.</p>
       </div>
 
-      <div class="ready-face" id="face">${FACES[score - 1]}</div>
+      <div class="ready-face" id="face" title="${esc(FACE_LABELS[score - 1])}">${readinessIcon(score)}</div>
       <div>
         <div class="slider-head" style="justify-content:center">
           <span class="slider-value" id="lbl">${esc(readinessFor(score).label)}</span>
@@ -51,7 +59,9 @@ export function askReadiness({ force = false } = {}) {
       score = +rs.value;
       const r = readinessFor(score);
       rs.style.setProperty('--pct', `${((score - 1) / 9) * 100}%`);
-      dlg.querySelector('#face').textContent = FACES[score - 1];
+      const face = dlg.querySelector('#face');
+      face.innerHTML = readinessIcon(score);
+      face.title = FACE_LABELS[score - 1];
       dlg.querySelector('#lbl').textContent = r.label;
       dlg.querySelector('#cap').textContent = r.note;
     };
@@ -81,7 +91,7 @@ export function readinessBar(onChange) {
   el.innerHTML = score
     ? `<div class="row-between wrap" style="gap:12px">
         <div class="row" style="gap:12px;min-width:0">
-          <span style="font-size:1.6rem;line-height:1">${FACES[score - 1]}</span>
+          <span class="ready-face ready-face-sm" title="${esc(FACE_LABELS[score - 1])}">${readinessIcon(score)}</span>
           <div style="min-width:0">
             <strong style="font-size:var(--step--1)">Feeling ${esc(r.label.toLowerCase())} — ${score}/10</strong>
             <p class="dim" style="font-size:var(--step--2);margin-top:2px">${esc(r.note)}</p>
@@ -104,4 +114,4 @@ export function readinessBar(onChange) {
   return el;
 }
 
-export { READINESS, FACES };
+export { READINESS, FACE_LABELS, readinessIcon };
