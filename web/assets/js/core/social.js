@@ -156,6 +156,41 @@ export async function claimHandle(uid, raw, { nickname = '', picture = '', previ
   return handle;
 }
 
+/**
+ * Give a handle back, so somebody else can have it.
+ *
+ * Changing handle already releases the old one inside `claimHandle`'s
+ * transaction. This is the other door: erasing an account. Without it a
+ * handle stays claimed by a profile that no longer exists, and the name is
+ * gone forever for everybody — which is the one failure mode of using a
+ * global namespace that users will actually notice.
+ *
+ * The public profile goes too. Leaving it behind would mean a friend's
+ * leaderboard still showing numbers for somebody who deleted themselves.
+ *
+ * Never throws: erasing an account must not fail because the network did.
+ */
+export async function releaseHandle(uid, handle) {
+  if (!uid || !firebaseConfigured()) return false;
+  const v = validateHandle(handle);
+  try {
+    const { db, fs } = await boot();
+    if (v.ok) {
+      // Only if it is still ours — a handle already re-claimed by somebody
+      // else must not be deleted out from under them.
+      const ref = fs.doc(db, 'handles', v.handle);
+      const snap = await fs.getDoc(ref);
+      if (snap.exists() && snap.data().uid === uid) await fs.deleteDoc(ref);
+    }
+    await fs.deleteDoc(fs.doc(db, 'profiles', uid));
+    forgetPublished(uid);
+    return true;
+  } catch (err) {
+    console.info('[ferox] could not release handle:', err?.code ?? err);
+    return false;
+  }
+}
+
 /* ------------------------------------------------------- public profile */
 
 /**
@@ -170,7 +205,10 @@ export async function claimHandle(uid, raw, { nickname = '', picture = '', previ
  * absent on purpose and should stay absent.
  */
 export const PUBLIC_FIELDS = ['handle', 'nickname', 'picture', 'joined',
-  'streak', 'sessions', 'volume', 'medals'];
+  'streak', 'sessions', 'volume', 'medals',
+  // Matching fields. Deliberately coarse — a band and a continent, never an
+  // age or a place — and switched off entirely by `discoverable: false`.
+  'goal', 'band', 'region', 'discoverable'];
 
 /**
  * A number fit to publish.
@@ -194,6 +232,14 @@ export function publicProfileFrom(data, stats, uid) {
     sessions: stat(stats?.sessions),
     volume: stat(stats?.volume),
     medals: stat((data?.medals ?? []).length),
+
+    // Opting out blanks the matching fields rather than merely hiding the
+    // profile: the right to not be suggested should remove the data that
+    // does the suggesting, not leave it sitting there unused.
+    discoverable: p.discoverable !== false,
+    goal: p.discoverable === false ? '' : (p.goal ?? ''),
+    band: p.discoverable === false ? '' : ageBand(p.age),
+    region: p.discoverable === false ? '' : (p.region || detectRegion()),
   };
 }
 
@@ -323,4 +369,121 @@ export async function syncPublicProfile(uid, data, stats) {
 /** Forget the throttle, so the next boot republishes. For a handle change. */
 export function forgetPublished(uid) {
   try { localStorage.removeItem(LAST_KEY(uid)); } catch { /* ignore */ }
+}
+
+/* ------------------------------------------------- discovery and matching */
+
+/**
+ * Age as a band, never a number.
+ *
+ * A birth year on a public document is a identifying detail that buys the
+ * feature nothing: "someone roughly my age" is the entire requirement, and a
+ * band answers it. The bands are the ones training actually differs across
+ * rather than even decades.
+ */
+export const AGE_BANDS = [
+  { id: 'u20', label: 'Under 20', max: 19 },
+  { id: '20s', label: '20s', max: 29 },
+  { id: '30s', label: '30s', max: 39 },
+  { id: '40s', label: '40s', max: 49 },
+  { id: '50p', label: '50+', max: 200 },
+];
+export const ageBand = age =>
+  (Number.isFinite(age) && age > 0 ? AGE_BANDS.find(b => age <= b.max)?.id ?? '' : '');
+
+/**
+ * Roughly where somebody is, from the browser's own time zone.
+ *
+ * A continent, not a city, and certainly not coordinates. The point of this
+ * field is "trains at the same hours as me" — close enough that a leaderboard
+ * resets at the same time and a message is not read nine hours late. A
+ * geolocation prompt would be a worse answer to a smaller question, and it
+ * would break the promise that nothing is sent anywhere by default.
+ */
+export function detectRegion() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+    const area = tz.split('/')[0];
+    return ['Africa', 'America', 'Antarctica', 'Asia', 'Atlantic', 'Australia',
+      'Europe', 'Indian', 'Pacific'].includes(area) ? area : '';
+  } catch { return ''; }
+}
+
+/** How well two public profiles match, 0–3. Used only to order suggestions. */
+export function matchScore(me, them) {
+  if (!me || !them) return 0;
+  let n = 0;
+  if (me.goal && me.goal === them.goal) n += 1;
+  if (me.band && me.band === them.band) n += 1;
+  if (me.region && me.region === them.region) n += 1;
+  return n;
+}
+
+/** Why a person was suggested, in the words the card shows. */
+export function matchReason(me, them) {
+  const bits = [];
+  if (me?.goal && me.goal === them.goal) bits.push('same goal');
+  if (me?.band && me.band === them.band) bits.push('similar age');
+  if (me?.region && me.region === them.region) bits.push('same region');
+  if (!bits.length) return (them.streak ?? 0) > 0 ? 'training consistently' : 'new here';
+  return bits.join(' · ');
+}
+
+/**
+ * Up to five people worth training alongside.
+ *
+ * Three narrow queries, then a backfill, rather than one clever one. Each is
+ * a single equality on a field Firestore indexes automatically, so this adds
+ * no composite indexes to define or pay for — and a composite index is the
+ * thing that makes a recommendation feature expensive, not the reads.
+ *
+ * The backfill is what keeps the promise of five. Early on there is nobody
+ * matching anybody, and a discovery page that says "no suggestions" on launch
+ * day is a page nobody opens twice, so it falls through to whoever is
+ * actually training. Only when the whole app has fewer than five other
+ * athletes does it return fewer than five, which is the one case where there
+ * is nothing else to show.
+ *
+ * @param {object} me       my own public profile
+ * @param {Set<string>} skip uids already added, plus my own
+ */
+export async function recommendPeople(me, skip = new Set(), want = 5) {
+  if (!firebaseConfigured()) return [];
+  const { db, fs } = await boot();
+  const col = fs.collection(db, 'profiles');
+
+  const run = async q => {
+    try { return (await fs.getDocs(q)).docs.map(d => ({ uid: d.id, ...d.data() })); }
+    catch { return []; }          // a missing index must not break the page
+  };
+
+  // Narrow first, in the order the matches are worth most.
+  const narrow = [
+    me?.goal && fs.query(col, fs.where('goal', '==', me.goal), fs.limit(12)),
+    me?.band && fs.query(col, fs.where('band', '==', me.band), fs.limit(12)),
+    me?.region && fs.query(col, fs.where('region', '==', me.region), fs.limit(12)),
+  ].filter(Boolean);
+
+  const found = new Map();
+  for (const rows of await Promise.all(narrow.map(run))) {
+    for (const r of rows) if (!found.has(r.uid)) found.set(r.uid, r);
+  }
+
+  const usable = r => r.handle && r.discoverable !== false && !skip.has(r.uid);
+  let out = [...found.values()].filter(usable);
+
+  // Nowhere near five? Fall back to whoever is training. `streak` is a single
+  // field, so this is another automatic index.
+  if (out.length < want) {
+    const extra = await run(fs.query(col, fs.orderBy('streak', 'desc'), fs.limit(want * 4)));
+    for (const r of extra) {
+      if (!found.has(r.uid) && usable(r)) { found.set(r.uid, r); out.push(r); }
+      if (out.length >= want * 3) break;
+    }
+  }
+
+  return out
+    .map(r => ({ ...r, score: matchScore(me, r), why: matchReason(me, r) }))
+    .sort((a, b) => b.score - a.score || (b.streak ?? 0) - (a.streak ?? 0))
+    .slice(0, want);
 }

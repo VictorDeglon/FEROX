@@ -1,7 +1,7 @@
 /** Profile — account, goals, units, themes, weigh-in cadence and data control. */
 import { store, RESET_CLEARS, RESET_KEEPS } from '../core/store.js';
 import {
-  bootPage, esc, num, toast, modal, confirmPhrase, avatarHtml,
+  bootPage, esc, num, toast, modal, confirmPhrase, avatarHtml, displayName, displayUser,
   applyMode, applyPalette, currentMode, currentPalette,
 } from '../core/ui.js';
 import { icon, googleGlyph } from '../core/icons.js';
@@ -35,7 +35,7 @@ function render(el) {
   const d = store.data;
   const p = d.profile;
   const s = store.stats();
-  const u = auth.user ?? { name: p.name, provider: 'guest' };
+  const u = displayUser();
 
   el.innerHTML = `
     <section class="grid grid-main">
@@ -43,7 +43,7 @@ function render(el) {
         <div class="card card-pad-lg">
           <div class="row wrap" style="gap:18px;align-items:center">
             <button class="avatar-edit" id="avatarBtn" aria-label="Change profile picture">
-              ${avatarHtml({ ...u, picture: d.profile.picture || u.picture }, 'avatar avatar-lg')}
+              ${avatarHtml(u, 'avatar avatar-lg')}
               <span class="avatar-edit-badge">${icon('plus')}</span>
             </button>
             <input type="file" id="avatarIn" accept="image/*" hidden>
@@ -163,6 +163,13 @@ function render(el) {
           <div class="card-head"><h3>Preferences</h3></div>
           <div class="stack" style="gap:14px">
             <div class="field">
+              <label for="disc">Discoverable</label>
+              <select class="select" id="disc">
+                <option value="1"${p.discoverable !== false ? ' selected' : ''}>Suggest me to other athletes</option>
+                <option value="0"${p.discoverable === false ? ' selected' : ''}>Keep me out of suggestions</option>
+              </select>
+            </div>
+            <div class="field">
               <label for="unit">Units</label>
               <select class="select" id="unit">
                 <option value="kg"${p.unit !== 'lb' ? ' selected' : ''}>Metric — kg and cm</option>
@@ -242,6 +249,20 @@ function render(el) {
   el.querySelector('#editGoals').addEventListener('click', editGoals);
   el.querySelector('#signOut')?.addEventListener('click', async () => { await auth.signOut(); location.href = 'index.html'; });
 
+  el.querySelector('#disc')?.addEventListener('change', async e => {
+    // Off blanks the matching fields in the public document rather than only
+    // hiding the profile — see publicProfileFrom. The next publish carries
+    // the blanks, and forgetting the throttle makes that happen now.
+    const on = e.target.value === '1';
+    await store.updateProfile({ discoverable: on });
+    if (auth.uid) {
+      const { forgetPublished, syncPublicProfile } = await import('../core/social.js');
+      forgetPublished(auth.uid);
+      await syncPublicProfile(auth.uid, store.data, store.stats());
+    }
+    toast(on ? 'You can be suggested to other athletes' : 'You are out of suggestions', 'ok');
+  });
+
   el.querySelector('#unit').addEventListener('change', async e => {
     // Display only — nothing stored is touched, so this is reversible and
     // cannot lose a decimal. The page redraws so every number on it flips.
@@ -307,6 +328,13 @@ function render(el) {
       submit: 'Erase it all',
     });
     if (!ok) return;
+    // Hand the handle and the public profile back before the local wipe —
+    // afterwards we no longer know which handle was ours to release.
+    const held = store.data.profile.handle;
+    if (auth.uid && held) {
+      const { releaseHandle } = await import('../core/social.js');
+      await releaseHandle(auth.uid, held);
+    }
     await store.reset();
     toast('Erased');
     location.href = 'onboarding.html';

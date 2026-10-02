@@ -46,6 +46,10 @@ function emptyData() {
       sex: '', age: null, heightCm: null, weightKg: null,
       activity: 3, level: 3, goal: '', daysPerWeek: 4,
       equipment: 'gym', limits: [],
+      /** Opt out of being suggested to other athletes. See core/social.js. */
+      discoverable: true,
+      /** A continent, filled from the time zone — never a place. */
+      region: '',
       goals: { kcal: 2200, protein: 150, carbs: 240, fat: 70, sessionsPerWeek: 4 },
     },
     onboarded: false,

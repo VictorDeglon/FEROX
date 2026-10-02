@@ -298,10 +298,13 @@ auth.onChange(async session => {
     store.clearLocal();     // or signing out would hand the log straight back
     location.href = 'onboarding.html';
   } else {
+    // Whatever they already chose wins. Google's display name is a *seed* for
+    // someone arriving with nothing, not a correction of a name they typed
+    // themselves five minutes ago in onboarding.
     await store.updateProfile({
-      name: session.user.name || store.data.profile.name,
+      name: store.data.profile.name?.trim() || session.user.name || '',
       email: session.user.email ?? '',
-      picture: session.user.picture || store.data.profile.picture,
+      picture: store.data.profile.picture || session.user.picture || '',
     });
     location.href = store.data.onboarded ? 'dashboard.html' : 'onboarding.html';
   }
