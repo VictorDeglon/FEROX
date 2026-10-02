@@ -116,25 +116,30 @@ function privacy(pane) {
     ${h('Privacy policy', `Last updated ${UPDATED}`)}
 
     ${card(`${h3('The short version')}
-      ${p('FEROX does not collect your data. There is no analytics, no tracking, no advertising and no third-party scripts beyond the two listed below. Your training log never leaves your device unless you choose to export it.')}`)}
+      ${p('FEROX does not collect your data, sell it or look at it. There is no analytics, no tracking, no advertising and no session recording. As a guest, your training log never leaves your device. If you sign in with Google, it is stored in your own account so it follows you between devices — that is what signing in is for, and it is the only thing that changes.')}`)}
 
     ${card(`${h3('What is stored, and where')}
       ${ul([
-        '<strong>On your device only.</strong> Sessions, meals, weigh-ins, medals, friends, your season plan and your profile are kept in your browser’s local storage.',
-        '<strong>Nothing is sent to us.</strong> FEROX is a static site. There is no server receiving your training data.',
-        '<strong>You can export or delete it all</strong> at any time from your profile. Clearing your browser data also removes it permanently.',
+        '<strong>As a guest — on your device only.</strong> Sessions, meals, weigh-ins, medals, friends, your season plan and your profile are kept in your browser’s local storage, and nowhere else. No account is created for you, anonymous or otherwise.',
+        '<strong>Signed in — in your own Google account.</strong> The same log is stored as a single document in Firestore, readable and writable only by the account that wrote it. Your browser keeps a copy too, so the app still works offline.',
+        '<strong>Which one you are in is shown to you.</strong> Profile → Storage says either “This device” or “Your Google account”.',
+        '<strong>Nothing is sent to us.</strong> There is no FEROX server. Signed in, your data goes to Google’s infrastructure under your account — not to a system anyone operates on your behalf.',
+        '<strong>You can export or delete it all</strong> at any time from your profile. Erasing while signed in empties the cloud copy too, not just this device’s.',
       ])}`)}
 
     ${card(`${h3('Third parties')}
       ${ul([
-        '<strong>GitHub Pages</strong> hosts the site. GitHub may log standard web-server information such as IP addresses. See GitHub’s privacy statement.',
+        '<strong>Firebase Hosting</strong> serves the site. Google may log standard web-server information such as IP addresses.',
         '<strong>Google Fonts</strong> serves two typefaces. Google may receive your IP address when the fonts load.',
-        '<strong>Google Sign-In</strong> is optional and off unless you use it. If you do, Google tells us your name, email and profile picture, and nothing else. We do not send anything back.',
+        '<strong>Firebase Authentication</strong> is optional and off unless you sign in. If you do, it confirms who you are with Google and gives the app your name, email and profile picture.',
+        '<strong>Cloud Firestore</strong> stores your log, and only while you are signed in. Google operates it and can technically access what is in it, under their privacy policy. Stay a guest if that is not a trade you want to make — nothing is withheld from guests.',
       ])}
       ${p('There is no analytics package, no advertising network, no session recording and no cookies beyond what your browser needs to remember your preferences.')}`)}
 
     ${card(`${h3('If you sign in with Google')}
-      ${p('Signing in is entirely optional — every feature works as a guest. If you do sign in, the token Google issues is used to display your name and picture. When FEROX is run with its optional server, that token is verified against Google and exchanged for a session token; the Google token is never stored.')}`)}
+      ${p('Signing in is entirely optional and every feature works as a guest. If you do, Firebase verifies you with Google and your log starts syncing to your account, so you can log a session on your phone and see it on your laptop.')}
+      ${p('Access is enforced by twenty lines of Firestore rules, published in the repository, which say one thing: you can read and write the document named after your own account, and nothing else. There is no admin path and no sharing.')}
+      ${p('Signing out stops the sync and returns you to this device’s log. It does not delete the cloud copy — sign back in and it is there. To remove it, use “Erase everything” while signed in.')}`)}
 
     ${card(`${h3('Children')}
       ${p('FEROX is not directed at children under 13, and we do not knowingly collect information from them. Since we do not collect information from anyone, this is largely academic — but training advice generated for adults may not be appropriate for a growing body, and young people should train under supervision.')}`)}

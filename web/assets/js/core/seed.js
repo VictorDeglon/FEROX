@@ -1,90 +1,57 @@
 /**
- * Starter content: exercise library, food database, medal definitions and the
- * demo dataset used for guest accounts. All of it is plain data so the same
- * module can be imported by the server for seeding.
+ * Starter content: the exercise library, food database, medal definitions and
+ * the prebuilt routines. All plain data so the server can import the same file.
+ *
+ * The exercise catalogue itself lives in `core/exercises.js`, which is
+ * generated — see scripts/gen-exercises.js. This module is where it gets the
+ * lookups, the equipment filter and the legacy-id layer wrapped around it.
  */
+import { EXERCISE_CATALOGUE } from './exercises.js';
+import { ANATOMY, GROUPS, anatomyById } from './anatomy.js';
+import { FOODS, FOOD_CATEGORIES, per100 } from './foods.js';
 
-export const MUSCLES = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Full body'];
+export const MUSCLES = GROUPS;
+export { ANATOMY, anatomyById };
+
+export const EXERCISES = EXERCISE_CATALOGUE;
+export { FOODS, FOOD_CATEGORIES, per100 };
 
 /**
- * Exercise library.
- *   equip    'gym' | 'home' | 'minimal' | 'bodyweight' — the LEAST kit it needs,
- *            so a bodyweight move is available to everyone.
- *   pattern  movement pattern, used by the split builder to fill a session
- *            without picking three of the same thing.
- *   stress   joints it loads, so limitations can filter it out.
+ * Ids used before the catalogue was generated.
+ *
+ * Every logged session on every device references exercises by id, so the old
+ * short ids can never simply stop resolving — someone who logged `bench` for a
+ * year would open the app to a history of blanks. `byId` follows this map, and
+ * a test asserts every entry still points at something real.
  */
-export const EXERCISES = [
-  // --- chest ---------------------------------------------------------------
-  { id: 'bench',      name: 'Barbell Bench Press',   muscle: 'Chest', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'h-push', stress: ['shoulder'] },
-  { id: 'incline-db', name: 'Incline Dumbbell Press',muscle: 'Chest', kind: 'strength', unit: 'kg', equip: 'home',       pattern: 'h-push', stress: ['shoulder'] },
-  { id: 'db-press',   name: 'Dumbbell Bench Press',  muscle: 'Chest', kind: 'strength', unit: 'kg', equip: 'home',       pattern: 'h-push', stress: ['shoulder'] },
-  { id: 'pushup',     name: 'Push-Up',               muscle: 'Chest', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'h-push', stress: ['wrist', 'shoulder'] },
-  { id: 'fly',        name: 'Cable Fly',             muscle: 'Chest', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'iso',    stress: ['shoulder'] },
-  { id: 'dip',        name: 'Dip',                   muscle: 'Chest', kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'v-push', stress: ['shoulder'] },
+export const LEGACY_IDS = {
+  bench: 'barbell-bench-press', 'incline-db': 'incline-dumbbell-bench-press',
+  'db-press': 'dumbbell-bench-press', pushup: 'push-up', fly: 'cable-fly', dip: 'chest-dip',
+  deadlift: 'barbell-deadlift', pullup: 'pull-up', row: 'barbell-row', 'db-row': 'dumbbell-row',
+  'lat-pull': 'cable-lat-pulldown', 'face-pull': 'cable-face-pull', 'inv-row': 'inverted-row',
+  squat: 'back-barbell-squat', frontsquat: 'front-barbell-squat', goblet: 'goblet-dumbbell-squat',
+  rdl: 'barbell-romanian-deadlift', lunge: 'walking-dumbbell-lunge', 'split-sq': 'bulgarian-split-squat',
+  hipthrust: 'barbell-hip-thrust', calf: 'standing-machine-calf-raise', legcurl: 'lying-machine-leg-curl',
+  ohp: 'standing-barbell-overhead-press', 'db-ohp': 'standing-dumbbell-overhead-press',
+  lateral: 'dumbbell-lateral-raise', 'rear-delt': 'bent-over-dumbbell-rear-delt-fly',
+  'pike-push': 'pike-push-up', curl: 'barbell-curl', 'db-curl': 'dumbbell-curl', hammer: 'hammer-curl',
+  'tricep-ext': 'overhead-dumbbell-triceps-extension', pushdown: 'triceps-pushdown',
+  'close-push': 'close-grip-push-up', plank: 'plank', hangleg: 'hanging-leg-raise', deadbug: 'dead-bug',
+  'cable-crunch': 'cable-crunch', carry: 'farmers-carry', 'box-jump': 'box-jump',
+  'broad-jump': 'broad-jump', 'depth-jump': 'depth-jump', 'med-slam': 'medicine-ball-slam',
+  'clap-push': 'clap-push-up', sprint: 'sprint-intervals', 'hill-sprint': 'hill-sprints',
+  'jump-rope': 'jump-rope', burpee: 'burpee', 'kb-swing': 'kettlebell-swing', sled: 'sled-push',
+  run: 'run', 'row-erg': 'rowing-erg', bike: 'cycling', mobility: 'mobility-flow',
+  'hip-open': 'hip-openers',
+};
 
-  // --- back ----------------------------------------------------------------
-  { id: 'deadlift',   name: 'Deadlift',              muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'hinge',  stress: ['back'] },
-  { id: 'pullup',     name: 'Pull-Up',               muscle: 'Back', kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'v-pull', stress: ['shoulder', 'wrist'] },
-  { id: 'row',        name: 'Barbell Row',           muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'h-pull', stress: ['back'] },
-  { id: 'db-row',     name: 'Dumbbell Row',          muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'h-pull', stress: [] },
-  { id: 'lat-pull',   name: 'Lat Pulldown',          muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'v-pull', stress: ['shoulder'] },
-  { id: 'face-pull',  name: 'Face Pull',             muscle: 'Back', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso',    stress: [] },
-  { id: 'inv-row',    name: 'Inverted Row',          muscle: 'Back', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'h-pull', stress: [] },
+/** Resolve an id, following the legacy map. */
+export const resolveExerciseId = id => (EXERCISE_INDEX.has(id) ? id : LEGACY_IDS[id] ?? id);
 
-  // --- legs ----------------------------------------------------------------
-  { id: 'squat',      name: 'Back Squat',            muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'squat',  stress: ['knee', 'back'] },
-  { id: 'frontsquat', name: 'Front Squat',           muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'squat',  stress: ['knee', 'wrist'] },
-  { id: 'goblet',     name: 'Goblet Squat',          muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'squat',  stress: ['knee'] },
-  { id: 'rdl',        name: 'Romanian Deadlift',     muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'hinge',  stress: ['back'] },
-  { id: 'lunge',      name: 'Walking Lunge',         muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'bodyweight', pattern: 'lunge',  stress: ['knee'] },
-  { id: 'split-sq',   name: 'Bulgarian Split Squat', muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'lunge',  stress: ['knee'] },
-  { id: 'hipthrust',  name: 'Hip Thrust',            muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'home',       pattern: 'hinge',  stress: [] },
-  { id: 'calf',       name: 'Calf Raise',            muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'bodyweight', pattern: 'iso',    stress: [] },
-  { id: 'legcurl',    name: 'Leg Curl',              muscle: 'Legs', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'iso',    stress: [] },
+/** O(1) lookup — a linear scan of a thousand rows per set was not going to do. */
+const EXERCISE_INDEX = new Map(EXERCISE_CATALOGUE.map(e => [e.id, e]));
 
-  // --- shoulders -----------------------------------------------------------
-  { id: 'ohp',        name: 'Overhead Press',        muscle: 'Shoulders', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'v-push', stress: ['shoulder', 'back'] },
-  { id: 'db-ohp',     name: 'Dumbbell Shoulder Press',muscle: 'Shoulders',kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'v-push', stress: ['shoulder'] },
-  { id: 'lateral',    name: 'Lateral Raise',         muscle: 'Shoulders', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso',    stress: [] },
-  { id: 'rear-delt',  name: 'Rear Delt Fly',         muscle: 'Shoulders', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso',    stress: [] },
-  { id: 'pike-push',  name: 'Pike Push-Up',          muscle: 'Shoulders', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'v-push', stress: ['wrist', 'shoulder'] },
-
-  // --- arms ----------------------------------------------------------------
-  { id: 'curl',       name: 'Barbell Curl',          muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso', stress: ['wrist'] },
-  { id: 'db-curl',    name: 'Dumbbell Curl',         muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso', stress: [] },
-  { id: 'hammer',     name: 'Hammer Curl',           muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso', stress: [] },
-  { id: 'tricep-ext', name: 'Triceps Extension',     muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'iso', stress: ['wrist'] },
-  { id: 'pushdown',   name: 'Triceps Pushdown',      muscle: 'Arms', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'iso', stress: [] },
-  { id: 'close-push', name: 'Close-Grip Push-Up',    muscle: 'Arms', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'iso', stress: ['wrist'] },
-
-  // --- core ----------------------------------------------------------------
-  { id: 'plank',      name: 'Plank',                 muscle: 'Core', kind: 'time',     unit: 'sec', equip: 'bodyweight', pattern: 'core', stress: ['shoulder'] },
-  { id: 'hangleg',    name: 'Hanging Leg Raise',     muscle: 'Core', kind: 'strength', unit: 'bw',  equip: 'home',       pattern: 'core', stress: ['shoulder'] },
-  { id: 'deadbug',    name: 'Dead Bug',              muscle: 'Core', kind: 'strength', unit: 'bw',  equip: 'bodyweight', pattern: 'core', stress: [] },
-  { id: 'cable-crunch',name:'Cable Crunch',          muscle: 'Core', kind: 'strength', unit: 'kg',  equip: 'gym',        pattern: 'core', stress: [] },
-  { id: 'carry',      name: 'Farmer Carry',          muscle: 'Core', kind: 'strength', unit: 'kg',  equip: 'minimal',    pattern: 'carry',stress: [] },
-
-  // --- power and conditioning (Greek Fire leans on these) ------------------
-  { id: 'box-jump',   name: 'Box Jump',              muscle: 'Legs',      kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'plyo', stress: ['knee'] },
-  { id: 'broad-jump', name: 'Broad Jump',            muscle: 'Legs',      kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'plyo', stress: ['knee'] },
-  { id: 'depth-jump', name: 'Depth Jump',            muscle: 'Legs',      kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'plyo', stress: ['knee'] },
-  { id: 'med-slam',   name: 'Medicine Ball Slam',    muscle: 'Full body', kind: 'strength', unit: 'bw', equip: 'home',       pattern: 'plyo', stress: [] },
-  { id: 'clap-push',  name: 'Clap Push-Up',          muscle: 'Chest',     kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'plyo', stress: ['wrist', 'shoulder'] },
-  { id: 'sprint',     name: 'Sprint Intervals',      muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'bodyweight', pattern: 'sprint', stress: ['knee'] },
-  { id: 'hill-sprint',name: 'Hill Sprints',          muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'bodyweight', pattern: 'sprint', stress: ['knee'] },
-  { id: 'jump-rope',  name: 'Jump Rope',             muscle: 'Full body', kind: 'cardio',   unit: 'sec',equip: 'minimal',    pattern: 'condition', stress: ['knee'] },
-  { id: 'burpee',     name: 'Burpee',                muscle: 'Full body', kind: 'strength', unit: 'bw', equip: 'bodyweight', pattern: 'condition', stress: ['wrist', 'knee'] },
-  { id: 'kb-swing',   name: 'Kettlebell Swing',      muscle: 'Full body', kind: 'strength', unit: 'kg', equip: 'minimal',    pattern: 'hinge', stress: ['back'] },
-  { id: 'sled',       name: 'Sled Push',             muscle: 'Full body', kind: 'strength', unit: 'kg', equip: 'gym',        pattern: 'condition', stress: [] },
-  { id: 'run',        name: 'Run',                   muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'bodyweight', pattern: 'aerobic', stress: ['knee'] },
-  { id: 'row-erg',    name: 'Rowing Erg',            muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'gym',        pattern: 'aerobic', stress: [] },
-  { id: 'bike',       name: 'Cycling',               muscle: 'Full body', kind: 'cardio',   unit: 'km', equip: 'home',       pattern: 'aerobic', stress: [] },
-
-  // --- mobility ------------------------------------------------------------
-  { id: 'mobility',   name: 'Mobility Flow',         muscle: 'Full body', kind: 'time', unit: 'sec', equip: 'bodyweight', pattern: 'mobility', stress: [] },
-  { id: 'hip-open',   name: 'Hip Openers',           muscle: 'Legs',      kind: 'time', unit: 'sec', equip: 'bodyweight', pattern: 'mobility', stress: [] },
-];
+export const exerciseById = id => EXERCISE_INDEX.get(id) ?? EXERCISE_INDEX.get(LEGACY_IDS[id]) ?? null;
 
 /** How much kit each tier implies, so `gym` can use everything below it. */
 export const EQUIP_RANK = { bodyweight: 0, minimal: 1, home: 2, gym: 3 };
@@ -148,30 +115,6 @@ export const ROUTINES = [
   },
 ];
 
-/** Per 100 g unless `per` says otherwise. */
-export const FOODS = [
-  { id: 'f-chicken', name: 'Chicken breast, cooked', per: '100 g', kcal: 165, p: 31, c: 0,  f: 3.6 },
-  { id: 'f-rice',    name: 'White rice, cooked',     per: '100 g', kcal: 130, p: 2.7, c: 28, f: 0.3 },
-  { id: 'f-oats',    name: 'Rolled oats, dry',       per: '100 g', kcal: 389, p: 17, c: 66, f: 7 },
-  { id: 'f-egg',     name: 'Egg, whole',             per: '1 egg', kcal: 72,  p: 6.3, c: 0.4, f: 4.8 },
-  { id: 'f-salmon',  name: 'Salmon, cooked',         per: '100 g', kcal: 208, p: 20, c: 0,  f: 13 },
-  { id: 'f-beef',    name: 'Beef mince, 5% fat',     per: '100 g', kcal: 137, p: 21, c: 0,  f: 5 },
-  { id: 'f-yoghurt', name: 'Greek yoghurt, 0%',      per: '100 g', kcal: 59,  p: 10, c: 3.6, f: 0.4 },
-  { id: 'f-banana',  name: 'Banana',                 per: '1 med', kcal: 105, p: 1.3, c: 27, f: 0.4 },
-  { id: 'f-avocado', name: 'Avocado',                per: '100 g', kcal: 160, p: 2,  c: 9,  f: 15 },
-  { id: 'f-pasta',   name: 'Pasta, cooked',          per: '100 g', kcal: 158, p: 5.8, c: 31, f: 0.9 },
-  { id: 'f-potato',  name: 'Potato, boiled',         per: '100 g', kcal: 87,  p: 1.9, c: 20, f: 0.1 },
-  { id: 'f-broccoli',name: 'Broccoli, steamed',      per: '100 g', kcal: 35,  p: 2.4, c: 7,  f: 0.4 },
-  { id: 'f-almond',  name: 'Almonds',                per: '100 g', kcal: 579, p: 21, c: 22, f: 50 },
-  { id: 'f-bread',   name: 'Wholegrain bread',       per: '1 slice', kcal: 82, p: 4, c: 14, f: 1.1 },
-  { id: 'f-milk',    name: 'Milk, semi-skimmed',     per: '250 ml', kcal: 122, p: 8.5, c: 12, f: 4.3 },
-  { id: 'f-whey',    name: 'Whey protein',           per: '1 scoop', kcal: 120, p: 24, c: 3, f: 1.5 },
-  { id: 'f-peanut',  name: 'Peanut butter',          per: '100 g', kcal: 588, p: 25, c: 20, f: 50 },
-  { id: 'f-tuna',    name: 'Tuna, in water',         per: '100 g', kcal: 116, p: 26, c: 0, f: 0.8 },
-  { id: 'f-apple',   name: 'Apple',                  per: '1 med', kcal: 95,  p: 0.5, c: 25, f: 0.3 },
-  { id: 'f-olive',   name: 'Olive oil',              per: '1 tbsp', kcal: 119, p: 0, c: 0, f: 13.5 },
-];
-
 export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 /**
@@ -201,5 +144,12 @@ export const DEMO_FRIENDS = [
   { id: 'fr-4', name: 'Priya Nair',   handle: 'priyalifts', streak: 3,  sessions: 42, volume: 61200,  medals: 4 },
 ];
 
-export const byId = (list, id) => list.find(x => x.id === id);
-export const exerciseName = id => byId(EXERCISES, id)?.name ?? id;
+/**
+ * Generic lookup. For the exercise catalogue it goes through the index and the
+ * legacy map rather than a linear scan — a thousand-row `find` per logged set
+ * is the difference between a progress page that paints and one that hangs.
+ */
+export const byId = (list, id) =>
+  (list === EXERCISES ? exerciseById(id) : list.find(x => x.id === id));
+
+export const exerciseName = id => exerciseById(id)?.name ?? id;

@@ -6,6 +6,8 @@ import { store, todayISO } from '../core/store.js';
 import { esc, toast } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { EXERCISES, ROUTINES, MEDALS, byId } from '../core/seed.js';
+import { suggestLoad } from '../core/strength.js';
+import { mountCatalog } from './_catalog.js';
 
 const unitLabel = ex => ({ kg: 'kg', bw: 'body', sec: 'sec', km: 'km' }[ex.unit] ?? '');
 
@@ -26,17 +28,32 @@ function lastSet(exId) {
 export function logSessionFlow(routineId, planDay) {
   const routine = routineId ? byId(ROUTINES, routineId) : null;
 
-  /** @type {{ex:string, sets:{reps:number,weight:number}[]}[]} */
+  /** @type {{ex:string, sets:{reps:number,weight:number}[], note?:string}[]} */
   let entries = [];
   if (planDay) {
-    entries = planDay.entries.map(e => {
-      const prev = lastSet(e.ex);
-      return { ex: e.ex, sets: Array.from({ length: e.sets }, () => ({ reps: e.reps, weight: prev?.weight ?? 0 })) };
-    });
+    // A generated day already carries a prescribed load per exercise, worked
+    // out from the athlete, the season and what the log says about that muscle.
+    entries = planDay.entries.map(e => ({
+      ex: e.ex,
+      note: e.load?.note,
+      sets: Array.from({ length: e.sets }, () => ({
+        reps: e.reps,
+        weight: e.load?.kg ?? lastSet(e.ex)?.weight ?? 0,
+      })),
+    }));
   } else if (routine) {
+    // A stock routine has no load of its own, so ask the model for one rather
+    // than opening every field at zero and making someone guess.
     entries = routine.blocks.map(b => {
-      const prev = lastSet(b.ex);
-      return { ex: b.ex, sets: Array.from({ length: b.sets }, () => ({ reps: b.reps, weight: prev?.weight ?? 0 })) };
+      const suggested = suggestLoad(b.ex, store.data.profile, store.data, { reps: b.reps, rir: 2 });
+      return {
+        ex: b.ex,
+        note: suggested?.note,
+        sets: Array.from({ length: b.sets }, () => ({
+          reps: b.reps,
+          weight: suggested?.kg ?? lastSet(b.ex)?.weight ?? 0,
+        })),
+      };
     });
   }
 
@@ -69,12 +86,7 @@ export function logSessionFlow(routineId, planDay) {
       <div class="stack" style="gap:9px">
         <div class="row-between"><p class="eyebrow">Exercises</p></div>
         <div id="entries" class="stack" style="gap:9px"></div>
-        <div class="row" style="gap:8px">
-          <select class="select grow" id="addPick" aria-label="Add an exercise">
-            ${EXERCISES.map(e => `<option value="${e.id}">${esc(e.name)} · ${esc(e.muscle)}</option>`).join('')}
-          </select>
-          <button type="button" class="btn btn-sm" id="addEx">${icon('plus')}<span>Add</span></button>
-        </div>
+        <button type="button" class="btn btn-sm" id="addEx">${icon('search')}<span>Add an exercise</span></button>
       </div>
 
       <div class="field">
@@ -111,9 +123,10 @@ export function logSessionFlow(routineId, planDay) {
         const ex = byId(EXERCISES, entry.ex);
         return `<div class="card" style="padding:12px;background:var(--surf-2)">
           <div class="row-between" style="margin-bottom:9px">
-            <div>
+            <div style="min-width:0">
               <strong style="font-size:.9rem">${esc(ex.name)}</strong>
               <span class="dim" style="font-size:.74rem"> · ${esc(ex.muscle)}</span>
+              ${entry.note ? `<br><small class="dim" style="font-size:.7rem">${esc(entry.note)}</small>` : ''}
             </div>
             <button type="button" class="btn btn-ghost btn-sm" data-del="${ei}" aria-label="Remove ${esc(ex.name)}">${icon('trash')}</button>
           </div>
@@ -162,13 +175,23 @@ export function logSessionFlow(routineId, planDay) {
     }
   });
 
-  dlg.querySelector('#addEx').addEventListener('click', () => {
-    const id = dlg.querySelector('#addPick').value;
-    const prev = lastSet(id);
-    entries.push({ ex: id, sets: [{ reps: prev?.reps ?? 8, weight: prev?.weight ?? 0 }] });
+  /*
+   * A search, not a dropdown. The picker used to be a `<select>` of every
+   * exercise — fine at fifty, unusable at a thousand, and no way to find
+   * anything unless you already knew what it was called.
+   */
+  dlg.querySelector('#addEx').addEventListener('click', () => pickExercise(ex => {
+    const prev = lastSet(ex.id);
+    const reps = prev?.reps ?? 8;
+    const suggested = suggestLoad(ex.id, store.data.profile, store.data, { reps, rir: 2 });
+    entries.push({
+      ex: ex.id,
+      note: prev ? undefined : suggested?.note,
+      sets: [{ reps, weight: prev?.weight ?? suggested?.kg ?? 0 }],
+    });
     draw();
     host.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  });
+  }));
 
   const close = () => { dlg.close(); dlg.remove(); };
   dlg.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', close));
@@ -202,4 +225,43 @@ export function logSessionFlow(routineId, planDay) {
   document.body.append(dlg);
   draw();
   dlg.showModal();
+}
+
+
+/**
+ * Pick an exercise from the catalog.
+ *
+ * Opens over the session editor rather than replacing it, so adding three
+ * movements is three taps of the plus button and not three trips back and
+ * forth. `onPick` fires per selection and the dialog stays open.
+ */
+function pickExercise(onPick) {
+  const dlg = document.createElement('dialog');
+  dlg.className = 'modal';
+  dlg.style.width = 'min(620px, calc(100vw - 24px))';
+  dlg.innerHTML = `
+    <div class="card card-pad-lg stack" style="gap:14px">
+      <div class="row-between">
+        <h3>Add an exercise</h3>
+        <button class="btn btn-ghost btn-icon" data-close aria-label="Close">${icon('x')}</button>
+      </div>
+      <div id="pickHost"></div>
+      <button class="btn btn-ghost btn-block" data-close>Done</button>
+    </div>`;
+
+  const close = () => { dlg.close(); dlg.remove(); };
+  dlg.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', close));
+  dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
+
+  document.body.append(dlg);
+  dlg.showModal();
+
+  const cat = mountCatalog(dlg.querySelector('#pickHost'), {
+    profile: store.data.profile,
+    equipment: store.data.profile.equipment,
+    limits: store.data.profile.limits,
+    compact: true,
+    onPick: ex => { onPick(ex); toast(`${ex.name} added`, 'ok'); },
+  });
+  cat.focus();
 }

@@ -9,15 +9,24 @@ const VIZ = ['var(--viz-1)', 'var(--viz-2)', 'var(--viz-3)', 'var(--viz-4)', 'va
 
 /**
  * Sparkline / area chart.
+ *
  * @param {{date:string,value:number}[]} series
+ * @param {object} [opts]
+ * @param {string} [opts.color] any CSS colour — a token, so it follows the palette
+ * @param {{start:number,end:number}} [opts.trend] a straight line drawn under the
+ *        series, for showing a regression through noisy data like bodyweight
  */
-export function lineChart(series, { height = 160, label = 'Trend', fmt = v => v } = {}) {
+export function lineChart(series, {
+  height = 160, label = 'Trend', fmt = v => v, color = 'var(--ember)', trend = null,
+} = {}) {
   const pts = series.filter(p => Number.isFinite(p.value));
   if (pts.length < 2) return emptyChart(height, 'Not enough data yet');
 
   const W = 600, H = height, pad = { t: 12, r: 8, b: 22, l: 8 };
   const values = pts.map(p => p.value);
-  const min = Math.min(...values), max = Math.max(...values);
+  // The trend line has to be inside the drawn range or it clips at the edge.
+  const bounds = trend ? [...values, trend.start, trend.end] : values;
+  const min = Math.min(...bounds), max = Math.max(...bounds);
   const span = max - min || 1;
   const x = i => pad.l + (i / (pts.length - 1)) * (W - pad.l - pad.r);
   const y = v => pad.t + (1 - (v - min) / span) * (H - pad.t - pad.b);
@@ -27,18 +36,26 @@ export function lineChart(series, { height = 160, label = 'Trend', fmt = v => v 
   const last = pts.at(-1);
   const gid = `g${Math.random().toString(36).slice(2, 8)}`;
 
+  const trendPath = trend
+    ? `<line x1="${x(0).toFixed(1)}" y1="${y(trend.start).toFixed(1)}"
+        x2="${x(pts.length - 1).toFixed(1)}" y2="${y(trend.end).toFixed(1)}"
+        stroke="var(--text-3)" stroke-width="1.4" stroke-dasharray="5 5"
+        vector-effect="non-scaling-stroke"><title>Trend</title></line>`
+    : '';
+
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
     aria-label="${esc(label)}: ${esc(fmt(min))} to ${esc(fmt(max))}, latest ${esc(fmt(last.value))}"
     style="width:100%;height:${H}px;overflow:visible">
     <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="var(--ember)" stop-opacity=".28"/>
-      <stop offset="1" stop-color="var(--ember)" stop-opacity="0"/>
+      <stop offset="0" stop-color="${esc(color)}" stop-opacity=".28"/>
+      <stop offset="1" stop-color="${esc(color)}" stop-opacity="0"/>
     </linearGradient></defs>
     <path d="${area}" fill="url(#${gid})"/>
-    <path d="${line}" fill="none" stroke="var(--ember)" stroke-width="2.2"
+    ${trendPath}
+    <path d="${line}" fill="none" stroke="${esc(color)}" stroke-width="2.2"
       stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
     <circle cx="${x(pts.length - 1).toFixed(1)}" cy="${y(last.value).toFixed(1)}" r="3.4"
-      fill="var(--ember)" stroke="var(--surf-1)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+      fill="${esc(color)}" stroke="var(--surf-1)" stroke-width="2" vector-effect="non-scaling-stroke"/>
   </svg>`;
 }
 

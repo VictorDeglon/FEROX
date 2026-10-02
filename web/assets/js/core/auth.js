@@ -1,18 +1,29 @@
 /**
  * Authentication.
  *
- * Two paths, one session shape:
- *   Google  — Google Identity Services issues an ID token (a JWT). In static
- *             mode we read the public claims for display only. When an API is
- *             configured the raw token is POSTed to /api/auth/google, which
- *             verifies it against Google's keys and returns a FEROX session
- *             token — that is the only path that is trusted for data access.
- *   Guest   — no credentials, data stays on the device.
+ * Three paths, one session shape:
+ *   Firebase — a real, verified account. Firebase checks the credential with
+ *              Google, hands back a uid, and that uid is what firestore.rules
+ *              keys the log on. The only path trusted for data access, and the
+ *              one used whenever `CONFIG.firebase` is filled in.
+ *   GSI      — Google Identity Services directly, for a static deployment with
+ *              no Firebase project behind it. The ID token is decoded **for
+ *              display only** and proves nothing; the data stays on the device,
+ *              so there is nothing for it to protect. `verified` is false and
+ *              `uid` is null, which is what keeps the data layer local.
+ *   Guest    — no credentials, no network, no account.
  *
- * The ID token's claims are NEVER treated as proof of anything in static mode;
- * they only fill in a name and avatar. All local data is device-local anyway.
+ * The guest path is deliberately NOT Firebase anonymous auth. Anonymous auth
+ * would mean a document in someone else's datacentre for a person who was
+ * promised the opposite, and it would quietly break "nothing is sent anywhere
+ * by default" — the first line of the pitch on the landing page. A guest here
+ * really is a guest.
+ *
+ * The public surface is unchanged from the pre-Firebase version, so pages did
+ * not have to learn anything new.
  */
-import { CONFIG, googleReady } from './config.js';
+import { CONFIG, googleReady, firebaseConfigured } from './config.js';
+import { boot } from './firebase.js';
 
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
 
@@ -36,14 +47,91 @@ function writeSession(session) {
   } catch { /* private mode — session lives for this tab only */ }
 }
 
+/** Firebase's user object, reduced to the five fields FEROX actually renders. */
+const toUser = u => ({
+  id: u.uid,
+  name: u.displayName ?? u.email ?? 'Athlete',
+  email: u.email ?? '',
+  picture: u.photoURL ?? '',
+  provider: 'google',
+});
+
 class Auth extends EventTarget {
   #session = readSession();
-  #gsiLoaded = null;
+  #watching = null;
 
   get session() { return this.#session; }
   get signedIn() { return !!this.#session; }
   get user() { return this.#session?.user ?? null; }
-  get token() { return this.#session?.token ?? null; }
+
+  /**
+   * The Firestore uid, or null for a guest. This is what the data layer keys
+   * on — `store.init({ uid })` picks the cloud adapter if and only if it is
+   * set, which makes "signed in" and "synced" the same condition by
+   * construction rather than by two code paths agreeing.
+   */
+  get uid() { return this.#session?.verified ? this.#session.user.id : null; }
+
+  /** Kept for callers that still want a bearer token (nothing in-tree does). */
+  async idToken() {
+    if (!this.uid) return null;
+    const { auth } = await boot();
+    return auth.currentUser ? auth.currentUser.getIdToken() : null;
+  }
+
+  /* ------------------------------------------------------ Google Identity */
+
+  #gsiLoaded = null;
+
+  /** Load the Google Identity Services script once. */
+  #loadGsi() {
+    this.#gsiLoaded ??= new Promise((resolve, reject) => {
+      if (window.google?.accounts?.id) return resolve(window.google);
+      const el = document.createElement('script');
+      el.src = GSI_SRC; el.async = true; el.defer = true;
+      el.onload = () => resolve(window.google);
+      el.onerror = () => reject(new Error('gsi-load-failed'));
+      document.head.append(el);
+    });
+    return this.#gsiLoaded;
+  }
+
+  /** Render Google's own button. Sign-in arrives via the change event. */
+  async #mountGsiButton(el, { theme = 'filled_black', size = 'large', text = 'continue_with' } = {}) {
+    const google = await this.#loadGsi();
+    google.accounts.id.initialize({
+      client_id: CONFIG.googleClientId,
+      callback: res => this.#handleGsiCredential(res.credential),
+      auto_select: false,
+      cancel_on_tap_outside: true,
+      use_fedcm_for_prompt: true,
+    });
+    google.accounts.id.renderButton(el, {
+      theme, size, text, shape: 'pill', logo_alignment: 'left', width: el.offsetWidth || 280,
+    });
+  }
+
+  /**
+   * A Google credential with no Firebase behind it.
+   *
+   * `verified: false` is the load-bearing part. It makes `uid` null, which
+   * makes `store.init` choose local storage — so the claims in this token can
+   * never be mistaken for permission to read anything.
+   */
+  #handleGsiCredential(credential) {
+    const c = decodeJwt(credential);
+    if (!c) return;
+    this.#set({
+      verified: false,
+      user: {
+        id: c.sub,
+        name: c.name ?? c.email ?? 'Athlete',
+        email: c.email ?? '',
+        picture: c.picture ?? '',
+        provider: 'google',
+      },
+    });
+  }
 
   #set(session) {
     this.#session = session;
@@ -56,84 +144,143 @@ class Auth extends EventTarget {
     return () => this.removeEventListener('change', fn);
   }
 
-  /** Load the Google Identity Services script once. */
-  loadGsi() {
-    if (!googleReady()) return Promise.reject(new Error('no-client-id'));
-    this.#gsiLoaded ??= new Promise((resolve, reject) => {
-      if (window.google?.accounts?.id) return resolve(window.google);
-      const s = document.createElement('script');
-      s.src = GSI_SRC; s.async = true; s.defer = true;
-      s.onload = () => resolve(window.google);
-      s.onerror = () => reject(new Error('gsi-load-failed'));
-      document.head.append(s);
-    });
-    return this.#gsiLoaded;
+  /** Sign-in failures that arrived without a click to attach them to. */
+  onAuthError(fn) {
+    if (this.lastError) fn(this.lastError);      // it may already have happened
+    this.addEventListener('autherror', e => fn(e.detail));
   }
 
   /**
-   * Render Google's official button into `el`.
-   * Resolves once the button is mounted; sign-in arrives via the change event.
+   * Re-attach to a Firebase session that outlived the page.
+   *
+   * The cached session in localStorage is what paints the header on the first
+   * frame; this confirms it against Firebase a moment later and corrects it if
+   * the account was signed out elsewhere. Resolves once Firebase has had its
+   * say, so callers can await a trustworthy answer before loading data.
    */
-  async mountGoogleButton(el, { theme = 'filled_black', size = 'large', text = 'continue_with' } = {}) {
-    const google = await this.loadGsi();
-    google.accounts.id.initialize({
-      client_id: CONFIG.googleClientId,
-      callback: res => this.#handleCredential(res.credential),
-      auto_select: false,
-      cancel_on_tap_outside: true,
-      use_fedcm_for_prompt: true,
-    });
-    google.accounts.id.renderButton(el, {
-      theme, size, text, shape: 'pill', logo_alignment: 'left', width: el.offsetWidth || 280,
+  restore() {
+    // Nothing to re-attach to on the GSI path: that session is whatever is in
+    // localStorage, and Google is not asked to confirm it because it was never
+    // treated as proof of anything in the first place.
+    if (!firebaseConfigured()) return Promise.resolve(this.#session);
+    this.#watching ??= boot().then(async ({ auth, fb }) => {
+      // A redirect sign-in reports *success* through onAuthStateChanged, but
+      // its failures are only ever delivered here. Without this, someone sent
+      // down the redirect path by a blocked popup lands back on the page with
+      // no account and no explanation.
+      try {
+        await fb.getRedirectResult(auth);
+      } catch (err) {
+        this.lastError = err?.code ?? 'auth/redirect-failed';
+        console.warn('[ferox] Google redirect sign-in failed:', this.lastError);
+        this.dispatchEvent(new CustomEvent('autherror', { detail: this.lastError }));
+      }
+
+      return new Promise(resolve => {
+      let settled = false;
+      fb.onAuthStateChanged(auth, user => {
+        if (user) this.#set({ user: toUser(user), verified: true });
+        // Only clear a session that claimed to be a real account. A guest is
+        // invisible to Firebase and must not be signed out by its silence.
+        else if (this.#session?.verified) this.#set(null);
+        if (!settled) { settled = true; resolve(this.#session); }
+      });
+      });
+    }).catch(() => this.#session);
+    return this.#watching;
+  }
+
+  /**
+   * Render the sign-in button into `el`.
+   *
+   * Firebase has no drop-in button of its own, so this is ours — which is
+   * actually an improvement: it inherits the app's palette instead of fighting
+   * it, and it matches `.btn-google`, already styled for the disabled state
+   * the unconfigured deployment shows.
+   */
+  async mountGoogleButton(el, { text = 'Continue with Google' } = {}) {
+    if (!googleReady()) throw new Error('google-not-configured');
+
+    // Google's own button on the GSI path — it carries its own sign-in flow,
+    // and swapping in ours would mean reimplementing One Tap for no gain.
+    if (!firebaseConfigured()) return this.#mountGsiButton(el);
+
+    await boot();                      // fail here, not on the first click
+
+    el.innerHTML = `<button class="btn btn-google btn-lg btn-block" type="button">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/></svg>
+      <span>${text}</span></button>`;
+
+    const btn = el.querySelector('button');
+    const say = msg => {
+      let note = el.querySelector('.auth-err');
+      if (!note) {
+        note = document.createElement('p');
+        note.className = 'auth-err dim';
+        note.style.cssText = 'font-size:.78rem;margin-top:8px';
+        el.append(note);
+      }
+      note.textContent = msg;
+    };
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await this.signInWithGoogle();
+      } catch (err) {
+        // An unhandled rejection here is a dead button: the athlete clicks,
+        // nothing happens, and nothing explains why. The first of these is
+        // the state a project is in before Google is switched on in the
+        // Firebase console, which is exactly when someone is most likely to
+        // be clicking it.
+        say({
+          'auth/operation-not-allowed': 'Google sign-in is not switched on for this deployment yet. The guest path works exactly the same.',
+          'auth/unauthorized-domain': 'This address is not on the project’s authorised domains, so Google refused the sign-in.',
+          'auth/network-request-failed': 'Could not reach Google. Check your connection, or carry on as a guest.',
+        }[err?.code] ?? 'Sign-in failed, and your log is untouched. Carry on as a guest and nothing is lost.');
+        console.warn('[ferox] sign-in failed:', err?.code ?? err);
+      } finally {
+        btn.disabled = false;
+      }
     });
   }
 
-  async #handleCredential(credential) {
-    const claims = decodeJwt(credential);
-    if (!claims) return;
-
-    const user = {
-      id: claims.sub,
-      name: claims.name ?? claims.email ?? 'Athlete',
-      email: claims.email ?? '',
-      picture: claims.picture ?? '',
-      provider: 'google',
-    };
-
-    // With an API configured, exchange the Google token for a verified session.
-    if (CONFIG.apiBase) {
-      try {
-        const res = await fetch(`${CONFIG.apiBase.replace(/\/$/, '')}/api/auth/google`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ credential }),
-        });
-        if (res.ok) {
-          const { token, user: verified } = await res.json();
-          this.#set({ token, user: verified ?? user, verified: true });
-          return;
-        }
-        console.warn('[ferox] server rejected the Google token; continuing unverified.');
-      } catch {
-        console.warn('[ferox] auth endpoint unreachable; continuing unverified.');
-      }
+  /**
+   * Popup first, redirect as the fallback.
+   *
+   * Popups are blocked often enough — iOS standalone PWAs block them outright,
+   * and FEROX ships a manifest — that treating a blocked popup as a failure
+   * would strand exactly the people most likely to have installed the app.
+   */
+  async signInWithGoogle() {
+    if (!firebaseConfigured()) throw new Error('gsi-uses-its-own-button');
+    const { auth, fb } = await boot();
+    const provider = new fb.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    try {
+      const { user } = await fb.signInWithPopup(auth, provider);
+      this.#set({ user: toUser(user), verified: true });
+      return this.#session;
+    } catch (err) {
+      const blocked = ['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment',
+        'auth/cancelled-popup-request'].includes(err?.code);
+      if (blocked) return fb.signInWithRedirect(auth, provider);   // never resolves; the page leaves
+      if (err?.code === 'auth/popup-closed-by-user') return null;  // they changed their mind
+      throw err;
     }
-
-    this.#set({ token: null, user, verified: false });
   }
 
   /** No-credential path: data stays on this device. */
   signInAsGuest(name = 'Guest') {
-    this.#set({ token: null, verified: false, user: { id: 'guest', name, email: '', picture: '', provider: 'guest' } });
+    this.#set({ verified: false, user: { id: 'guest', name, email: '', picture: '', provider: 'guest' } });
   }
 
   async signOut() {
-    if (googleReady() && window.google?.accounts?.id) {
-      try { window.google.accounts.id.disableAutoSelect(); } catch { /* ignore */ }
+    if (this.#session?.verified && firebaseConfigured()) {
+      try { const { auth, fb } = await boot(); await fb.signOut(auth); } catch { /* offline — local sign-out still stands */ }
     }
     this.#set(null);
   }
 }
 
 export const auth = new Auth();
-export { decodeJwt };

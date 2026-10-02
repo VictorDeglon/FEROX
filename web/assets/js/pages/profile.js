@@ -1,13 +1,32 @@
-/** Profile — account, goals, units and data control. */
-import { store } from '../core/store.js';
-import { bootPage, esc, num, toast, modal, confirmDialog, avatarHtml, initials } from '../core/ui.js';
+/** Profile — account, goals, units, themes, weigh-in cadence and data control. */
+import { store, RESET_CLEARS, RESET_KEEPS } from '../core/store.js';
+import {
+  bootPage, esc, num, toast, modal, confirmPhrase, avatarHtml,
+  applyMode, applyPalette, currentMode, currentPalette,
+} from '../core/ui.js';
 import { icon, googleGlyph } from '../core/icons.js';
 import { auth } from '../core/auth.js';
-import { CONFIG, googleReady } from '../core/config.js';
+import { googleReady } from '../core/config.js';
 import { MEDALS } from '../core/seed.js';
 import { makeAvatar, formatBytes, AVATAR_PX } from '../core/image.js';
 import { LEVELS, GOALS, ACTIVITY, EQUIPMENT, targetsFor } from '../core/profile.js';
 import { seasonById, currentSlot } from '../core/seasons.js';
+import { PALETTES, MODES, availablePalettes } from '../core/themes.js';
+import { unlockedEggs, EGG_COUNT } from '../core/eggs.js';
+import { measuredTargets } from '../core/plan.js';
+import { weighInFlow } from './_weighin.js';
+
+/** What someone has to type before the hard reset will run. */
+const RESET_PHRASE = 'RESET MY STATS';
+
+/** Weigh-in cadences offered in settings. `0` turns the prompt off. */
+const CADENCES = [
+  { days: 1, label: 'Every day',      hint: 'Most signal, most noise' },
+  { days: 2, label: 'Every other day', hint: 'The default — enough to see a trend' },
+  { days: 3, label: 'Every 3 days',   hint: 'Lighter touch' },
+  { days: 7, label: 'Weekly',         hint: 'Same day each week' },
+  { days: 0, label: 'Never ask',      hint: 'Log them yourself when you want' },
+];
 
 const view = await bootPage({ title: 'Profile' }, render);
 
@@ -75,17 +94,44 @@ function render(el) {
           </div>
         </div>
 
+        ${themeCard(d)}
+
         <div class="card card-pad-lg">
           <div class="card-head"><h3>Your data</h3></div>
           <p class="muted" style="font-size:.87rem">
-            FEROX is free and stores everything ${store.isRemote ? 'on your FEROX server' : 'in this browser'}.
+            FEROX is free and stores everything ${store.isCloud
+              ? 'in your Google account, so it follows you between devices'
+              : 'in this browser, on this device only'}.
             Export any time — it's plain JSON, yours to keep.</p>
           <div class="row wrap" style="gap:10px;margin-top:16px">
             <button class="btn btn-sm" id="exportBtn">${icon('download')}<span>Export JSON</span></button>
             <button class="btn btn-sm" id="importBtn">${icon('arrowUp')}<span>Import</span></button>
-            <button class="btn btn-sm" id="resetBtn" style="color:var(--bad)">${icon('trash')}<span>Reset data</span></button>
           </div>
           <input type="file" id="fileIn" accept="application/json" hidden>
+        </div>
+
+        <div class="card card-pad-lg zone-danger">
+          <div class="card-head"><h3>Start over</h3></div>
+          <p class="muted" style="font-size:.87rem">
+            Wipes every stat, medal and meal and puts you back at day one — while keeping
+            the things that are facts about you rather than scores: your measurements and
+            your training year.</p>
+          <div class="fate-grid" style="margin-top:14px">
+            <div>
+              <p class="eyebrow" style="color:var(--bad);margin-bottom:8px">Deleted</p>
+              <ul class="fate-list">${RESET_CLEARS
+                .map(i => `<li class="fate-gone">${icon('x')}<span>${esc(i)}</span></li>`).join('')}</ul>
+            </div>
+            <div>
+              <p class="eyebrow" style="color:var(--ok);margin-bottom:8px">Kept</p>
+              <ul class="fate-list">${RESET_KEEPS
+                .map(i => `<li class="fate-kept">${icon('check')}<span>${esc(i)}</span></li>`).join('')}</ul>
+            </div>
+          </div>
+          <div class="row wrap" style="gap:10px;margin-top:18px">
+            <button class="btn btn-sm btn-danger" id="resetBtn">${icon('trash')}<span>Full reset</span></button>
+            <button class="btn btn-sm btn-ghost" id="wipeBtn" style="color:var(--text-3)">Erase everything, including setup</button>
+          </div>
         </div>
       </div>
 
@@ -97,18 +143,18 @@ function render(el) {
                 <span class="chip chip-ok">${icon('check')}Google connected</span>
                 <p class="muted" style="font-size:.85rem">${esc(u.email || 'No email on this account')}</p>
                 ${auth.session?.verified
-                  ? `<p class="dim" style="font-size:.78rem">Verified by your FEROX server.</p>`
-                  : `<p class="dim" style="font-size:.78rem">Signed in for display only — no server is configured,
-                     so your data stays on this device.</p>`}
+                  ? `<p class="dim" style="font-size:.78rem">Your log syncs to this account.</p>`
+                  : `<p class="dim" style="font-size:.78rem">Signed in for display only — sync is not
+                     configured on this deployment, so your data stays on this device.</p>`}
                 <button class="btn btn-sm btn-block" id="signOut">${icon('logout')}<span>Sign out</span></button>
               </div>`
             : `<div class="stack" style="gap:12px">
                 <p class="muted" style="font-size:.86rem">You're using FEROX as a guest — no account,
                   nothing sent anywhere, and your whole log saved on this device. Sign in with Google
-                  only if you want a name and picture on your profile.</p>
+                  to sync it to your account and pick it up on your phone.</p>
                 <div id="gBtn"></div>
                 ${googleReady() ? '' : `<p class="dim" style="font-size:.76rem">
-                  Google Sign-In needs a client id — see <code>docs/google-oauth-setup.md</code>.</p>`}
+                  Sign-in needs a Firebase config — see <code>docs/firebase-setup.md</code>.</p>`}
               </div>`}
         </div>
 
@@ -124,16 +170,48 @@ function render(el) {
             </div>
             <div class="field">
               <label for="height">Height (cm)</label>
-              <input class="input" id="height" type="number" min="100" max="250" value="${p.heightCm}">
+              <input class="input" id="height" type="number" min="100" max="250" value="${p.heightCm ?? ''}">
             </div>
           </div>
         </div>
 
         <div class="card card-pad-lg">
+          <div class="card-head"><h3>Weigh-ins</h3></div>
+          <div class="stack" style="gap:14px">
+            <div class="field">
+              <label for="cadence">Ask me to weigh in</label>
+              <select class="select" id="cadence">
+                ${CADENCES.map(c => `<option value="${c.days}"${d.settings.weighInEvery === c.days ? ' selected' : ''}>
+                  ${esc(c.label)}</option>`).join('')}
+              </select>
+              <p class="dim" style="font-size:.76rem">
+                ${esc(CADENCES.find(c => c.days === d.settings.weighInEvery)?.hint ?? '')}</p>
+            </div>
+            <div class="field">
+              <label for="cpEvery">Checkpoint every</label>
+              <select class="select" id="cpEvery">
+                ${[7, 14, 21, 28].map(n => `<option value="${n}"${d.settings.checkpointEvery === n ? ' selected' : ''}>
+                  ${n} days</option>`).join('')}
+              </select>
+              <p class="dim" style="font-size:.76rem">
+                How often FEROX sets a weight goal and checks the plan against reality.
+                A fortnight is long enough for water weight to average out.</p>
+            </div>
+            <div class="row-between">
+              <span class="muted" style="font-size:.85rem">Weigh-ins logged</span>
+              <span class="num dim" style="font-size:.85rem">${num(d.checkIns.length)}</span>
+            </div>
+            <button class="btn btn-sm btn-block" id="weighNow">${icon('scale')}<span>Log one now</span></button>
+          </div>
+        </div>
+
+        ${measuredCard()}
+
+        <div class="card card-pad-lg">
           <div class="card-head"><h3>Storage</h3></div>
           <div class="stack" style="gap:8px;font-size:.85rem">
             <div class="row-between"><span class="muted">Mode</span>
-              <span class="chip ${store.isRemote ? 'chip-ok' : ''}">${store.isRemote ? 'FEROX API' : 'This device'}</span></div>
+              <span class="chip ${store.isCloud ? 'chip-ok' : ''}">${store.isCloud ? 'Your Google account' : 'This device'}</span></div>
             <div class="row-between"><span class="muted">Member since</span><span class="dim">${esc(p.joined)}</span></div>
             <div class="row-between"><span class="muted">Records</span>
               <span class="num dim">${num(d.sessions.length + d.meals.length + d.weights.length)}</span></div>
@@ -191,16 +269,162 @@ function render(el) {
     fileIn.value = '';
   });
 
+  /*
+   * The hard reset. A typed phrase rather than a click, because there is no
+   * undo and, on a static deployment, no server-side copy to restore from.
+   */
   el.querySelector('#resetBtn').addEventListener('click', async () => {
-    if (await confirmDialog('Reset all data?',
-      'Every session, meal and weigh-in is deleted and replaced with fresh demo data. Export first if you want a copy.')) {
-      await store.reset({ demo: true });
-      toast('Data reset');
-    }
+    const ok = await confirmPhrase({
+      title: 'Full reset',
+      phrase: RESET_PHRASE,
+      message: 'Every stat, medal and meal goes. Your measurements and your training year stay. '
+             + 'This cannot be undone.',
+      clears: RESET_CLEARS,
+      keeps: RESET_KEEPS,
+      submit: 'Reset everything',
+    });
+    if (!ok) return;
+    await store.resetProgress();
+    toast('Reset. Day one.', 'ok');
+  });
+
+  /* The genuine wipe, including onboarding — a separate, quieter button. */
+  el.querySelector('#wipeBtn').addEventListener('click', async () => {
+    const ok = await confirmPhrase({
+      title: 'Erase everything',
+      phrase: 'ERASE EVERYTHING',
+      message: 'This empties the account completely and sends you back through setup. '
+             + 'Nothing at all is kept.',
+      clears: [...RESET_CLEARS, 'Weigh-ins and measurements', 'Seasons and training year',
+               'Friends', 'Your profile and setup answers'],
+      keeps: ['Nothing'],
+      submit: 'Erase it all',
+    });
+    if (!ok) return;
+    await store.reset();
+    toast('Erased');
+    location.href = 'onboarding.html';
+  });
+
+  /* ---- theme ---- */
+
+  el.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
+    applyMode(b.dataset.mode);
+    render(el);
+  }));
+  el.querySelectorAll('[data-palette]').forEach(b => b.addEventListener('click', async () => {
+    applyPalette(b.dataset.palette);
+    // Persist to the document as well as the local cache, so a signed-in
+    // account keeps its colours on the next device it opens.
+    await store.updateSettings({ palette: b.dataset.palette });
+    render(el);
+  }));
+
+  /* ---- weigh-in cadence ---- */
+
+  el.querySelector('#cadence').addEventListener('change', async e => {
+    const days = +e.target.value;
+    await store.updateSettings({ weighInEvery: days });
+    toast(days ? `Asking every ${days === 1 ? 'day' : `${days} days`}` : 'Weigh-in prompts off', 'ok');
+    render(el);
+  });
+  el.querySelector('#cpEvery').addEventListener('change', async e => {
+    await store.updateSettings({ checkpointEvery: +e.target.value });
+    toast(`Checkpoints every ${e.target.value} days`, 'ok');
+  });
+  el.querySelector('#weighNow').addEventListener('click', () => weighInFlow());
+
+  el.querySelector('#useMeasured')?.addEventListener('click', async () => {
+    const m = measuredTargets();
+    if (!m?.measured) return;
+    await store.updateProfile({
+      goals: {
+        ...store.data.profile.goals,
+        kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat,
+      },
+    });
+    toast(`Targets rebuilt from your own data`, 'ok');
   });
 
   const gBtn = el.querySelector('#gBtn');
   if (gBtn) mountGoogle(gBtn);
+}
+
+/**
+ * The Theme panel.
+ *
+ * Hidden until the phrase is found, and honest about it when it is not: an
+ * easter egg nobody can tell exists is just dead code, so the locked state
+ * says there is something to find without saying what. It does not reveal the
+ * phrase, the console, or which of the two ways in there are.
+ */
+function themeCard(d) {
+  const unlocked = availablePalettes(d.unlocks);
+  const found = unlockedEggs().length;
+
+  if (unlocked.length <= 1) {
+    return `<div class="card card-pad-lg" id="themes">
+      <div class="card-head"><h3>Appearance</h3>
+        <span class="chip dim">${found} / ${EGG_COUNT} found</span></div>
+      <div class="row wrap" style="gap:10px">
+        ${MODES.map(m => `<button class="btn btn-sm" data-mode="${m}"
+          aria-pressed="${currentMode() === m}">${icon(m === 'light' ? 'sun' : 'moon')}<span>${m === 'light' ? 'Light' : 'Dark'}</span></button>`).join('')}
+      </div>
+      <p class="dim" style="font-size:.8rem;margin-top:14px">
+        There are more colours in here than these. FEROX is not going to tell you
+        where they are — but somebody knows, and the app is listening.</p>
+    </div>`;
+  }
+
+  return `<div class="card card-pad-lg" id="themes">
+    <div class="card-head">
+      <h3>Theme</h3>
+      <span class="chip chip-ember">${icon('sparkle')}unlocked</span>
+    </div>
+
+    <p class="eyebrow" style="margin-bottom:10px">Mode</p>
+    <div class="row wrap" style="gap:10px;margin-bottom:20px">
+      ${MODES.map(m => `<button class="btn btn-sm" data-mode="${m}"
+        aria-pressed="${currentMode() === m}">${icon(m === 'light' ? 'sun' : 'moon')}<span>${m === 'light' ? 'Light' : 'Dark'}</span></button>`).join('')}
+    </div>
+
+    <p class="eyebrow" style="margin-bottom:10px">Palette</p>
+    <div class="theme-grid">
+      ${unlocked.map(t => `<button class="theme-card" data-palette="${esc(t.id)}"
+        aria-pressed="${currentPalette() === t.id}">
+        <span class="theme-swatch">${t.swatch.map(c => `<i style="background:${esc(c)}"></i>`).join('')}</span>
+        <span><strong>${esc(t.name)}</strong><small>${esc(t.hint)}</small></span>
+      </button>`).join('')}
+    </div>
+    <p class="dim" style="font-size:.78rem;margin-top:14px">
+      Every palette has its own dark and light mode, and Ember is always here to go back to.
+      ${found < EGG_COUNT ? `${EGG_COUNT - found} more to find.` : 'You have found all of them.'}</p>
+  </div>`;
+}
+
+/**
+ * What the log says the targets should be, next to what they are.
+ *
+ * Shown as a suggestion with a button, never applied silently — someone who set
+ * their calories deliberately should not find them quietly rewritten because a
+ * fortnight of data disagreed.
+ */
+function measuredCard() {
+  const measured = measuredTargets();
+  if (!measured?.measured || Math.abs(measured.delta) < 50) return '';
+
+  return `<div class="card card-pad-lg">
+    <div class="card-head"><h3>Your data disagrees</h3><span class="chip chip-warn">suggestion</span></div>
+    <p class="muted" style="font-size:.86rem">
+      Measured from your own weigh-ins and food log, maintenance looks like
+      ${num(measured.maintenance)} kcal. For this season that puts your target at
+      ${num(measured.kcal)} kcal — ${measured.delta > 0 ? '+' : ''}${num(measured.delta)} on what you
+      have set now.</p>
+    <button class="btn btn-sm btn-primary btn-block" id="useMeasured" style="margin-top:14px">
+      ${icon('check')}<span>Use ${num(measured.kcal)} kcal</span></button>
+    <p class="dim" style="font-size:.75rem;margin-top:10px">
+      Nothing changes until you press this.</p>
+  </div>`;
 }
 
 /** Render Google's button, or an honest disabled state plus the guest path. */

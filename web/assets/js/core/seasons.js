@@ -72,6 +72,7 @@ export const SEASONS = [
     watch: ['Sprint times', 'Jump height', 'Body fat trend', 'Conditioning minutes'],
     split: { Strength: 40, Conditioning: 45, Mobility: 15 },
     kcalShift: -0.05, proteinPerKg: 2.0, repRange: [4, 8], restSec: 120,
+    mode: 'power',
   },
   {
     id: 'winter-fire',
@@ -92,6 +93,7 @@ export const SEASONS = [
     watch: ['Bodyweight trend', 'Total volume', 'Top-set load', 'Sleep'],
     split: { Strength: 70, Conditioning: 15, Mobility: 15 },
     kcalShift: 0.12, proteinPerKg: 2.0, repRange: [6, 12], restSec: 150,
+    mode: 'hypertrophy',
   },
   {
     id: 'ferox-recomp',
@@ -112,6 +114,7 @@ export const SEASONS = [
     watch: ['Bodyweight trend', 'Total volume', 'Protein hit rate'],
     split: { Strength: 55, Conditioning: 25, Mobility: 20 },
     kcalShift: 0, proteinPerKg: 2.0, repRange: [6, 10], restSec: 120,
+    mode: 'balanced',
   },
   {
     id: 'clean-bulk',
@@ -132,6 +135,7 @@ export const SEASONS = [
     watch: ['Weekly weight gain', 'Strength progression', 'Waist measurement'],
     split: { Strength: 75, Conditioning: 10, Mobility: 15 },
     kcalShift: 0.18, proteinPerKg: 1.9, repRange: [5, 10], restSec: 180,
+    mode: 'hypertrophy',
   },
   {
     id: 'cut',
@@ -152,6 +156,7 @@ export const SEASONS = [
     watch: ['Weekly weight loss', 'Strength retention', 'Hunger and sleep'],
     split: { Strength: 55, Conditioning: 35, Mobility: 10 },
     kcalShift: -0.20, proteinPerKg: 2.3, repRange: [6, 12], restSec: 90,
+    mode: 'metabolic',
   },
   {
     id: 'bridge',
@@ -172,6 +177,7 @@ export const SEASONS = [
     watch: ['Recovery', 'Bodyweight stability', 'Session quality'],
     split: { Strength: 45, Conditioning: 30, Mobility: 25 },
     kcalShift: 0, proteinPerKg: 1.8, repRange: [8, 12], restSec: 90,
+    mode: 'balanced',
   },
   {
     id: 'foundation',
@@ -192,6 +198,7 @@ export const SEASONS = [
     watch: ['Sessions per week', 'Consistency', 'Load progression'],
     split: { Strength: 60, Conditioning: 20, Mobility: 20 },
     kcalShift: 0, proteinPerKg: 1.8, repRange: [8, 12], restSec: 90,
+    mode: 'balanced',
   },
   {
     id: 'iron-base',
@@ -212,6 +219,7 @@ export const SEASONS = [
     watch: ['Estimated 1RM', 'Top-set load', 'Bodyweight'],
     split: { Strength: 80, Conditioning: 8, Mobility: 12 },
     kcalShift: 0.08, proteinPerKg: 1.9, repRange: [1, 5], restSec: 240,
+    mode: 'strength',
   },
   {
     id: 'hybrid',
@@ -232,6 +240,7 @@ export const SEASONS = [
     watch: ['Weekly distance', 'Top-set load', 'Resting heart rate'],
     split: { Strength: 45, Conditioning: 45, Mobility: 10 },
     kcalShift: 0, proteinPerKg: 2.0, repRange: [5, 8], restSec: 150,
+    mode: 'balanced',
   },
   {
     id: 'tempo',
@@ -252,6 +261,7 @@ export const SEASONS = [
     watch: ['Weekly distance', 'Threshold pace', 'Resting heart rate'],
     split: { Strength: 25, Conditioning: 62, Mobility: 13 },
     kcalShift: 0, proteinPerKg: 1.8, repRange: [8, 12], restSec: 90,
+    mode: 'endurance',
   },
   {
     id: 'peak',
@@ -272,6 +282,7 @@ export const SEASONS = [
     watch: ['Recovery', 'Session quality', 'Sleep'],
     split: { Strength: 55, Conditioning: 25, Mobility: 20 },
     kcalShift: 0, proteinPerKg: 2.0, repRange: [3, 6], restSec: 180,
+    mode: 'strength',
   },
   {
     id: 'reset',
@@ -292,6 +303,7 @@ export const SEASONS = [
     watch: ['Pain-free range', 'Session count', 'Sleep'],
     split: { Strength: 30, Conditioning: 25, Mobility: 45 },
     kcalShift: 0, proteinPerKg: 1.8, repRange: [10, 15], restSec: 60,
+    mode: 'quality',
   },
 ];
 

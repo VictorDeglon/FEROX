@@ -3,7 +3,7 @@ import { icon, brandMark, googleGlyph, social, SOCIALS } from '../core/icons.js'
 import { auth } from '../core/auth.js';
 import { googleReady } from '../core/config.js';
 import { esc, toggleTheme, revealOnScroll, firstImage, modal } from '../core/ui.js';
-import { store } from '../core/store.js';
+import { store, Store } from '../core/store.js';
 import { ring } from '../core/chart.js';
 import { MEDALS } from '../core/seed.js';
 
@@ -52,14 +52,40 @@ document.getElementById('heroBars').innerHTML = [
   </div>`).join('');
 
 /* features --------------------------------------------------------------- */
+/*
+ * Led by what actually drives growth rather than by what the app stores.
+ * "Progress charted over 14, 30 or 90 days" is a feature list written from the
+ * inside; "it tells you what weight to put on the bar" is what someone deciding
+ * whether to open it needs to hear.
+ */
 const FEATURES = [
-  ['calendar', 'FEROX Seasons', 'Eight structured seasons across four blocks of the year. Greek Fire through the summer, Winter Fire through the winter, or FEROX Recomp any month you like.'],
-  ['dumbbell', 'Workout logging', 'Six ready-made routines or build your own. Reps, weight and volume captured set by set, in seconds between working sets.'],
-  ['apple', 'Diet tracker', 'A food database, four meals a day and a live macro ring. See exactly how far you are from your calorie and protein targets.'],
-  ['chart', 'Progress that reads clearly', 'Volume, bodyweight, calories and training focus, charted over 14, 30 or 90 days. No vanity metrics.'],
-  ['target', 'Personal records', 'Every lift tracked for its best set, with an estimated one-rep max and a trend line you can actually follow.'],
-  ['medal', 'Medals worth having', 'Twelve of them, earned from streaks, tonnage, records and hitting your macros. They unlock themselves.'],
-  ['users', 'Friends and leaderboard', 'Compare streaks, sessions, volume and medals with the people you train with. Being fourth is a great reason to train tomorrow.'],
+  ['scale', 'It tells you the weight',
+    'Not a blank box. FEROX works out a starting weight for every lift from your bodyweight, '
+    + 'age and experience — deliberately a little light — then adds to it every time you hit '
+    + 'your reps. That is progressive overload, done for you.'],
+  ['chart', 'It finds your weak points',
+    'Every muscle group is measured against what you should be lifting. The ones ahead earn '
+    + 'heavier weight; the ones behind earn an extra set. Your plan reshapes itself around '
+    + 'whatever is actually lagging.'],
+  ['dumbbell', 'A thousand exercises, sorted',
+    'Barbell, dumbbell, machine, cable, bands, bodyweight, plyometrics. Search any of them and '
+    + 'see exactly which muscles it works on a body map. Tell FEROX what kit you have and it '
+    + 'only ever programmes what you can actually do.'],
+  ['apple', 'Food without the faff',
+    'Four hundred foods, a plate builder for meals you make yourself, and it quietly learns your '
+    + 'regulars — eat the same thing twice and it offers to save it for one-tap logging.'],
+  ['flame', 'It works around you',
+    'Bad knee, no gym, four days a week, feeling wrecked today? Say so and the session changes. '
+    + 'Training at 60% on a bad day beats the session you skip.'],
+  ['calendar', 'Seasons, not one setting',
+    'Twelve training blocks across the year. A strength block trains you in heavy triples; a cut '
+    + 'trains you in high-rep supersets. The split and the exercises change with it, not just a number.'],
+  ['target', 'Targets that adapt',
+    'FEROX measures your actual metabolism from your weigh-ins and your food log, rather than '
+    + 'trusting an equation, and adjusts your calories to what your body is really doing.'],
+  ['shield', 'No account, no ads, no upsell',
+    'Everything above is free and switched on. There is no paid tier to unlock, because there is '
+    + 'nothing to sell you.'],
 ];
 document.getElementById('featureGrid').innerHTML = FEATURES.map(([ico, title, body]) => `
   <article class="feature card card-pad-lg reveal">
@@ -68,18 +94,24 @@ document.getElementById('featureGrid').innerHTML = FEATURES.map(([ico, title, bo
     <p>${esc(body)}</p>
   </article>`).join('');
 
-/* steps ------------------------------------------------------------------ */
-const STEPS = [
-  ['Open it', 'No sign-up wall, no email, no credit card. The app loads and works immediately — as a guest if you like.'],
-  ['Log the work', 'Pick a routine or add exercises by hand. Food goes in from a searchable database, one tap for the things you eat daily.'],
-  ['Watch it compound', 'Streaks build, records fall, medals unlock. Everything exports as JSON whenever you want it.'],
+/* what other apps charge for --------------------------------------------- */
+const PAYWALLED = [
+  'A plan built for your body',
+  'Knowing what weight to lift',
+  'Automatic progressive overload',
+  'The full exercise library',
+  'Macro and calorie tracking',
+  'Custom meals and recipes',
+  'Progress charts and history',
+  'Exporting your own data',
+  'Removing the ads',
 ];
-document.getElementById('stepGrid').innerHTML = STEPS.map(([title, body], i) => `
-  <article class="card card-pad-lg stack reveal" style="gap:12px">
-    <span style="font-family:var(--font-display);font-weight:900;font-size:2.4rem;line-height:1;color:var(--ember);opacity:.35">0${i + 1}</span>
-    <h3>${esc(title)}</h3>
-    <p class="muted" style="font-size:.9rem">${esc(body)}</p>
-  </article>`).join('');
+document.getElementById('priceTable').innerHTML = PAYWALLED.map(t => `
+  <div class="price-row">
+    <span class="price-them">£9.99/mo</span>
+    <span class="price-what">${esc(t)}</span>
+    <span class="price-us">Free</span>
+  </div>`).join('');
 
 /* medals ----------------------------------------------------------------- */
 document.getElementById('medalGrid').innerHTML = MEDALS.slice(0, 8).map((m, i) => `
@@ -93,9 +125,10 @@ document.getElementById('medalGrid').innerHTML = MEDALS.slice(0, 8).map((m, i) =
 
 /* free list -------------------------------------------------------------- */
 document.getElementById('freeList').innerHTML = [
+  'Every feature, switched on, with no account',
   'Works offline once loaded — the gym basement is fine',
-  'Nothing is sent anywhere by default',
-  'Export and import your whole log as JSON',
+  'Nothing is sent anywhere unless you sign in — guests stay offline',
+  'Your whole log exports as plain JSON in one tap',
   'Open source, so you can check all of the above',
 ].map(t => `<li class="row" style="gap:10px;align-items:flex-start">
   <span style="color:var(--ok);width:17px;flex:none;margin-top:2px">${icon('check')}</span>
@@ -110,10 +143,22 @@ if (googleReady()) {
     host.innerHTML = fallbackButton();
     note.textContent = 'Google Sign-In could not load — the guest path works exactly the same.';
   });
-  note.textContent = 'Signing in only adds your name and picture. Your training data stays on this device.';
+  note.textContent = 'Signing in syncs your log to your Google account, so it follows you between devices. '
+    + 'Stay a guest and nothing leaves this one.';
+  // Someone who signed in last time should not be asked to do it again.
+  auth.restore();
+
+  // A redirect sign-in that failed comes back as a fresh page load with no
+  // account and nothing to show for it, so say what happened.
+  auth.onAuthError(code => {
+    note.textContent = {
+      'auth/operation-not-allowed': 'Google sign-in is not switched on for this deployment yet — carry on as a guest, it is the same app.',
+      'auth/unauthorized-domain': 'This address is not on the project’s authorised domains, so Google refused the sign-in.',
+    }[code] ?? 'That sign-in did not complete. Nothing was lost — try again, or carry on as a guest.';
+  });
 } else {
   host.innerHTML = fallbackButton();
-  note.innerHTML = 'Google Sign-In is not configured on this deployment yet. See <code>docs/google-oauth-setup.md</code> to switch it on.';
+  note.innerHTML = 'Google Sign-In is not configured on this deployment yet. See <code>docs/firebase-setup.md</code> to switch it on.';
 }
 
 function fallbackButton() {
@@ -121,15 +166,30 @@ function fallbackButton() {
 }
 
 /**
- * Signing in when this device already holds a log. Until there is a server to
- * sync with, "import" means one real question: keep what is here, or start
- * over? Asking beats silently doing either.
+ * Signing in when this device already holds a log.
+ *
+ * Three cases, and only one of them is a question worth asking:
+ *   the account already has a log  — it wins, silently. Someone signing back
+ *                                    in wants their training, not a dialogue.
+ *   the account is new, device empty — straight to onboarding.
+ *   the account is new, device has a log — ask. Carrying it up or throwing it
+ *                                    away are both destructive in one
+ *                                    direction, so neither is a safe default.
  */
 auth.onChange(async session => {
-  if (!session) return;
-  await store.init({ token: auth.token });
+  if (!session?.verified) return;        // guests never reach this branch
 
-  if (!store.hasLocalData()) {
+  // Read the device before `init` runs: on a new account it adopts whatever is
+  // here, after which "did this device have a log?" is no longer answerable.
+  const deviceHadLog = Store.deviceHasData();
+
+  await store.init({ uid: auth.uid });
+
+  if (!store.freshAccount) {
+    location.href = store.data.onboarded ? 'dashboard.html' : 'onboarding.html';
+    return;
+  }
+  if (!deviceHadLog) {
     location.href = 'onboarding.html';
     return;
   }
@@ -143,12 +203,14 @@ auth.onChange(async session => {
         ${store.data.meals.length} meal${store.data.meals.length === 1 ? '' : 's'} logged
         and ${store.data.weights.length} weigh-in${store.data.weights.length === 1 ? '' : 's'}.</p>
       <p class="muted" style="font-size:var(--step--1);margin-top:10px">
-        Keep it and it carries over to your account. Start fresh and it is deleted from this device —
+        Keep it and it is copied up to your account, on every device you sign in to.
+        Start fresh and it is deleted from this device and not uploaded —
         export it first from your profile if you are not sure.</p>`,
   });
 
   if (keep === null) {
     await store.reset();
+    store.clearLocal();     // or signing out would hand the log straight back
     location.href = 'onboarding.html';
   } else {
     await store.updateProfile({
@@ -179,7 +241,10 @@ firstImage(['assets/brand/mascot.webp', 'assets/brand/mascot.png', 'assets/brand
     const host = document.getElementById('ctaMark');
     host.className = 'mascot glow-aura';
     host.style.width = '';
-    host.innerHTML = `<img src="${src}" alt="" width="320" height="320" loading="lazy" decoding="async">`;
+    // 320×400, not 320×320: the art is 4:5, and reserving a square box makes
+    // the page jump when the real proportions arrive.
+    host.innerHTML = `<img class="mascot-art" src="${src}" alt="" width="320" height="400"
+      loading="lazy" decoding="async">`;
   });
 
 /* motion ----------------------------------------------------------------- */

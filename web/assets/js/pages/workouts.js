@@ -3,10 +3,12 @@ import { store } from '../core/store.js';
 import { bootPage, esc, num, relDate, toast, confirmDialog } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { ROUTINES, EXERCISES, MUSCLES, byId, exerciseName } from '../core/seed.js';
+import { mountCatalog } from './_catalog.js';
 import { logSessionFlow } from './_log.js';
 import { askReadiness, readinessBar } from './_readiness.js';
-import { buildWeek, weeklyFrequency, templateFor } from '../core/split.js';
+import { buildWeek, weeklyFrequency, templateForSeason, modeFor, VOLUME } from '../core/split.js';
 import { seasonById, currentSlot } from '../core/seasons.js';
+import { strengthProfile, strengthRanking, predicted1RM, observed1RM, isLoaded } from '../core/strength.js';
 import { seasonIcon } from '../core/season-icons.js';
 
 const empty = msg => `<div class="card"><div class="empty">${icon('dumbbell')}<strong>${esc(msg)}</strong></div></div>`;
@@ -30,7 +32,7 @@ function render(el) {
         <button role="tab" aria-pressed="${tab === 'history'}" data-tab="history">History</button>
         <button role="tab" aria-pressed="${tab === 'library'}" data-tab="library">Exercises</button>
       </div>
-      ${tab === 'routines' || tab === 'library' ? `<div class="seg">
+      ${tab === 'routines' ? `<div class="seg">
         ${['All', ...MUSCLES].map(m => `<button data-filter="${esc(m)}" aria-pressed="${filter === m}">${esc(m)}</button>`).join('')}
       </div>` : ''}
     </div>
@@ -54,11 +56,17 @@ function plan(pane, root) {
   const slot = currentSlot(store.data.layout ?? 4);
   const season = seasonById(store.data.seasons?.[slot.id]) ?? seasonById('ferox-recomp');
   const score = store.readinessFor() ?? 7;
-  const week = buildWeek(p, season, score, store.weekIndex());
+  const week = buildWeek(p, season, score, store.weekIndex(), store.data);
+  // `buildWeek` has already capped the week against the landmarks; `week.audit`
+  // is only what survived that, which is why it is worth showing.
+
   const freq = weeklyFrequency(week);
   const main = ['Chest', 'Back', 'Legs', 'Shoulders'].filter(m => freq[m]);
-  const tpl = templateFor(p.daysPerWeek);
+  const tpl = templateForSeason(p.daysPerWeek, season);
+  const mode = modeFor(season);
   const wk = store.weekIndex();
+  const trends = strengthProfile(store.data, p);
+  const rank = strengthRanking(trends);
 
   pane.className = 'stack';
   pane.innerHTML = `<div id="readySlot"></div>
@@ -73,9 +81,26 @@ function plan(pane, root) {
         </div>
         ${main.length ? `<span class="chip chip-ok">each muscle ${Math.min(...main.map(m => freq[m]))}–${Math.max(...main.map(m => freq[m]))}× a week</span>` : ''}
       </div>
+
+      <div class="row wrap" style="gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+        <span class="chip chip-ember">${esc(mode.label)}</span>
+        <span class="chip">${mode.setsMain} sets on the main lifts</span>
+        <span class="chip">${mode.setsAcc} on accessories</span>
+        ${mode.intensity < 1 ? `<span class="chip">bar at ${Math.round(mode.intensity * 100)}%</span>` : ''}
+      </div>
+      <p class="muted" style="font-size:var(--step--1);margin-top:10px">${esc(mode.blurb)}</p>
+
       ${wk < 3 ? `<p class="dim" style="font-size:var(--step--2);margin-top:12px">
         Week ${wk + 1} runs ${Math.round((({0:1.15,1:1.08,2:1.03}[wk] ?? 1) - 1) * 100)}% above your steady state — it settles by week four.</p>` : ''}
+
+      ${week.deload ? `<p class="dim" style="font-size:var(--step--2);margin-top:12px">
+        <strong>Deload week.</strong> Half the sets, near-full weight. The bar stays heavy because that
+        is what holds your strength; the volume comes off because that is what is making you tired.</p>` : ''}
     </div>
+
+    ${volumeCard(week)}
+
+    ${trendCard(rank, p)}
 
     <div class="grid grid-2">
       ${week.days.map((d, i) => `
@@ -95,8 +120,11 @@ function plan(pane, root) {
               <tr>
                 <td><strong>${esc(e.name)}</strong>${e.finisher ? ' <span class="chip chip-warn">finisher</span>' : ''}
                   <br><small class="dim">${esc(e.muscle)} · ${e.rest}s rest</small></td>
-                <td style="text-align:right" class="num"><strong>${e.sets} × ${e.reps}</strong>
-                  <br><small class="dim">${e.rir} in reserve</small></td>
+                <td style="text-align:right" class="num">
+                  <strong>${e.sets} × ${e.reps}${e.load ? ` @ ${e.load.kg} kg` : ''}</strong>
+                  <br><small class="dim">${e.load
+                    ? `${e.rir} in reserve · ${loadSource(e.load)}`
+                    : `${e.rir} in reserve`}</small></td>
               </tr>`).join('')}</tbody>
           </table></div>
           <button class="btn btn-primary btn-sm btn-block" data-start-day="${i}">${icon('bolt')}<span>Start this session</span></button>
@@ -104,11 +132,67 @@ function plan(pane, root) {
     </div>
 
     <p class="dim" style="font-size:var(--step--2)">
-      Built from your setup answers and ${esc(season.name)}. Change anything in your profile and this rebuilds.</p>`;
+      Built from your setup answers, ${esc(season.name)} and everything you have logged.
+      Weights start deliberately low and climb as you hit your reps — it costs thirty seconds
+      to add a plate and a great deal more to come back from a session that was too heavy.</p>`;
 
   pane.querySelector('#readySlot').replaceWith(readinessBar(() => render(root)));
   pane.querySelectorAll('[data-start-day]').forEach(b =>
     b.addEventListener('click', () => logSessionFlow(null, week.days[+b.dataset.startDay])));
+}
+
+/** Where a prescribed weight came from, in three words. */
+function loadSource(load) {
+  return { logged: 'from your log', muscle: 'from your trend', estimate: 'first guess' }[load.source] ?? '';
+}
+
+/**
+ * What the log says about each muscle group, against what was predicted.
+ *
+ * This is the card that explains why the weights move. It is deliberately blunt
+ * about sample size — one logged lift is an anecdote, and a plan that swung a
+ * whole muscle group's prescription on one anecdote would deserve to be ignored.
+ */
+function trendCard(rank, p) {
+  if (!rank.rows.length) {
+    return `<div class="card card-pad-lg">
+      <div class="card-head"><h3>Strength profile</h3><span class="chip">nothing logged</span></div>
+      <p class="muted" style="font-size:var(--step--1)">
+        Every weight below is a first guess from your bodyweight, age and experience — and a
+        deliberately light one. Log a few sessions and FEROX starts using what you actually
+        lifted instead, muscle group by muscle group.</p>
+    </div>`;
+  }
+
+  return `<div class="card card-pad-lg">
+    <div class="card-head">
+      <h3>Strength profile</h3>
+      ${rank.strongest ? `<span class="chip chip-ok">${esc(rank.strongest.muscle)} leads</span>` : ''}
+    </div>
+    <div class="stack" style="gap:11px">
+      ${rank.rows.map(r => {
+        // 1.0 is the prediction; the bar runs 0.6–1.4 so being on track sits
+        // halfway across rather than looking like a failure.
+        const pctAcross = Math.max(4, Math.min(100, ((r.ratio - 0.6) / 0.8) * 100));
+        const tone = r.ratio >= 1.08 ? 'var(--ok)' : r.ratio > 0.92 ? 'var(--ember)' : 'var(--warn)';
+        return `<div>
+          <div class="row-between" style="margin-bottom:5px">
+            <span style="font-size:var(--step--1);font-weight:600">${esc(r.muscle)}</span>
+            <span class="dim num" style="font-size:var(--step--2)">
+              ${esc(r.label)} · ${Math.round(r.ratio * 100)}% of estimate
+              ${r.confident ? '' : ' · <span title="One lift is not a trend">1 lift</span>'}
+            </span>
+          </div>
+          <div class="bar"><i style="width:${pctAcross.toFixed(0)}%;background:${tone}"></i></div>
+        </div>`;
+      }).join('')}
+    </div>
+    <p class="dim" style="font-size:var(--step--2);margin-top:12px">
+      Measured against what the standards predict for ${p.weightKg ? `${p.weightKg} kg` : 'your bodyweight'},
+      age ${p.age ?? '—'} and your stated experience. A group that is ahead earns heavier weight;
+      one that is behind earns an extra set, which is the other way round on purpose.
+    </p>
+  </div>`;
 }
 
 function routines(pane) {
@@ -207,27 +291,73 @@ function history(pane) {
   }));
 }
 
+/**
+ * The exercise catalog.
+ *
+ * A thousand movements, searchable by name, muscle or kit, each one opening a
+ * body map that says what it works. The old version was a flat table of fifty
+ * rows, which stopped being viable the moment the catalogue grew.
+ */
 function library(pane) {
-  const list = EXERCISES.filter(e => filter === 'All' || e.muscle === filter);
-  const prs = new Map(store.personalRecords().map(p => [p.ex, p]));
   pane.className = 'stack';
   pane.innerHTML = `<div class="card card-pad-lg">
-    <div class="card-head"><h3>${list.length} exercises</h3></div>
-    <div class="table-wrap"><table class="data">
-      <thead><tr><th>Exercise</th><th>Muscle</th><th>Type</th><th style="text-align:right">Your best</th></tr></thead>
-      <tbody>${list.map(e => {
-        const pr = prs.get(e.id);
-        return `<tr>
-          <td><strong>${esc(e.name)}</strong></td>
-          <td class="dim">${esc(e.muscle)}</td>
-          <td><span class="chip">${esc(e.kind)}</span></td>
-          <td style="text-align:right" class="num">${pr
-            ? (e.kind === 'strength' && e.unit === 'kg'
-                ? `${pr.weight} kg × ${pr.reps}`
-                : `${pr.reps} ${e.unit === 'sec' ? 'sec' : e.unit === 'km' ? 'km' : 'reps'}`)
-            : '<span class="dim">—</span>'}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>
+    <div class="card-head">
+      <h3>Exercise catalog</h3>
+      <span class="chip num">${EXERCISES.length.toLocaleString()}</span>
+    </div>
+    <div id="catHost"></div>
+  </div>`;
+
+  mountCatalog(pane.querySelector('#catHost'), {
+    profile: store.data.profile,
+    equipment: store.data.profile.equipment,
+    limits: store.data.profile.limits,
+  });
+}
+
+/**
+ * Weekly sets per muscle group, against the landmarks.
+ *
+ * This is the number that decides whether a week grows anything, and until now
+ * it was invisible — the app prescribed sets without ever showing their total.
+ * Each bar is drawn against MRV so the shape of the week reads at a glance:
+ * short bars are maintenance, the shaded band is the productive range.
+ */
+function volumeCard(week) {
+  const rows = Object.entries(week.volume);
+  if (!rows.length) return '';
+
+  const flagged = Object.fromEntries(week.audit.map(a => [a.group, a.status]));
+
+  return `<div class="card card-pad-lg">
+    <div class="card-head">
+      <h3>This week's volume</h3>
+      <span class="dim" style="font-size:var(--step--2)">hard sets per muscle</span>
+    </div>
+    <p class="muted" style="font-size:var(--step--2);margin-bottom:14px">
+      Counting each set once for the muscle doing the work and a half for the ones helping.
+      Ten to twenty is where almost all the growth happens.</p>
+
+    <div class="stack" style="gap:9px">
+      ${rows.map(([group, sets]) => {
+        const l = VOLUME[group];
+        const pct = Math.min(100, (sets / l.mrv) * 100);
+        const lo = (l.mev / l.mrv) * 100;
+        const hi = 100;
+        const state = flagged[group];
+        const colour = state === 'high' ? 'var(--warn)' : state === 'low' ? 'var(--dim)' : 'var(--ok)';
+        return `<div>
+          <div class="row-between" style="font-size:var(--step--2)">
+            <span class="muted">${esc(group)}</span>
+            <span class="num ${state ? 'dim' : ''}">${sets}${state === 'low' ? ' · maintaining' : state === 'high' ? ' · over' : ''}</span>
+          </div>
+          <div class="bar" style="margin-top:4px;position:relative">
+            <span style="position:absolute;left:${lo}%;right:${100 - hi}%;top:0;bottom:0;
+                         background:var(--surf-3);border-radius:inherit" aria-hidden="true"></span>
+            <i style="width:${pct}%;background:${colour};position:relative"></i>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
   </div>`;
 }

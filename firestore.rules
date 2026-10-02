@@ -1,0 +1,51 @@
+rules_version = '2';
+
+/**
+ * FEROX Firestore rules.
+ *
+ * The web API key in web/assets/js/core/config.js is public and authorises
+ * nothing. This file is the entire access control story, so it is written to
+ * be read: one collection, one owner, no exceptions and no admin back door.
+ *
+ * Test a change before deploying it:
+ *   firebase emulators:exec --only firestore "npm test"
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * An athlete's whole log, one document, keyed by their Firebase uid.
+     *
+     * `request.auth.uid == uid` is doing all the work: a signed-in person can
+     * reach their own document and there is no query that returns anyone
+     * else's, because the only path to a document is through its owner's uid.
+     */
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // Writes carry two cheap shape checks on top of ownership. Neither is
+      // a security boundary — the owner may already write anything they like
+      // to their own log — they just stop a malformed or runaway document
+      // from being stored at all, so the client never reads back something it
+      // cannot migrate. Rules cannot measure a document's size in bytes; the
+      // 1 MiB ceiling is enforced client-side in FirestoreAdapter.save, where
+      // it can fail with a sentence instead of INVALID_ARGUMENT.
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.data.version is int
+                   && request.resource.data.keys().size() < 60;
+
+      // The log is one document. Nothing nests under it, and saying so stops
+      // a future subcollection from inheriting these rules by accident.
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    // Anything not named above is closed. This is the default, but a reader
+    // should not have to know that to be sure of it.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

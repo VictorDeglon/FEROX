@@ -2,14 +2,17 @@
  * FEROX data layer.
  *
  * One public surface (`store`) backed by one of two adapters:
- *   LocalAdapter  — localStorage. Default. Works on GitHub Pages, offline, no server.
- *   RemoteAdapter — the FEROX API, used when CONFIG.apiBase is set and reachable.
+ *   LocalAdapter     — localStorage. The guest path, and the fallback whenever
+ *                      the cloud is unreachable. Offline, no account, no server.
+ *   FirestoreAdapter — one document per athlete at `users/{uid}`, used when
+ *                      someone is signed in with Google.
  *
- * Pages never touch an adapter directly, so moving a user's data to a server
- * (or later, to a native app's storage) is a change in exactly one place.
+ * Pages never touch an adapter directly, so this file is the only place that
+ * knows where an athlete's log physically lives.
  */
-import { CONFIG } from './config.js';
-import { EXERCISES, MEDALS, byId } from './seed.js';
+import { CONFIG, firebaseConfigured } from './config.js';
+import { boot } from './firebase.js';
+import { EXERCISES, FOODS, MEDALS, byId } from './seed.js';
 
 export const todayISO = (d = new Date()) => {
   const x = new Date(d);
@@ -19,10 +22,22 @@ export const todayISO = (d = new Date()) => {
 export const daysAgoISO = n => todayISO(new Date(Date.now() - n * 864e5));
 const uid = () => (crypto.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
+/** Default settings. Split out so `#migrate` can fill gaps field by field. */
+export const DEFAULT_SETTINGS = {
+  /** Days between weigh-in prompts. 0 turns the prompt off entirely. */
+  weighInEvery: 2,
+  /** Days between the checkpoints that re-read the plan against reality. */
+  checkpointEvery: 14,
+  /** Colour palette id — see core/themes.js. Unlocked ones only. */
+  palette: 'ember',
+  /** The last date the weigh-in prompt was shown, so it asks once a day at most. */
+  lastWeighInPrompt: '',
+};
+
 /** Shape of a fresh account. */
 function emptyData() {
   return {
-    version: 2,
+    version: 3,
     profile: {
       name: '', email: '', picture: '', handle: '',
       unit: 'kg', joined: todayISO(),
@@ -38,10 +53,35 @@ function emptyData() {
     readiness: {},           // { [date]: 1-10 }
     sessions: [],   // { id, date, name, durationMin, entries:[{ex,sets:[{reps,weight}]}], note }
     meals: [],      // { id, date, meal, foodId, name, qty, kcal, p, c, f }
-    weights: [],    // { date, kg }
+    weights: [],    // { date, kg } — the canonical bodyweight series
     medals: [],     // earned medal ids
     friends: [],
     seasons: {},    // { [slotId]: seasonId } — the training year, see core/seasons.js
+
+    /**
+     * Body composition over time. A check-in always carries a weight (which is
+     * mirrored into `weights`, so every existing chart keeps working) and may
+     * carry any of the optional measures. Sparse by design — someone with a
+     * tape measure and no calipers should not be blocked from logging.
+     */
+    checkIns: [],   // { id, date, weightKg, bodyFat, leanKg, waistCm, restingHr, sleepH, energy, note }
+
+    customFoods: [],// { id, name, per, kcal, p, c, f, custom: true }
+
+    /**
+     * Combinations worth remembering.
+     *
+     * `savedMeals` are the ones that have a name and can be logged in one tap.
+     * `mealPatterns` is the quiet half: every combination logged together is
+     * fingerprinted and counted, and once the same one shows up twice FEROX
+     * offers to save it. Nobody wants to be asked to name their breakfast the
+     * first time they eat it.
+     */
+    savedMeals: [],   // { id, name, meal, items:[{foodId,qty}], kcal,p,c,f, uses, lastUsed }
+    mealPatterns: {}, // { [fingerprint]: { items, count, lastSeen, dismissed } }
+    water: {},      // { [date]: millilitres }
+    settings: { ...DEFAULT_SETTINGS },
+    unlocks: [],    // easter-egg ids — see core/eggs.js
   };
 }
 
@@ -65,22 +105,58 @@ class LocalAdapter {
   async save(data) { return this.write(data); }
 }
 
-class RemoteAdapter {
-  constructor(base, token) { this.base = base.replace(/\/$/, ''); this.token = token; }
-  async #req(path, init = {}) {
-    const res = await fetch(this.base + path, {
-      ...init,
-      headers: {
-        'content-type': 'application/json',
-        ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
-        ...init.headers,
-      },
-    });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    return res.json();
+/**
+ * The whole log as one Firestore document at `users/{uid}`.
+ *
+ * One document, not a collection per list, for the same reason the server
+ * before it kept one JSON file: the client is offline-first and writes the
+ * entire log on every change, so a single atomic write means there is no merge
+ * protocol to get wrong and no half-saved state to read back.
+ *
+ * The cost of that choice is Firestore's 1 MiB per-document ceiling. That is
+ * a long way off — roughly a decade of daily meals and five sessions a week —
+ * but it is a real ceiling rather than a theoretical one, so `save` checks and
+ * says so plainly instead of letting Firestore fail with `INVALID_ARGUMENT`.
+ * The fix, when someone eventually hits it, is to move `sessions` and `meals`
+ * into subcollections; everything else in this file stays as it is.
+ */
+class FirestoreAdapter {
+  /** Firestore's own hard limit, less headroom for field names and overhead. */
+  static LIMIT = 1_048_576 - 24_576;
+
+  constructor(uid) { this.uid = uid; }
+
+  async #doc() {
+    const { db, fs } = await boot();
+    return { fs, ref: fs.doc(db, 'users', this.uid) };
   }
-  async load() { return this.#req('/api/data'); }
-  async save(data) { await this.#req('/api/data', { method: 'PUT', body: JSON.stringify(data) }); return true; }
+
+  /** @returns the stored document, or null when this account has none yet. */
+  async load() {
+    const { fs, ref } = await this.#doc();
+    const snap = await fs.getDoc(ref);
+    if (!snap.exists()) return null;
+    // `updatedAt` is the server's, not the app's. Dropping it here keeps it
+    // out of the in-memory document — otherwise it round-trips as a Firestore
+    // Timestamp, gets JSON-stringified into {seconds,nanoseconds} on the next
+    // save, and quietly becomes a field the app neither sets nor understands.
+    const { updatedAt, ...data } = snap.data();
+    return data;
+  }
+
+  async save(data) {
+    const { fs, ref } = await this.#doc();
+    // Firestore rejects `undefined` outright; a JSON round-trip drops those
+    // keys and flattens anything exotic the app may have picked up on the way.
+    const clean = JSON.parse(JSON.stringify(data));
+    const bytes = new TextEncoder().encode(JSON.stringify(clean)).length;
+    if (bytes > FirestoreAdapter.LIMIT) {
+      throw new Error(`This log is ${(bytes / 1048576).toFixed(2)} MB, over the 1 MB `
+        + 'per-account limit. Export it from your profile and trim old sessions.');
+    }
+    await fs.setDoc(ref, { ...clean, updatedAt: fs.serverTimestamp() });
+    return true;
+  }
 }
 
 /* ------------------------------------------------------------------- store */
@@ -89,26 +165,61 @@ class Store extends EventTarget {
   #data = emptyData();
   #adapter = new LocalAdapter(CONFIG.storageKey);
   #ready = false;
+  #fresh = false;
 
   get data() { return this.#data; }
   get ready() { return this.#ready; }
-  get isRemote() { return this.#adapter instanceof RemoteAdapter; }
+  /**
+   * True when `init` found no document for this account and had to make one.
+   * The landing page uses it to tell "first sign-in ever" apart from "signing
+   * back in", which are the same event to Firebase and very different to a
+   * person with two years of training in the cloud.
+   */
+  get freshAccount() { return this.#fresh; }
 
-  /** Pick an adapter, load, backfill demo data for first-time guests. */
-  async init({ token } = {}) {
-    if (CONFIG.apiBase) {
-      const remote = new RemoteAdapter(CONFIG.apiBase, token);
+  /** True when writes are going to Firestore rather than this device. */
+  get isCloud() { return this.#adapter instanceof FirestoreAdapter; }
+
+  /**
+   * Pick an adapter and load.
+   *
+   * `uid` is the Firebase uid of a verified account, or null for a guest —
+   * see core/auth.js. Passing it is the single switch between "this device"
+   * and "this account", so the two can never disagree.
+   *
+   * A cloud load that fails falls back to local storage rather than throwing.
+   * Someone mid-workout with no signal should see their log, not an error, and
+   * Firestore's own cache means this only fires on a genuinely cold failure.
+   */
+  async init({ uid = null } = {}) {
+    if (uid && firebaseConfigured()) {
       try {
-        this.#data = this.#migrate(await remote.load());
-        this.#adapter = remote;
+        const cloud = new FirestoreAdapter(uid);
+        const doc = await cloud.load();
+        this.#adapter = cloud;
+
+        this.#fresh = !doc;
+
+        if (doc) {
+          this.#data = this.#migrate(doc);
+        } else {
+          // First sight of this account. Whatever is on this device is the
+          // best starting point there is — and landing.js has already asked
+          // whether to keep it, so an empty local store means they said no.
+          const local = new LocalAdapter(CONFIG.storageKey).read();
+          this.#data = local ? this.#migrate(local) : emptyData();
+          await cloud.save(this.#data);
+        }
+
         this.#ready = true;
         await this.#backfillMedals();
         this.#emit();
         return this;
-      } catch {
-        console.info('[ferox] API unreachable — falling back to local storage.');
+      } catch (err) {
+        console.info('[ferox] cloud log unavailable — using this device.', err?.message ?? err);
       }
     }
+
     const local = new LocalAdapter(CONFIG.storageKey);
     const existing = local.read();
     this.#adapter = local;
@@ -120,6 +231,25 @@ class Store extends EventTarget {
     await this.#backfillMedals();
     this.#emit();
     return this;
+  }
+
+  /**
+   * Forget this device's copy after it has been taken up into an account.
+   *
+   * Called once, by the landing page, when someone signs in and chooses to
+   * start fresh. Leaving a stale log behind would mean signing out drops them
+   * back into data they thought they had discarded.
+   */
+  clearLocal() {
+    try { localStorage.removeItem(CONFIG.storageKey); return true; }
+    catch { return false; }
+  }
+
+  /** Does this *device* hold a log, regardless of what the account holds? */
+  static deviceHasData() {
+    const raw = new LocalAdapter(CONFIG.storageKey).read();
+    if (!raw) return false;
+    return Boolean(raw.onboarded || raw.sessions?.length || raw.meals?.length || raw.weights?.length);
   }
 
   /**
@@ -136,16 +266,27 @@ class Store extends EventTarget {
     const base = emptyData();
     const d = { ...base, ...raw, profile: { ...base.profile, ...(raw.profile ?? {}) } };
     d.profile.goals = { ...base.profile.goals, ...(raw.profile?.goals ?? {}) };
-    for (const k of ['sessions', 'meals', 'weights', 'medals', 'friends']) {
+    for (const k of ['sessions', 'meals', 'weights', 'medals', 'friends', 'checkIns',
+      'customFoods', 'unlocks', 'savedMeals']) {
       if (!Array.isArray(d[k])) d[k] = [];
     }
-    if (!d.seasons || typeof d.seasons !== 'object' || Array.isArray(d.seasons)) d.seasons = {};
-    if (!d.readiness || typeof d.readiness !== 'object' || Array.isArray(d.readiness)) d.readiness = {};
+    for (const k of ['seasons', 'readiness', 'water', 'mealPatterns']) {
+      if (!d[k] || typeof d[k] !== 'object' || Array.isArray(d[k])) d[k] = {};
+    }
     if (!Array.isArray(d.profile.limits)) d.profile.limits = [];
+    d.settings = { ...base.settings, ...(raw.settings ?? {}) };
     d.onboarded = Boolean(raw.onboarded);
     d.layout = [3, 4, 6].includes(raw.layout) ? raw.layout : 4;
     d.planStart = raw.planStart ?? base.planStart;
-    d.version = 2;
+
+    // v2 kept only a bodyweight series. Promote it so the body-composition
+    // charts have a history on the first load after upgrading, rather than
+    // showing an empty card to someone with two years of weigh-ins.
+    if (!d.checkIns.length && d.weights.length) {
+      d.checkIns = d.weights.map(w => ({ id: uid(), date: w.date, weightKg: w.kg }));
+    }
+    d.checkIns.sort((a, b) => a.date.localeCompare(b.date));
+    d.version = 3;
     return d;
   }
 
@@ -187,6 +328,182 @@ class Store extends EventTarget {
       d.weights.sort((a, b) => a.date.localeCompare(b.date));
     });
   }
+
+  /**
+   * A body-composition check-in.
+   *
+   * The weight is mirrored into `weights` because that series is what every
+   * existing chart, medal and trend reads — a check-in is a richer way to write
+   * the same fact, not a second source of truth for bodyweight.
+   */
+  logCheckIn(entry) {
+    const date = entry.date ?? todayISO();
+    const clean = { id: uid(), ...entry, date };
+    for (const k of ['weightKg', 'bodyFat', 'leanKg', 'waistCm', 'restingHr', 'sleepH', 'energy']) {
+      const v = Number(clean[k]);
+      if (!Number.isFinite(v) || v <= 0) delete clean[k];
+      else clean[k] = v;
+    }
+    return this.commit(d => {
+      const at = d.checkIns.findIndex(c => c.date === date);
+      if (at >= 0) clean.id = d.checkIns[at].id, d.checkIns[at] = clean;
+      else d.checkIns.push(clean);
+      d.checkIns.sort((a, b) => a.date.localeCompare(b.date));
+
+      if (clean.weightKg) {
+        const hit = d.weights.find(w => w.date === date);
+        if (hit) hit.kg = clean.weightKg; else d.weights.push({ date, kg: clean.weightKg });
+        d.weights.sort((a, b) => a.date.localeCompare(b.date));
+        d.profile.weightKg = clean.weightKg;       // the plan reads from the profile
+      }
+      if (clean.heightCm > 0) d.profile.heightCm = clean.heightCm;
+      d.settings.lastWeighInPrompt = todayISO();
+    }).then(() => clean);
+  }
+
+  removeCheckIn(id) {
+    return this.commit(d => {
+      const gone = d.checkIns.find(c => c.id === id);
+      d.checkIns = d.checkIns.filter(c => c.id !== id);
+      if (gone && !d.checkIns.some(c => c.date === gone.date)) {
+        d.weights = d.weights.filter(w => w.date !== gone.date);
+      }
+    });
+  }
+
+  /** The most recent value of one measure, or null if it was never recorded. */
+  latestMeasure(key) {
+    for (let i = this.#data.checkIns.length - 1; i >= 0; i--) {
+      const v = this.#data.checkIns[i][key];
+      if (Number.isFinite(v) && v > 0) return { value: v, date: this.#data.checkIns[i].date };
+    }
+    return null;
+  }
+
+  /** One measure as a date-ordered series, skipping the check-ins that omit it. */
+  measureSeries(key) {
+    return this.#data.checkIns
+      .filter(c => Number.isFinite(c[key]) && c[key] > 0)
+      .map(c => ({ date: c.date, value: c[key] }));
+  }
+
+  /** Whether the weigh-in prompt is due, and why. */
+  weighInDue(today = todayISO()) {
+    const every = this.#data.settings.weighInEvery;
+    if (!every) return { due: false, reason: 'off' };
+    if (this.#data.settings.lastWeighInPrompt === today) return { due: false, reason: 'asked today' };
+    const last = this.#data.checkIns.at(-1);
+    if (!last) return { due: true, reason: 'first' };
+    const days = Math.floor((Date.parse(today) - Date.parse(last.date)) / 864e5);
+    return { due: days >= every, reason: `${days} day${days === 1 ? '' : 's'} since the last one`, days };
+  }
+
+  /** Remember the prompt was shown, so a dismissal is not re-asked all day. */
+  noteWeighInPrompt(date = todayISO()) {
+    return this.commit(d => { d.settings.lastWeighInPrompt = date; });
+  }
+
+  /* ---- saved meals ---- */
+
+  /**
+   * A fingerprint for a combination of foods.
+   *
+   * Sorted ids and nothing else: the same plate with the portions nudged is
+   * still the same plate, and someone who always has two eggs one day and
+   * three the next should not be offered two different saved breakfasts.
+   */
+  static fingerprint(items) {
+    return [...new Set(items.map(i => i.foodId).filter(Boolean))].sort().join('+');
+  }
+
+  /**
+   * Note that these foods were logged together.
+   *
+   * Called after a meal is logged. Nothing is saved and nothing is asked on the
+   * first sighting — it just counts. `suggestibleMeal()` is what decides when
+   * the count is high enough to be worth mentioning.
+   */
+  noteMealPattern(items, meal) {
+    const key = Store.fingerprint(items);
+    if (!key || items.length < 2) return Promise.resolve(null);
+    return this.commit(d => {
+      const hit = d.mealPatterns[key] ?? { items: [], count: 0, dismissed: false };
+      d.mealPatterns[key] = {
+        ...hit,
+        meal,
+        items: items.map(i => ({ foodId: i.foodId, qty: i.qty })),
+        count: hit.count + 1,
+        lastSeen: todayISO(),
+      };
+    }).then(() => key);
+  }
+
+  /**
+   * A combination logged more than once, not yet saved and not yet declined.
+   * This is the whole point of the quiet counting.
+   */
+  suggestibleMeal(minCount = 2) {
+    const saved = new Set(this.#data.savedMeals.map(m => Store.fingerprint(m.items)));
+    for (const [key, pat] of Object.entries(this.#data.mealPatterns)) {
+      if (pat.dismissed || pat.count < minCount || saved.has(key)) continue;
+      return { key, ...pat };
+    }
+    return null;
+  }
+
+  /** "Don't ask me about this one again." */
+  dismissMealPattern(key) {
+    return this.commit(d => { if (d.mealPatterns[key]) d.mealPatterns[key].dismissed = true; });
+  }
+
+  saveMeal(meal) {
+    const rec = { id: `sm-${uid().slice(0, 8)}`, uses: 0, lastUsed: null, ...meal };
+    return this.commit(d => { d.savedMeals.unshift(rec); }).then(() => rec);
+  }
+  removeSavedMeal(id) {
+    return this.commit(d => { d.savedMeals = d.savedMeals.filter(m => m.id !== id); });
+  }
+  noteMealUsed(id) {
+    return this.commit(d => {
+      const m = d.savedMeals.find(x => x.id === id);
+      if (m) { m.uses = (m.uses ?? 0) + 1; m.lastUsed = todayISO(); }
+      // Most-used first, so the thing you eat every morning stays at the top.
+      d.savedMeals.sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0));
+    });
+  }
+
+  addCustomFood(food) {
+    const rec = { id: `cf-${uid().slice(0, 8)}`, per: '1 serving', custom: true, ...food };
+    return this.commit(d => { d.customFoods.unshift(rec); }).then(() => rec);
+  }
+  removeCustomFood(id) {
+    return this.commit(d => { d.customFoods = d.customFoods.filter(f => f.id !== id); });
+  }
+  /** The seed catalogue plus anything this athlete added, custom first. */
+  foodCatalogue() { return [...this.#data.customFoods, ...FOODS]; }
+
+  logWater(ml, date = todayISO()) {
+    return this.commit(d => {
+      d.water[date] = Math.max(0, Math.round((d.water[date] ?? 0) + ml));
+      if (!d.water[date]) delete d.water[date];
+    });
+  }
+  setWater(ml, date = todayISO()) {
+    return this.commit(d => { d.water[date] = Math.max(0, Math.round(ml)); });
+  }
+  waterFor(date = todayISO()) { return this.#data.water[date] ?? 0; }
+
+  updateSettings(patch) {
+    return this.commit(d => { Object.assign(d.settings, patch); });
+  }
+
+  /** Record an easter-egg unlock. Returns false if it was already held. */
+  async unlock(id) {
+    if (this.#data.unlocks.includes(id)) return false;
+    await this.commit(d => { d.unlocks.push(id); });
+    return true;
+  }
+  hasUnlock(id) { return this.#data.unlocks.includes(id); }
 
   updateProfile(patch) {
     return this.commit(d => {
@@ -234,11 +551,42 @@ class Store extends EventTarget {
   addFriend(friend) { return this.commit(d => { d.friends.push({ id: uid(), ...friend }); }); }
   removeFriend(id) { return this.commit(d => { d.friends = d.friends.filter(f => f.id !== id); }); }
 
-  /** Wipe everything back to a brand-new account. */
+  /** Wipe everything back to a brand-new account, onboarding included. */
   async reset() {
     this.#data = emptyData();
     await this.#adapter.save(this.#data);
     this.#emit();
+  }
+
+  /**
+   * What `resetProgress` throws away, and what it keeps.
+   *
+   * The split is the point: numbers you *earned* go, numbers you *are* stay.
+   * Sessions, meals, medals and the plan clock are a record of performance, and
+   * someone starting over wants those at zero. Body measurements and the
+   * training year are facts about the athlete and the calendar — deleting them
+   * would force a fresh onboarding and throw away the only history the
+   * metabolism estimate has to work from.
+   *
+   * `RESET_CLEARS` and `RESET_KEEPS` below are exported so the confirmation
+   * dialog lists exactly what this method does, rather than a prose summary
+   * that can quietly drift out of step with the code.
+   */
+  async resetProgress() {
+    return this.commit(d => {
+      d.sessions = [];
+      d.meals = [];
+      d.medals = [];
+      d.readiness = {};
+      d.water = {};
+      d.customFoods = [];
+      d.savedMeals = [];
+      d.mealPatterns = {};
+      // The plan is a fresh start too: week one of the ramp begins today, and
+      // the checkpoint schedule is measured from the same date.
+      d.planStart = todayISO();
+      d.settings.lastWeighInPrompt = '';
+    });
   }
 
   /** Does this device hold anything worth offering to import on sign-in? */
@@ -378,6 +726,29 @@ class Store extends EventTarget {
     return Object.entries(tally).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
   }
 
+  /** Water logged per day over the last `n` days, oldest first. */
+  waterSeries(n = 14) {
+    const out = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const date = daysAgoISO(i);
+      out.push({ date, value: this.#data.water[date] ?? 0 });
+    }
+    return out;
+  }
+
+  /** Macro totals per day over the last `n` days, oldest first. */
+  macroSeries(n = 14) {
+    const out = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const date = daysAgoISO(i);
+      out.push({ date, ...this.macrosFor(date) });
+    }
+    return out;
+  }
+
+  /** Every date with at least one meal on it. */
+  loggedFoodDays() { return new Set(this.#data.meals.map(m => m.date)); }
+
   export() { return JSON.stringify(this.#data, null, 2); }
 
   async import(json) {
@@ -389,4 +760,22 @@ class Store extends EventTarget {
 }
 
 export const store = new Store();
-export { emptyData, uid };
+export { emptyData, uid, Store };
+
+/** What `store.resetProgress()` deletes, in the order the dialog lists them. */
+export const RESET_CLEARS = [
+  'Sessions and training volume',
+  'Every meal and macro logged',
+  'Medals and personal records',
+  'Daily readiness scores',
+  'Water intake',
+  'Custom foods and saved meals',
+];
+/** ...and what survives it. */
+export const RESET_KEEPS = [
+  'Weigh-ins and body measurements',
+  'Height, age, sex and units',
+  'Your training year and seasons',
+  'Friends',
+  'Themes, unlocks and settings',
+];

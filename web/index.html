@@ -52,23 +52,23 @@
     <div class="section-inner hero-grid">
       <div class="stack reveal" style="gap:20px">
         <span class="chip chip-ember" style="width:max-content">
-          <i class="chip-dot"></i>Free forever · no account required
+          <i class="chip-dot"></i>Free forever · no account, no card, no catch
         </span>
-        <h1>Train.<br>Track.<br><span class="ember-text">Progress.</span></h1>
+        <h1>Build muscle.<br>Keep the<br><span class="ember-text">money.</span></h1>
         <p class="lede">
-          Log your sessions and your meals, follow a structured season, and watch the
-          numbers move. Streaks, personal records and medals — with none of the
-          subscription nonsense.
+          A real training plan that tells you which exercises, how many sets, and
+          <strong>exactly what weight to put on the bar</strong> — then makes it
+          heavier as you get stronger. Free, forever, for everyone.
         </p>
         <div class="hero-cta">
-          <a class="btn btn-primary btn-lg glow-cta" href="#start">Start training</a>
-          <a class="btn btn-lg" href="#features">See what's inside</a>
+          <a class="btn btn-primary btn-lg glow-cta" href="#start">Start free</a>
+          <a class="btn btn-lg" href="#how">How it works</a>
         </div>
         <div class="hero-proof">
-          <div class="stat"><span class="stat-value" style="font-size:1.5rem">20+</span><span class="stat-label">Exercises</span></div>
-          <div class="stat"><span class="stat-value" style="font-size:1.5rem">12</span><span class="stat-label">Medals</span></div>
-          <div class="stat"><span class="stat-value" style="font-size:1.5rem">0</span><span class="stat-label">Ads or fees</span></div>
-          <div class="stat"><span class="stat-value" style="font-size:1.5rem">100%</span><span class="stat-label">Your data</span></div>
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">£0</span><span class="stat-label">Forever</span></div>
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">30s</span><span class="stat-label">To your first session</span></div>
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">1,000</span><span class="stat-label">Exercises</span></div>
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">0</span><span class="stat-label">Ads or upsells</span></div>
         </div>
       </div>
 
@@ -105,9 +105,10 @@
   <section class="section" id="features" style="background:var(--surf-1);border-block:1px solid var(--line)">
     <div class="section-inner">
       <div class="section-head reveal">
-        <p class="eyebrow">Everything in one place</p>
-        <h2>The whole picture, not just the gym.</h2>
-        <p class="muted">Most trackers do one thing and charge you for the rest. FEROX does the lot, for nothing.</p>
+        <p class="eyebrow">What actually grows muscle</p>
+        <h2>Three things. FEROX does all three for you.</h2>
+        <p class="muted">Progressive overload, enough volume, enough protein. Everything else is detail —
+          and most apps charge you a tenner a month for the detail while getting the three wrong.</p>
       </div>
       <div class="grid grid-3" id="featureGrid"></div>
     </div>
@@ -118,7 +119,9 @@
     <div class="section-inner">
       <div class="section-head reveal">
         <p class="eyebrow">How it works</p>
-        <h2>Three steps, then just train.</h2>
+        <h2>Answer six questions. Start lifting.</h2>
+        <p class="muted">No blank app to fill in yourself. You get a full week, with weights on it, before
+          you have logged a single set.</p>
       </div>
       <div class="grid grid-3" id="stepGrid"></div>
     </div>
@@ -130,7 +133,7 @@
       <div class="section-head reveal">
         <p class="eyebrow">Earn them</p>
         <h2>Twelve medals. None of them are given away.</h2>
-        <p class="muted">They unlock from what you actually do — streaks, tonnage, records, consistency at the table.</p>
+        <p class="muted">No paid tiers, no cosmetics to buy. They unlock from what you actually did.</p>
       </div>
       <div class="grid grid-4 reveal" id="medalGrid"></div>
     </div>
@@ -141,28 +144,20 @@
     <div class="section-inner grid grid-2" style="gap:clamp(28px,5vw,56px);align-items:center">
       <div class="stack reveal" style="gap:16px">
         <p class="eyebrow">Free forever</p>
-        <h2>No subscription. No ads. No data harvesting.</h2>
+        <h2>Not a trial. Not a freemium tier. Free.</h2>
         <p class="muted">
-          FEROX runs entirely in your browser. Your training log lives on your device and never
-          touches a server unless you choose to run one yourself — the code for that is in the
-          same repository, open for anyone to read.
+          There is no paid version, because there is nothing to sell you. FEROX runs entirely in
+          your browser, so there are no servers to pay for and no reason to hold a feature back.
+          Your log lives on your device and never touches a server unless you choose to run one
+          yourself — the code for that is in the same repository, open for anyone to read.
         </p>
         <ul class="stack" style="gap:10px;list-style:none;padding:0;margin-top:4px" id="freeList"></ul>
       </div>
       <div class="card card-pad-lg reveal" style="display:grid;gap:14px">
-        <p class="eyebrow">Your data</p>
-        <pre style="background:var(--surf-3);border-radius:var(--r-md);padding:14px;overflow-x:auto;font-size:.76rem;line-height:1.6;color:var(--text-2);margin:0"><code>{
-  "sessions": [
-    { "date": "2026-09-29",
-      "name": "Push Day",
-      "entries": [
-        { "ex": "bench",
-          "sets": [{ "reps": 5, "weight": 92.5 }] }
-      ] }
-  ],
-  "medals": ["m-first", "m-streak7"]
-}</code></pre>
-        <p class="dim" style="font-size:.8rem">One button exports all of it as plain JSON. Import it anywhere.</p>
+        <p class="eyebrow">What the others charge for</p>
+        <div class="price-table" id="priceTable"></div>
+        <p class="dim" style="font-size:.8rem">
+          Every one of these is in FEROX, switched on, for nobody's money.</p>
       </div>
     </div>
   </section>
@@ -171,11 +166,11 @@
   <section class="section" id="start">
     <div class="section-inner">
       <div class="cta-band reveal">
-        <span class="glow-aura" style="color:var(--ember);width:60px" id="ctaMark"></span>
-        <h2 style="max-width:16ch">Your first session is one click away.</h2>
+        <span class="glow-aura mark-slot" style="color:var(--ember)" id="ctaMark"></span>
+        <h2 style="max-width:18ch">Your first session is thirty seconds away.</h2>
         <p class="muted" style="max-width:48ch">
-          Sign in with Google to put a name on your profile, or skip it entirely and
-          use FEROX as a guest. Every feature works either way.
+          Skip the account entirely if you want — FEROX works as a guest, with every
+          feature switched on. Sign in only if you want your name on your profile.
         </p>
         <div class="stack" style="gap:12px;width:min(320px,100%);margin-top:6px">
           <div id="googleHost"></div>
@@ -191,7 +186,7 @@
   <footer class="site-foot">
     <div class="section-inner">
       <div class="row" style="gap:10px">
-        <span style="color:var(--ember);width:22px" id="footMark"></span>
+        <span class="mark-slot" style="color:var(--ember)" id="footMark"></span>
         <span>FEROX · free training tracker</span>
       </div>
       <div class="row wrap" style="gap:18px">

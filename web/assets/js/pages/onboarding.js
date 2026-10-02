@@ -352,6 +352,7 @@ async function finish() {
   location.href = 'dashboard.html';
 }
 
-await store.init({ token: auth.token });
+await auth.restore();
+await store.init({ uid: auth.uid });
 if (store.data.onboarded) location.replace('dashboard.html');
 else paint();

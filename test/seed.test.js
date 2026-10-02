@@ -1,7 +1,7 @@
 /** Data-integrity checks on the shared catalogue. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EXERCISES, ROUTINES, FOODS, MEDALS, MEALS, MUSCLES, byId }
+import { EXERCISES, ROUTINES, FOODS, FOOD_CATEGORIES, per100, MEDALS, MEALS, MUSCLES, byId }
   from '../web/assets/js/core/seed.js';
 
 const ids = list => list.map(x => x.id);
@@ -33,11 +33,39 @@ test('every routine block references a real exercise', () => {
 
 test('food macros are plausible against their calories', () => {
   for (const f of FOODS) {
-    const fromMacros = f.p * 4 + f.c * 4 + f.f * 9;
-    // Atwater factors are approximate; 25% either way catches typos, not rounding.
-    assert.ok(Math.abs(fromMacros - f.kcal) <= f.kcal * 0.25 + 12,
+    // Atwater, with fibre at 2 kcal/g rather than 4 — fibre is a carbohydrate
+    // the body does not fully metabolise, and counting it at the full four
+    // flags every vegetable in the database as wrong.
+    const fromMacros = f.p * 4 + Math.max(0, f.c - (f.fibre ?? 0)) * 4 + (f.fibre ?? 0) * 2 + f.f * 9;
+    // Alcohol carries 7 kcal/g and does not appear in the macro columns.
+    if (f.tag === 'alcohol' || f.kcal <= 20) continue;
+    assert.ok(Math.abs(fromMacros - f.kcal) <= f.kcal * 0.15 + 8,
       `${f.id}: ${f.kcal} kcal but macros imply ${Math.round(fromMacros)}`);
   }
+});
+
+test('the food database is large, categorised and internally consistent', () => {
+  assert.ok(FOODS.length > 400, `only ${FOODS.length} foods`);
+  assert.equal(new Set(FOODS.map(f => f.id)).size, FOODS.length, 'duplicate food id');
+  for (const f of FOODS) {
+    assert.ok(f.name && f.per, `${f.id} is missing a name or a serving`);
+    assert.ok(FOOD_CATEGORIES.includes(f.category), `${f.id}: unknown category "${f.category}"`);
+    assert.ok(f.grams > 0, `${f.id} has no serving weight, so it cannot be scaled`);
+    for (const k of ['kcal', 'p', 'c', 'f']) {
+      assert.ok(Number.isFinite(f[k]) && f[k] >= 0, `${f.id}.${k} is ${f[k]}`);
+    }
+  }
+  // Every category has to be worth showing as a filter.
+  for (const c of FOOD_CATEGORIES) {
+    assert.ok(FOODS.filter(f => f.category === c).length >= 10, `${c} has too few foods to be a filter`);
+  }
+});
+
+test('per-100g is derived correctly', () => {
+  const egg = FOODS.find(f => f.id === 'f-egg-whole');
+  const hundred = per100(egg);
+  assert.ok(Math.abs(hundred.kcal - (egg.kcal / egg.grams) * 100) < 1);
+  assert.ok(hundred.p > egg.p, 'an egg weighs 50 g, so per 100 g reads higher');
 });
 
 test('medal predicates are callable and start locked on an empty log', () => {
