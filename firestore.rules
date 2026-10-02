@@ -13,6 +13,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    /** A field is absent, or a string no longer than `max`. */
+    function str(field, max) {
+      return !(field in request.resource.data)
+          || (request.resource.data[field] is string
+              && request.resource.data[field].size() <= max);
+    }
+
+    /** A field is absent, or a number between zero and `max`. */
+    function count(field, max) {
+      return !(field in request.resource.data)
+          || (request.resource.data[field] is int
+              && request.resource.data[field] >= 0
+              && request.resource.data[field] <= max);
+    }
+
+
     /**
      * An athlete's whole log, one document, keyed by their Firebase uid.
      *
@@ -57,15 +73,33 @@ service cloud.firestore {
      */
     match /profiles/{uid} {
       allow read: if request.auth != null;
+
+      /*
+       * Every field is bounded. A public document is the one place another
+       * person's bytes end up on your screen, so the rules cap what can be
+       * stored rather than trusting the client that wrote it — a client the
+       * author controls completely.
+       *
+       * The picture cap matters most: without it a profile can carry a
+       * megabyte `data:` URL that every viewer downloads, which is free
+       * bandwidth for them and a bill for us.
+       */
       allow write: if request.auth != null
                    && request.auth.uid == uid
                    && request.resource.data.keys().size() <= 18
-                   && (!('nickname' in request.resource.data)
-                       || request.resource.data.nickname is string
-                       && request.resource.data.nickname.size() <= 40)
-                   && (!('handle' in request.resource.data)
-                       || request.resource.data.handle is string
-                       && request.resource.data.handle.size() <= 20);
+                   && str('nickname', 40)
+                   && str('handle', 20)
+                   && str('picture', 500)
+                   && str('goal', 20)
+                   && str('band', 8)
+                   && str('region', 16)
+                   && str('pk', 800)
+                   && str('joined', 10)
+                   && count('streak', 100000)
+                   && count('sessions', 1000000)
+                   && count('volume', 10000000000)
+                   && count('medals', 1000)
+                   && count('friends', 5000);
     }
 
     /**
@@ -97,6 +131,92 @@ service cloud.firestore {
                     && request.resource.data.uid == request.auth.uid;
 
       allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    /**
+     * A relationship between two people, and the messages inside it.
+     *
+     * The document id is both uids sorted and joined, so a duplicate request
+     * cannot exist and either side can address it without a lookup. `users`
+     * holds the same two uids as an array, which is what every rule below
+     * checks membership against — and what makes "everything I am part of" a
+     * single `array-contains` query.
+     */
+    match /friendships/{pair} {
+
+      function members() { return resource.data.users; }
+      function incoming() { return request.resource.data.users; }
+      function iAmIn(list) { return request.auth != null && request.auth.uid in list; }
+
+      // Only the two people in it. There is no listing of everybody's
+      // friendships, because `users` must contain the caller for the query
+      // to be allowed at all.
+      allow read: if iAmIn(members());
+
+      /*
+       * Sending a request. The sender must be one of the two, must be the
+       * one named as `from`, and cannot open it already accepted — which is
+       * the rule that stops somebody adding themselves to your friends list
+       * without you ever agreeing.
+       */
+      allow create: if iAmIn(incoming())
+                    && incoming().size() == 2
+                    && incoming()[0] != incoming()[1]
+                    && request.resource.data.from == request.auth.uid
+                    && request.resource.data.from in incoming()
+                    && request.resource.data.state == 'pending';
+
+      /*
+       * Accepting. Deliberately only the person who did *not* send it:
+       * without that, the sender could accept their own request and be in
+       * your friends list — and therefore in your messages — unilaterally.
+       * The two uids are frozen, so a relationship cannot be transferred to
+       * somebody else.
+       */
+      allow update: if iAmIn(members())
+                    && request.resource.data.users == members()
+                    && request.resource.data.from == resource.data.from
+                    && resource.data.state == 'pending'
+                    && request.resource.data.state == 'accepted'
+                    && resource.data.from != request.auth.uid;
+
+      // Decline, cancel, or unfriend. Either side, at any time.
+      allow delete: if iAmIn(members());
+
+      /**
+       * Messages live under the relationship so they inherit its membership.
+       *
+       * `get()` costs a read, and it is the right price: the alternative is
+       * copying the member list onto every message, where it can drift out of
+       * step with the relationship it is supposed to describe.
+       *
+       * Contents are ciphertext — see core/crypto.js. These rules decide who
+       * may *fetch* a message; they are not what keeps it unreadable.
+       */
+      match /messages/{msg} {
+        function rel() {
+          return get(/databases/$(database)/documents/friendships/$(pair)).data;
+        }
+
+        allow read: if request.auth != null
+                    && request.auth.uid in rel().users
+                    && rel().state == 'accepted';
+
+        allow create: if request.auth != null
+                      && request.auth.uid in rel().users
+                      && rel().state == 'accepted'
+                      && request.resource.data.from == request.auth.uid
+                      && request.resource.data.keys().hasOnly(['from', 'ct', 'iv', 'v', 'at'])
+                      && request.resource.data.ct is string
+                      && request.resource.data.ct.size() <= 4000
+                      && request.resource.data.iv is string
+                      && request.resource.data.iv.size() <= 32;
+
+        // A sent message cannot be edited into something else after the fact.
+        // Deleting your own is allowed; rewriting history is not.
+        allow update: if false;
+        allow delete: if request.auth != null && resource.data.from == request.auth.uid;
+      }
     }
 
     // Anything not named above is closed. This is the default, but a reader

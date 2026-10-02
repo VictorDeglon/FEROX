@@ -145,13 +145,35 @@ export async function claimHandle(uid, raw, { nickname = '', picture = '', previ
   const { db, fs } = await boot();
   await fs.runTransaction(db, async tx => {
     const ref = fs.doc(db, 'handles', handle);
-    const snap = await tx.get(ref);
+    const mine = fs.doc(db, 'profiles', uid);
+
+    // Firestore wants every read before every write.
+    const [snap, prof] = await Promise.all([tx.get(ref), tx.get(mine)]);
+
     if (snap.exists() && snap.data().uid !== uid) {
       const e = new Error('Already taken.'); e.code = 'taken'; throw e;
     }
+
+    /*
+     * The handle to release is whatever the *server* says we hold, not
+     * whatever the caller remembered.
+     *
+     * Trusting the caller orphaned handles for real. `store.reset()` wipes
+     * `profile.handle`, so someone who signed in, claimed a name and then
+     * chose "start fresh" came back with an empty handle, was prompted
+     * again, and claimed a second one with `previous: ''` — leaving the
+     * first held forever by an account that no longer knew it had it.
+     * One athlete ended up holding two.
+     *
+     * The profile document is the authority and it costs one read inside a
+     * transaction we were already running.
+     */
+    const held = prof.exists() ? prof.data().handle : '';
+    const release = held || previous;
+    if (release && release !== handle) tx.delete(fs.doc(db, 'handles', release));
+
     tx.set(ref, { uid, nickname, picture });
-    if (previous && previous !== handle) tx.delete(fs.doc(db, 'handles', previous));
-    tx.set(fs.doc(db, 'profiles', uid), { handle, nickname, picture }, { merge: true });
+    tx.set(mine, { handle, nickname, picture }, { merge: true });
   });
   return handle;
 }
@@ -205,10 +227,14 @@ export async function releaseHandle(uid, handle) {
  * absent on purpose and should stay absent.
  */
 export const PUBLIC_FIELDS = ['handle', 'nickname', 'picture', 'joined',
-  'streak', 'sessions', 'volume', 'medals',
+  'streak', 'sessions', 'volume', 'medals', 'friends',
   // Matching fields. Deliberately coarse — a band and a continent, never an
   // age or a place — and switched off entirely by `discoverable: false`.
-  'goal', 'band', 'region', 'discoverable'];
+  'goal', 'band', 'region', 'discoverable',
+  // The public half of this device's messaging key. Public by definition:
+  // it is what other people encrypt *to*. The private half never leaves the
+  // browser — see core/crypto.js.
+  'pk'];
 
 /**
  * A number fit to publish.
@@ -232,10 +258,13 @@ export function publicProfileFrom(data, stats, uid) {
     sessions: stat(stats?.sessions),
     volume: stat(stats?.volume),
     medals: stat((data?.medals ?? []).length),
+    // A count, never the list. Who somebody trains with is theirs.
+    friends: stat((data?.friends ?? []).filter(f => f.uid).length),
 
     // Opting out blanks the matching fields rather than merely hiding the
     // profile: the right to not be suggested should remove the data that
     // does the suggesting, not leave it sitting there unused.
+    pk: p.pk ?? '',
     discoverable: p.discoverable !== false,
     goal: p.discoverable === false ? '' : (p.goal ?? ''),
     band: p.discoverable === false ? '' : ageBand(p.age),
@@ -522,4 +551,201 @@ export async function recommendPeople(me, skip = new Set(), want = 5) {
     .map(r => ({ ...r, score: matchScore(me, r), why: matchReason(me, r) }))
     .sort((a, b) => b.score - a.score || (b.streak ?? 0) - (a.streak ?? 0))
     .slice(0, want);
+}
+
+/* ------------------------------------------------------- friendships */
+
+/**
+ * One document per relationship, named after both people.
+ *
+ *     friendships/{a_b}   { users:[a,b], from, state, at }
+ *     friendships/{a_b}/messages/{id}
+ *
+ * The id is both uids sorted and joined, which does three jobs at once: it
+ * makes a duplicate request impossible without a query, it means either side
+ * can compute the id without looking anything up, and it gives the messages
+ * somewhere to live where the rules already know who is allowed in.
+ *
+ * `users` is an array so "everything I am part of" is one
+ * `array-contains` query — a single-field index, which Firestore maintains
+ * for free. The alternative, a document each way, doubles the writes and
+ * invites the two copies to disagree about whether you are friends.
+ */
+export const pairId = (a, b) => [a, b].sort().join('_');
+
+export const REQUEST_STATES = ['pending', 'accepted'];
+
+/**
+ * Ask somebody to connect.
+ *
+ * Idempotent by construction: the id is derived from the two uids, so asking
+ * twice writes the same document twice rather than creating two requests. If
+ * they already asked *you*, this accepts instead — two people reaching for
+ * each other at the same moment should end up connected, not deadlocked.
+ */
+export async function requestFriend(myUid, theirUid) {
+  if (!firebaseConfigured() || !myUid || !theirUid || myUid === theirUid) return null;
+  const { db, fs } = await boot();
+  const ref = fs.doc(db, 'friendships', pairId(myUid, theirUid));
+
+  return fs.runTransaction(db, async tx => {
+    const snap = await tx.get(ref);
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d.state === 'accepted') return 'accepted';
+      // They asked first — treat this as the answer.
+      if (d.from !== myUid) {
+        tx.update(ref, { state: 'accepted', acceptedAt: fs.serverTimestamp() });
+        return 'accepted';
+      }
+      return 'pending';
+    }
+    tx.set(ref, {
+      users: [myUid, theirUid].sort(),
+      from: myUid,
+      state: 'pending',
+      at: fs.serverTimestamp(),
+    });
+    return 'pending';
+  });
+}
+
+/** Accept. Only the person who did not send it may do this — see the rules. */
+export async function acceptFriend(myUid, theirUid) {
+  const { db, fs } = await boot();
+  await fs.updateDoc(fs.doc(db, 'friendships', pairId(myUid, theirUid)),
+    { state: 'accepted', acceptedAt: fs.serverTimestamp() });
+  return true;
+}
+
+/** Decline, cancel or unfriend — all the same thing: the document goes. */
+export async function removeFriendship(myUid, theirUid) {
+  const { db, fs } = await boot();
+  await fs.deleteDoc(fs.doc(db, 'friendships', pairId(myUid, theirUid)));
+  return true;
+}
+
+/**
+ * Everything I am part of, in one query.
+ *
+ * @returns {{accepted:object[], incoming:object[], outgoing:object[]}}
+ */
+export async function myFriendships(myUid) {
+  const empty = { accepted: [], incoming: [], outgoing: [] };
+  if (!firebaseConfigured() || !myUid) return empty;
+  const { db, fs } = await boot();
+
+  let rows = [];
+  try {
+    const snap = await fs.getDocs(fs.query(
+      fs.collection(db, 'friendships'),
+      fs.where('users', 'array-contains', myUid),
+      fs.limit(300),
+    ));
+    rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.info('[ferox] could not load friendships:', err?.code ?? err);
+    return empty;
+  }
+
+  const out = { ...empty };
+  for (const r of rows) {
+    const other = (r.users ?? []).find(u => u !== myUid);
+    if (!other) continue;
+    const row = { ...r, other };
+    if (r.state === 'accepted') out.accepted.push(row);
+    else if (r.from === myUid) out.outgoing.push(row);
+    else out.incoming.push(row);
+  }
+  return out;
+}
+
+/* ---------------------------------------------------------- messaging */
+
+/**
+ * Send one encrypted message.
+ *
+ * The plaintext never leaves this function. What is written is a base64
+ * ciphertext, a base64 IV and who sent it — see core/crypto.js for what that
+ * does and does not protect.
+ */
+export async function sendMessage(myUid, theirUid, theirPublicKey, text) {
+  const body = String(text ?? '').trim();
+  if (!body) return null;
+  const { encrypt, conversationKey, MAX_MESSAGE } = await import('./crypto.js');
+  const id = pairId(myUid, theirUid);
+  const key = await conversationKey(theirPublicKey, id);
+  const payload = await encrypt(key, body.slice(0, MAX_MESSAGE));
+
+  const { db, fs } = await boot();
+  await fs.addDoc(fs.collection(db, 'friendships', id, 'messages'), {
+    from: myUid, ...payload, at: fs.serverTimestamp(),
+  });
+  return true;
+}
+
+/**
+ * Watch a conversation, decrypting as it arrives.
+ *
+ * A live subscription rather than polling: Firestore charges per document
+ * read either way, and a listener only bills for what actually changes,
+ * where polling bills for the whole window every time it fires.
+ *
+ * @returns {Promise<function>} unsubscribe
+ */
+export async function watchMessages(myUid, theirUid, theirPublicKey, onRows, limitTo = 100) {
+  const { decrypt, conversationKey } = await import('./crypto.js');
+  const id = pairId(myUid, theirUid);
+  const key = await conversationKey(theirPublicKey, id);
+
+  const { db, fs } = await boot();
+  const q = fs.query(
+    fs.collection(db, 'friendships', id, 'messages'),
+    fs.orderBy('at', 'desc'),
+    fs.limit(limitTo),
+  );
+
+  return fs.onSnapshot(q, async snap => {
+    const rows = await Promise.all(snap.docs.map(async d => {
+      const m = d.data();
+      return {
+        id: d.id,
+        from: m.from,
+        mine: m.from === myUid,
+        at: m.at?.toDate?.() ?? null,
+        // null means this device cannot read it — a key made after it was
+        // sent, usually. One unreadable line, not a broken thread.
+        text: await decrypt(key, m),
+      };
+    }));
+    onRows(rows.reverse());
+  }, err => console.info('[ferox] message stream:', err?.code ?? err));
+}
+
+/**
+ * Make sure this device has a messaging key and that it is on the profile.
+ *
+ * Called lazily, the first time somebody opens the friends page — generating
+ * a key pair costs nothing but it is still work nobody browsing their own
+ * charts should pay for, and a guest never needs one at all.
+ *
+ * Republishes only when the key is new or different, so this is free on
+ * every load after the first.
+ */
+export async function ensureMessagingKey(uid, profile) {
+  if (!uid || !firebaseConfigured()) return null;
+  try {
+    const { cryptoReady, publicKeyJwk } = await import('./crypto.js');
+    if (!cryptoReady()) return null;
+    const jwk = await publicKeyJwk();
+    if (profile?.pk === jwk) return jwk;
+
+    const { store } = await import('./store.js');
+    await store.updateProfile({ pk: jwk });
+    forgetPublished(uid);
+    return jwk;
+  } catch (err) {
+    console.info('[ferox] messaging key unavailable:', err?.message ?? err);
+    return null;
+  }
 }

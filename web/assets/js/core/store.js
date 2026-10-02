@@ -50,6 +50,8 @@ function emptyData() {
       discoverable: true,
       /** A continent, filled from the time zone — never a place. */
       region: '',
+      /** This device's public messaging key (JWK). See core/crypto.js. */
+      pk: '',
       goals: { kcal: 2200, protein: 150, carbs: 240, fat: 70, sessionsPerWeek: 4 },
     },
     onboarded: false,
@@ -568,8 +570,23 @@ class Store extends EventTarget {
   removeFriend(id) { return this.commit(d => { d.friends = d.friends.filter(f => f.id !== id); }); }
 
   /** Wipe everything back to a brand-new account, onboarding included. */
-  async reset() {
+  /**
+   * Throw the training away and start again.
+   *
+   * `keepIdentity` carries the handle, name and picture across, because a
+   * handle is not training data — it is a globally unique name this account
+   * already holds, and wiping the local record of it does not release it.
+   * It orphaned real handles: somebody signed in, claimed a name, chose
+   * "start fresh", came back with an empty handle, was asked again, and
+   * ended up holding two with no way to give the first one back.
+   *
+   * Erasing the account entirely is a different operation and releases the
+   * handle properly first — see the profile page.
+   */
+  async reset({ keepIdentity = true } = {}) {
+    const { handle, name, picture, email } = this.#data.profile;
     this.#data = emptyData();
+    if (keepIdentity) Object.assign(this.#data.profile, { handle, name, picture, email });
     await this.#adapter.save(this.#data);
     this.#emit();
   }

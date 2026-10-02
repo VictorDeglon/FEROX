@@ -398,20 +398,86 @@ function moreSheet() {
   dlg.showModal();
 }
 
+/**
+ * An avatar URL we are willing to put in a `src`.
+ *
+ * Pictures now arrive from other people's public profiles, so this is
+ * attacker-controlled input. Only absolute https is allowed:
+ *
+ *   `javascript:` cannot execute from an `<img src>`, but it has no business
+ *   being here and the next person to copy this helper into an `<a href>`
+ *   should not inherit the problem.
+ *   `data:` would let somebody store a megabyte of image inside a document
+ *   that is meant to be a few hundred bytes, and have every viewer download it.
+ *   `http:` is a mixed-content warning and a cleartext beacon.
+ *
+ * The length cap is the same argument as the rules' cap: a URL is a name, not
+ * a payload.
+ */
+export function safePicture(url) {
+  const s = String(url ?? '').trim();
+  if (!s || s.length > 500) return '';
+  try {
+    const u = new URL(s);
+    return u.protocol === 'https:' ? u.href : '';
+  } catch { return ''; }
+}
+
+/**
+ * An avatar, with initials behind it if the image does not load.
+ *
+ * No inline `onerror`. It used to build one out of the person's own initials,
+ * which put attacker-controlled text inside a JavaScript string inside an
+ * HTML attribute — two layers of parsing, each with its own escaping rules,
+ * and `esc()` only gets the outer one right. `&#39;` is decoded back to a
+ * quote by the HTML parser *before* the JS is parsed, so an apostrophe in a
+ * name broke out of the string. `initials()` truncates to two characters,
+ * which is what stopped it being executable, which is not a security control
+ * anybody should be relying on.
+ *
+ * The fallback is a delegated listener instead — see `wireAvatarFallback`.
+ * The initials ride along in a plain data attribute, where `esc()` is
+ * sufficient because there is only one parser involved.
+ */
 function avatarHtml(user, cls = 'avatar') {
-  if (user?.picture) {
-    return `<img class="${cls}" src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer"
-      onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'${cls}',textContent:'${esc(initials(user.name))}'}))">`;
+  const ini = esc(initials(user?.name ?? 'Guest'));
+  const src = safePicture(user?.picture);
+  if (src) {
+    return `<img class="${cls} avatar-img" src="${esc(src)}" alt="" loading="lazy"
+      referrerpolicy="no-referrer" data-ini="${ini}">`;
   }
-  return `<div class="${cls}">${esc(initials(user?.name ?? 'Guest'))}</div>`;
+  return `<div class="${cls}">${ini}</div>`;
 }
 export { avatarHtml };
+
+/**
+ * Swap a broken avatar for its initials, once, for the whole document.
+ *
+ * `error` does not bubble, so this listens in the capture phase. One listener
+ * replaces an inline handler on every avatar on the page, and there is no
+ * string of JavaScript being assembled from somebody's display name.
+ */
+let avatarWired = false;
+export function wireAvatarFallback() {
+  if (avatarWired) return;
+  avatarWired = true;
+  document.addEventListener('error', e => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains('avatar-img')) return;
+    const span = document.createElement('div');
+    span.className = img.className.replace('avatar-img', '').trim();
+    span.textContent = img.dataset.ini || '?';
+    img.replaceWith(span);
+  }, true);
+}
 
 /**
  * Build the sidebar + topbar + tab bar around the page's `#view` element.
  * @param {{title:string, actions?:string}} opts
  */
 export function mountShell({ title, actions = '' }) {
+  wireAvatarFallback();
+
   const view = document.getElementById('view');
   const shell = document.createElement('div');
   shell.className = 'shell';

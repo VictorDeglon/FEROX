@@ -78,16 +78,34 @@ export const weightLabel = unit => (unit === 'lb' ? 'lb' : 'kg');
 /**
  * A stored weight, in the athlete's unit, as a number.
  *
- * Pounds get no decimal and kilograms get one. That is not inconsistency: a
- * pound is less than half a kilo, so a tenth of one is a precision nobody has
- * and every gym in America rounds to fives anyway.
+ * One decimal, in both systems. Totals that run to thousands pass
+ * `decimals: 0` — a volume figure does not need a tenth of a kilo on the end
+ * of five digits — but anything a person reads as a weight gets one.
  */
 export function weight(kg, unit, { decimals = null } = {}) {
   if (kg == null || !Number.isFinite(kg)) return null;
   const v = unit === 'lb' ? kgToLb(kg) : kg;
-  const d = decimals ?? (unit === 'lb' ? 0 : 1);
-  return Number(v.toFixed(d));
+  return Number(v.toFixed(decimals ?? 1));
 }
+
+/**
+ * A typed weight, converted and rounded for storage.
+ *
+ * The rounding is the point. `lbToKg(225)` is 102.05820000000001, and storing
+ * that verbatim means the number in the document is not a number anybody
+ * typed, it accumulates through every sum, and it comes back out as a
+ * different value than went in if the athlete ever switches units twice.
+ * One decimal of a kilogram is a hundred grams, which is finer than any gym
+ * scale and far finer than anyone cares about.
+ */
+export const toStoredKg = (value, unit) => {
+  // `Number('')` is 0, not NaN, so an empty field would otherwise be stored
+  // as a bodyweight of zero rather than as nothing at all.
+  if (value === '' || value == null) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.round((unit === 'lb' ? lbToKg(n) : n) * 10) / 10;
+};
 
 /** The same, formatted with its label: `82.5 kg`, `180 lb`. */
 export function fmtWeight(kg, unit, opts) {

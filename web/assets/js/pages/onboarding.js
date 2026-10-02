@@ -6,7 +6,7 @@
  * because the fastest way to lose someone on step three is to make them feel
  * they are being assessed.
  */
-import { detectUnit, kgToLb, lbToKg, cmToFtIn, ftInToCm, weightLabel } from '../core/units.js';
+import { detectUnit, kgToLb, toStoredKg, cmToFtIn, ftInToCm, weightLabel } from '../core/units.js';
 import { store } from '../core/store.js';
 import { auth } from '../core/auth.js';
 import { esc, toast, initTheme } from '../core/ui.js';
@@ -301,7 +301,7 @@ function paint() {
       // so the rest of onboarding and everything downstream never has to know
       // which system the questions were asked in.
       if (el.dataset.key === 'heightIn') a.heightCm = v * 2.54;
-      else if (el.dataset.key === 'weightLb') a.weightKg = lbToKg(v);
+      else if (el.dataset.key === 'weightLb') a.weightKg = toStoredKg(v, 'lb');
       else a[el.dataset.key] = v;
 
       const out = body.querySelector(`[data-out="${el.dataset.key}"]`);

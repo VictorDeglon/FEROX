@@ -3,7 +3,10 @@ import { store } from '../core/store.js';
 import { bootPage, esc, num, toast, modal, confirmDialog, avatarHtml, initials, displayName } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { auth } from '../core/auth.js';
-import { searchPeople, profilesByUid, recommendPeople, publicProfileFrom } from '../core/social.js';
+import { searchPeople, profilesByUid, recommendPeople, publicProfileFrom,
+  requestFriend, acceptFriend, removeFriendship, myFriendships,
+  ensureMessagingKey } from '../core/social.js';
+import { openChat } from './_chat.js';
 import { weight as toDisplay, weightLabel } from '../core/units.js';
 import { handleFlow } from './_handle.js';
 
@@ -28,9 +31,13 @@ const view = await bootPage({
 
 document.getElementById('addBtn').addEventListener('click', addFriendFlow);
 
-// Pull friends' public numbers once, on open. `store.commit` re-renders, so
-// the board fills in a moment after it paints rather than blocking on it.
-refreshFriends().catch(() => {});
+// Reconcile with the server once, on open: accepted relationships in,
+// removed ones out. `store.commit` re-renders, so the board fills in a
+// moment after it paints rather than blocking on it.
+syncAcceptedFriends().catch(() => {});
+// A key is only generated for someone who has reached this page — a guest,
+// or anybody who never opens friends, never pays for one.
+ensureMessagingKey(auth.uid, store.data.profile).catch(() => {});
 
 function render(el) {
   const s = store.stats();
@@ -70,19 +77,30 @@ function render(el) {
                 <div class="row" style="gap:10px">
                   ${avatarHtml(p, 'avatar avatar-sm')}
                   <div style="min-width:0">
-                    <strong>${esc(p.name)}</strong>${p.you ? ' <span class="chip chip-ember" style="padding:1px 7px;font-size:.64rem">You</span>' : ''}
+                    ${p.handle
+                      ? `<a href="u.html?h=${encodeURIComponent(p.handle)}" style="color:inherit">
+                           <strong>${esc(p.name)}</strong></a>`
+                      : `<strong>${esc(p.name)}</strong>`}
+                    ${p.you ? ' <span class="chip chip-ember" style="padding:1px 7px;font-size:.64rem">You</span>' : ''}
                     <br><small class="dim">@${esc(p.handle ?? 'athlete')}</small>
                   </div>
                 </div>
               </td>
               <td style="text-align:right" class="num"><strong>${esc(m.fmt(p[m.key] ?? 0))}</strong></td>
-              <td style="text-align:right">${p.you ? '' :
-                `<button class="btn btn-ghost btn-sm" data-rm="${p.id}" aria-label="Remove ${esc(p.name)}">${icon('trash')}</button>`}</td>
+              <td style="text-align:right">${p.you ? '' : `
+                ${p.uid ? `<button class="btn btn-ghost btn-sm" data-dm="${esc(p.uid)}"
+                   aria-label="Message ${esc(p.name)}">${icon('link')}</button>` : ''}
+                <button class="btn btn-ghost btn-sm" data-rm="${p.id}" aria-label="Remove ${esc(p.name)}">${icon('trash')}</button>`}</td>
             </tr>`).join('')}</tbody>
         </table></div>
       </div>
 
       <div class="stack" style="gap:16px">
+        <div class="card card-pad-lg" id="reqCard" hidden>
+          <div class="card-head"><h3>Requests</h3></div>
+          <div class="stack" style="gap:8px;margin-top:10px" id="reqList"></div>
+        </div>
+
         <div class="card card-pad-lg">
           <div class="card-head">
             <h3>People to train with</h3>
@@ -123,13 +141,24 @@ function render(el) {
   const sug = el.querySelector('#sugList');
   if (sug) renderSuggestions(sug).catch(() => { sug.innerHTML = ''; });
 
+  renderRequests(el).catch(() => {});
+
   el.querySelectorAll('[data-m]').forEach(b =>
     b.addEventListener('click', () => { metric = b.dataset.m; render(el); }));
   el.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
-    if (await confirmDialog('Remove friend?', 'They come off your leaderboard. You can add them again any time.')) {
-      await store.removeFriend(b.dataset.rm);
-      toast('Friend removed');
-    }
+    const row = store.data.friends.find(f => f.id === b.dataset.rm);
+    if (!await confirmDialog('Remove friend?',
+      'They come off your leaderboard and neither of you can message the other. You can ask again any time.')) return;
+    // Drop the relationship too, not just the local row — otherwise they are
+    // gone from your board and you are still on theirs, still able to message.
+    if (row?.uid && auth.uid) await removeFriendship(auth.uid, row.uid).catch(() => {});
+    await store.removeFriend(b.dataset.rm);
+    toast('Friend removed');
+  }));
+
+  el.querySelectorAll('[data-dm]').forEach(b => b.addEventListener('click', () => {
+    const f = store.data.friends.find(x => x.uid === b.dataset.dm);
+    if (f) openChat({ uid: f.uid, handle: f.handle, nickname: f.name, pk: f.pk });
   }));
 }
 
@@ -225,17 +254,17 @@ async function addFriendFlow() {
         const b = e.target.closest('[data-add]');
         if (!b) return;
         b.disabled = true;
-        await store.addFriend({
-          uid: b.dataset.add,
-          handle: b.dataset.handle,
-          name: b.dataset.name,
-          picture: b.dataset.pic,
-          streak: 0, sessions: 0, volume: 0, medals: 0,
-        });
+        // A request, not an add. Nobody appears on anybody's list, and no
+        // message can be sent, until both people have agreed.
+        const state = await requestFriend(auth.uid, b.dataset.add).catch(() => null);
         already.add(b.dataset.add);
-        b.replaceWith(Object.assign(document.createElement('span'),
-          { className: 'chip chip-ok', textContent: 'Added' }));
-        toast('Added — their numbers refresh next time you open this page', 'ok');
+        b.replaceWith(Object.assign(document.createElement('span'), {
+          className: 'chip' + (state === 'accepted' ? ' chip-ok' : ''),
+          textContent: state === 'accepted' ? 'Friends' : 'Requested',
+        }));
+        toast(state === 'accepted'
+          ? 'They had already asked you — you are connected'
+          : 'Request sent', 'ok');
       });
 
       input.focus();
@@ -327,11 +356,111 @@ async function renderSuggestions(host) {
     const b = e.target.closest('[data-sug]');
     if (!b) return;
     b.disabled = true;
-    await store.addFriend({
-      uid: b.dataset.sug, handle: b.dataset.handle, name: b.dataset.name,
-      picture: b.dataset.pic, streak: 0, sessions: 0, volume: 0, medals: 0,
-    });
-    toast('Added', 'ok');
+    const state = await requestFriend(auth.uid, b.dataset.sug).catch(() => null);
+    toast(state === 'accepted' ? 'You are connected' : 'Request sent', 'ok');
     renderSuggestions(host);        // refill the slot they just used
   };
+}
+
+/* --------------------------------------------------------------- requests */
+
+/**
+ * Incoming and outgoing requests.
+ *
+ * One `array-contains` query returns every relationship this account is part
+ * of, pending and accepted together, so the card costs the same one read
+ * whether there is anything in it or not — and the leaderboard below it is
+ * built from the same answer rather than a second trip.
+ */
+async function renderRequests(el) {
+  const card = el.querySelector('#reqCard');
+  const list = el.querySelector('#reqList');
+  if (!card || !auth.uid) return;
+
+  const { incoming, outgoing } = await myFriendships(auth.uid);
+  if (!incoming.length && !outgoing.length) { card.hidden = true; return; }
+
+  const uids = [...incoming, ...outgoing].map(r => r.other);
+  const people = new Map((await profilesByUid(uids)).map(p => [p.uid, p]));
+  const name = u => people.get(u)?.nickname || people.get(u)?.handle || 'Athlete';
+  const at = u => people.get(u)?.handle ?? '';
+
+  const row = (r, kind) => `
+    <div class="row-between" style="gap:10px;padding:9px;border:1px solid var(--line);
+         border-radius:var(--r-md);background:var(--surf-1)">
+      <a class="row" style="gap:9px;min-width:0;align-items:center;text-decoration:none;color:inherit"
+         href="u.html?h=${encodeURIComponent(at(r.other))}">
+        ${avatarHtml({ name: name(r.other), picture: people.get(r.other)?.picture }, 'avatar avatar-sm')}
+        <span style="min-width:0">
+          <span style="display:block;font-size:.85rem;font-weight:600">${esc(name(r.other))}</span>
+          <span class="dim" style="font-size:.72rem">
+            ${kind === 'in' ? 'wants to connect' : 'request sent'}</span>
+        </span>
+      </a>
+      <span class="row" style="gap:6px">
+        ${kind === 'in'
+          ? `<button type="button" class="btn btn-sm btn-primary" data-accept="${esc(r.other)}">Accept</button>
+             <button type="button" class="btn btn-sm btn-ghost" data-drop="${esc(r.other)}">Decline</button>`
+          : `<button type="button" class="btn btn-sm btn-ghost" data-drop="${esc(r.other)}">Cancel</button>`}
+      </span>
+    </div>`;
+
+  card.hidden = false;
+  list.innerHTML = [...incoming.map(r => row(r, 'in')),
+    ...outgoing.map(r => row(r, 'out'))].join('');
+
+  list.onclick = async e => {
+    const acc = e.target.closest('[data-accept]');
+    const drop = e.target.closest('[data-drop]');
+    if (!acc && !drop) return;
+    e.target.disabled = true;
+    try {
+      if (acc) { await acceptFriend(auth.uid, acc.dataset.accept); toast('Connected', 'ok'); }
+      else { await removeFriendship(auth.uid, drop.dataset.drop); toast('Removed', 'ok'); }
+    } catch (err) {
+      toast('That did not work', 'bad');
+      console.info('[ferox] request action:', err?.code ?? err);
+      e.target.disabled = false;
+      return;
+    }
+    renderRequests(el);
+    await syncAcceptedFriends();
+  };
+}
+
+/**
+ * Bring the local friends list in line with accepted relationships.
+ *
+ * The leaderboard reads `store.data.friends`, which is local and offline, and
+ * the relationships live in Firestore. This is the one place they are
+ * reconciled: accepted relationships are added, and anything whose
+ * relationship has gone — declined, unfriended from the other side — is
+ * dropped, so a leaderboard never shows somebody who removed you.
+ */
+async function syncAcceptedFriends() {
+  if (!auth.uid) return false;
+  const { accepted } = await myFriendships(auth.uid);
+  const live = new Set(accepted.map(r => r.other));
+  const people = new Map((await profilesByUid([...live])).map(p => [p.uid, p]));
+
+  return store.commit(d => {
+    // Anybody whose relationship no longer exists comes off the board. Only
+    // rows with a uid are touched — hand-entered friends from before this
+    // existed are left alone rather than silently deleted.
+    d.friends = d.friends.filter(f => !f.uid || live.has(f.uid));
+
+    for (const uid of live) {
+      const p = people.get(uid);
+      if (!p) continue;
+      const row = d.friends.find(f => f.uid === uid);
+      const next = {
+        uid, handle: p.handle ?? '', name: p.nickname || p.handle || 'Athlete',
+        picture: p.picture ?? '', pk: p.pk ?? '',
+        streak: p.streak ?? 0, sessions: p.sessions ?? 0,
+        volume: p.volume ?? 0, medals: p.medals ?? 0,
+      };
+      if (row) Object.assign(row, next);
+      else d.friends.push({ id: `fr-${uid}`, ...next });
+    }
+  });
 }
