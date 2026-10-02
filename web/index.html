@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FEROX — Free workout, diet and progress tracker</title>
-<meta name="description" content="FEROX is a free training app: log workouts, track your diet, follow structured seasons, set personal records and earn medals. No subscription, no ads, your data stays yours.">
+<meta name="description" content="FEROX is a free training app: 1,369 exercises, workout programming that tells you the weight, diet tracking, seasons, records and medals. The whole trainer is free forever — no ads, and your data stays yours.">
 <meta name="theme-color" content="#07080A">
+<link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="assets/brand/favicon-32.png" sizes="32x32">
 <link rel="icon" href="assets/brand/icon.png" sizes="512x512">
 <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
@@ -44,7 +45,7 @@
     </nav>
     <div class="grow"></div>
     <button class="btn btn-ghost btn-icon" id="themeBtn" aria-label="Toggle colour theme"></button>
-    <a class="btn btn-primary btn-sm" href="#start">Start training</a>
+    <a class="btn btn-quiet btn-sm" href="#start">Start training</a>
   </header>
 
   <!-- hero ---------------------------------------------------------------->
@@ -52,7 +53,7 @@
     <div class="section-inner hero-grid">
       <div class="stack reveal" style="gap:20px">
         <span class="chip chip-ember" style="width:max-content">
-          <i class="chip-dot"></i>Free forever · no account, no card, no catch
+          <i class="chip-dot"></i>The whole trainer, free forever · no account, no card
         </span>
         <h1>Build muscle.<br>Keep the<br><span class="ember-text">money.</span></h1>
         <p class="lede">
@@ -61,14 +62,14 @@
           heavier as you get stronger. Free, forever, for everyone.
         </p>
         <div class="hero-cta">
-          <a class="btn btn-primary btn-lg glow-cta" href="#start">Start free</a>
+          <a class="btn btn-hero btn-lg glow-cta" href="#start">Start free</a>
           <a class="btn btn-lg" href="#how">How it works</a>
         </div>
         <div class="hero-proof">
           <div class="stat"><span class="stat-value" style="font-size:1.5rem">£0</span><span class="stat-label">Forever</span></div>
           <div class="stat"><span class="stat-value" style="font-size:1.5rem">30s</span><span class="stat-label">To your first session</span></div>
-          <div class="stat"><span class="stat-value" style="font-size:1.5rem">1,000</span><span class="stat-label">Exercises</span></div>
-          <div class="stat"><span class="stat-value" style="font-size:1.5rem">0</span><span class="stat-label">Ads or upsells</span></div>
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">1,369</span><span class="stat-label">Exercises</span></div>
+          <div class="stat"><span class="stat-value" style="font-size:1.5rem">0</span><span class="stat-label">Ads, ever</span></div>
         </div>
       </div>
 
@@ -144,21 +145,21 @@
     <div class="section-inner grid grid-2" style="gap:clamp(28px,5vw,56px);align-items:center">
       <div class="stack reveal" style="gap:16px">
         <p class="eyebrow">Free forever</p>
-        <h2>Not a trial. Not a freemium tier. Free.</h2>
+        <h2>The whole trainer is free. Not a trial.</h2>
         <p class="muted">
-          There is no paid version, because there is nothing to sell you. FEROX runs entirely in
-          your browser, so there are no servers to pay for and no reason to hold a feature back.
-          Your log lives on your device and never touches a server unless you choose to run one
-          yourself — the code for that is in the same repository, open for anyone to read.
+          Every exercise, the programming, the nutrition tracker, the charts — all of it, with
+          no account and no card, for as long as you want it. That is not a teaser for a paid
+          tier; it is the app. FEROX runs in your browser, so the thing most apps charge you
+          for costs nothing to give away.
+        </p>
+        <p class="muted">
+          <strong>Pro exists for the parts that genuinely cost money to run</strong> — syncing
+          your log between devices, and reading a meal off a photograph. Nothing you can do
+          today ever moves behind it.
         </p>
         <ul class="stack" style="gap:10px;list-style:none;padding:0;margin-top:4px" id="freeList"></ul>
       </div>
-      <div class="card card-pad-lg reveal" style="display:grid;gap:14px">
-        <p class="eyebrow">What the others charge for</p>
-        <div class="price-table" id="priceTable"></div>
-        <p class="dim" style="font-size:.8rem">
-          Every one of these is in FEROX, switched on, for nobody's money.</p>
-      </div>
+      <div class="reveal" id="plans"></div>
     </div>
   </section>
 
@@ -169,8 +170,9 @@
         <span class="glow-aura mark-slot" style="color:var(--ember)" id="ctaMark"></span>
         <h2 style="max-width:18ch">Your first session is thirty seconds away.</h2>
         <p class="muted" style="max-width:48ch">
-          Skip the account entirely if you want — FEROX works as a guest, with every
-          feature switched on. Sign in only if you want your name on your profile.
+          Skip the account entirely if you want — FEROX works as a guest, with the whole
+          trainer switched on and nothing sent anywhere. Sign in when you want it on more
+          than one device.
         </p>
         <div class="stack" style="gap:12px;width:min(320px,100%);margin-top:6px">
           <div id="googleHost"></div>

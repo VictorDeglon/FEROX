@@ -29,18 +29,34 @@ const brand = join(root, 'web', 'assets', 'brand');
 const PLATE = '#0A0B0D';
 
 /*
- * `scale` is how much of the square the artwork fills.
- *  - 1.00 for the transparent marks: they sit on whatever the UI is already
- *    painting, so padding is wasted pixels.
- *  - 0.88 on the plated icons: a touch of margin inside the rounded corner
- *    platforms draw for us.
+ * `scale` is how much of the square the artwork fills — and it is set by the
+ * *limiting* dimension, which for a portrait head is the height.
+ *
+ * `icon.png` used to be 1.00, on the reasoning that a transparent mark sits on
+ * whatever the UI is already painting so padding is wasted pixels. That was
+ * wrong, and measurably so: the trimmed mascot is 818×1024, so filling the
+ * square left **zero** rows above the ears and below the chin. Nothing had
+ * been cropped — the art was simply flush to the edge, which reads as cropped
+ * at any size and genuinely is cropped the moment a platform rounds it, which
+ * every one of them does: browser tabs, the bookmarks bar, the iOS home
+ * screen, Android's adaptive mask.
+ *
+ * So every icon now carries margin, and the smaller it is the more it needs,
+ * because a fixed *percentage* of 32px is three pixels.
+ *  - 0.86 transparent, for UI chrome and the 512 `rel=icon`
+ *  - 0.82 on the plated icons, inside the rounded corner platforms draw
+ *  - 0.80 at 32px, where the detail is mush anyway and the silhouette is all
+ *    that survives — give it room to be a silhouette
  *  - 0.62 for the maskable: Android may crop to a circle inscribed in the
  *    middle 80%, so the art has to survive losing everything outside it.
+ *
+ * `npm run check:icons` measures the result and fails if anything touches an
+ * edge, so this cannot quietly regress again.
  */
 const TARGETS = [
-  { file: 'icon.png',             size: 512, scale: 1,    background: null },
-  { file: 'apple-touch-icon.png', size: 180, scale: 0.88, background: PLATE },
-  { file: 'favicon-32.png',       size: 32,  scale: 0.94, background: PLATE },
+  { file: 'icon.png',             size: 512, scale: 0.86, background: null },
+  { file: 'apple-touch-icon.png', size: 180, scale: 0.82, background: PLATE },
+  { file: 'favicon-32.png',       size: 32,  scale: 0.80, background: PLATE },
   { file: 'maskable.png',         size: 512, scale: 0.62, background: PLATE },
 ];
 

@@ -23,4 +23,7 @@ stronger. It tracks what you eat against a calorie target it works out from your
 own weigh-ins rather than from a formula. It costs nothing, it has no account,
 it has no ads, and by default nothing you enter ever leaves your device.
 
-There is no paid tier. There is nothing to sell you.
+All of that is the free tier, and it stays the free tier. **Pro** is a paid
+add-on for the two things that cost real money per person — syncing your log
+between your devices, and estimating a meal from a photograph. Nothing
+described in these guides is behind it.
