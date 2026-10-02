@@ -23,7 +23,9 @@ const brand = join(dirname(fileURLToPath(import.meta.url)), '..', 'web', 'assets
 const MIN = {
   'icon.png': 0.04,
   'apple-touch-icon.png': 0.04,
+  'favicon-48.png': 0.04,
   'favicon-32.png': 0.04,
+  'favicon-16.png': 0.04,
   'maskable.png': 0.17,          // Android's safe zone is far stricter
 };
 

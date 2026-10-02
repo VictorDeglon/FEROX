@@ -56,8 +56,19 @@ const PLATE = '#0A0B0D';
 const TARGETS = [
   { file: 'icon.png',             size: 512, scale: 0.86, background: null },
   { file: 'apple-touch-icon.png', size: 180, scale: 0.82, background: PLATE },
-  { file: 'favicon-32.png',       size: 32,  scale: 0.80, background: PLATE },
   { file: 'maskable.png',         size: 512, scale: 0.62, background: PLATE },
+
+  /*
+   * Three favicon sizes rather than one. A browser asked for 16px will take
+   * whatever is nearest and downscale it itself, and its downscaler is not
+   * as good as doing the resize here — on a head this detailed, the
+   * difference at 16px is the difference between a wolf and a smudge.
+   * The smaller it is, the more margin it gets: a fixed percentage of 16px
+   * is two pixels.
+   */
+  { file: 'favicon-48.png',       size: 48,  scale: 0.82, background: PLATE },
+  { file: 'favicon-32.png',       size: 32,  scale: 0.80, background: PLATE },
+  { file: 'favicon-16.png',       size: 16,  scale: 0.78, background: PLATE },
 ];
 
 const src = process.argv[2] ?? join(brand, 'mascot.png');
