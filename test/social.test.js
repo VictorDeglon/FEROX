@@ -221,3 +221,14 @@ test('an uploaded avatar never reaches a public document', () => {
       '', `${bad.slice(0, 30)} must not be published`);
   }
 });
+
+test('the public fields still carry nothing that identifies a minor', () => {
+  // The age gate is enforced in the handle flow, but the allow-list is the
+  // backstop: even for an account that somehow gets one, an exact age must
+  // never be published — only the band, which is coarse by design.
+  const pub = publicProfileFrom(
+    { profile: { handle: 'kid', age: 14, name: 'A', email: 'a@b.c' }, medals: [] }, {}, 'u1');
+  assert.ok(!('age' in pub));
+  assert.ok(!('email' in pub));
+  assert.equal(pub.band, 'u20', 'a band, never a number');
+});

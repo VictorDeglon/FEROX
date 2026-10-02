@@ -11,7 +11,7 @@ import { handleFlow } from './_handle.js';
 import { googleReady } from '../core/config.js';
 import { MEDALS } from '../core/seed.js';
 import { makeAvatar, formatBytes, AVATAR_PX } from '../core/image.js';
-import { LEVELS, GOALS, ACTIVITY, EQUIPMENT, targetsFor } from '../core/profile.js';
+import { LEVELS, GOALS, ACTIVITY, EQUIPMENT, DIETS, targetsFor } from '../core/profile.js';
 import { seasonById, currentSlot } from '../core/seasons.js';
 import { PALETTES, MODES, availablePalettes } from '../core/themes.js';
 import { unlockedEggs, EGG_COUNT } from '../core/eggs.js';
@@ -165,6 +165,22 @@ function render(el) {
           <div class="card-head"><h3>Preferences</h3></div>
           <div class="stack" style="gap:14px">
             <div class="field">
+              <label for="gym">Where you train</label>
+              <select class="select" id="gym">
+                ${EQUIPMENT.map(e => `<option value="${e.id}"${p.equipment === e.id ? ' selected' : ''}>${esc(e.label)} — ${esc(e.hint)}</option>`).join('')}
+              </select>
+              <p class="dim" style="font-size:.76rem;margin-top:5px">
+                Only exercises you can actually do are prescribed. Private — it is not on your public profile.</p>
+            </div>
+            <div class="field">
+              <label for="diet">Diet</label>
+              <select class="select" id="diet">
+                ${DIETS.map(x => `<option value="${x.id}"${(p.diet ?? 'balanced') === x.id ? ' selected' : ''}>${esc(x.label)} — ${esc(x.hint)}</option>`).join('')}
+              </select>
+              <p class="dim" style="font-size:.76rem;margin-top:5px">
+                Changes how your calories split into protein, carbs and fat. The total does not move.</p>
+            </div>
+            <div class="field">
               <label for="disc">Discoverable</label>
               <select class="select" id="disc">
                 <option value="1"${p.discoverable !== false ? ' selected' : ''}>Suggest me to other athletes</option>
@@ -248,6 +264,21 @@ function render(el) {
   el.querySelector('#editTraining').addEventListener('click', editTraining);
   el.querySelector('#editGoals').addEventListener('click', editGoals);
   el.querySelector('#signOut')?.addEventListener('click', async () => { await auth.signOut(); location.href = 'index.html'; });
+
+  el.querySelector('#gym')?.addEventListener('change', async e => {
+    await store.updateProfile({ equipment: e.target.value });
+    toast(`Training at: ${EQUIPMENT.find(x => x.id === e.target.value)?.label}`, 'ok');
+  });
+
+  el.querySelector('#diet')?.addEventListener('change', async e => {
+    // The targets are recomputed from the new split, not nudged, so this
+    // cannot drift away from what `targetsFor` would produce fresh.
+    const d = store.data.profile;
+    const season = seasonById(d.seasons?.[currentSlot(d.layout ?? 4).id]) ?? seasonById('ferox-recomp');
+    await store.updateProfile({ diet: e.target.value });
+    await store.updateProfile({ goals: targetsFor(store.data.profile, season) });
+    toast(`Macros set for ${DIETS.find(x => x.id === e.target.value)?.label}`, 'ok');
+  });
 
   el.querySelector('#disc')?.addEventListener('change', async e => {
     // Off blanks the matching fields in the public document rather than only

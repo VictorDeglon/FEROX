@@ -52,6 +52,8 @@ function emptyData() {
       region: '',
       /** This device's public messaging key (JWK). See core/crypto.js. */
       pk: '',
+      /** Macro split preset — see DIETS in core/profile.js. */
+      diet: 'balanced',
       goals: { kcal: 2200, protein: 150, carbs: 240, fat: 70, sessionsPerWeek: 4 },
     },
     onboarded: false,

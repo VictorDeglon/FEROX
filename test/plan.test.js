@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bmr, tdee, targetsFor, summarise, suggestedSeason, GOALS, LEVELS, ACTIVITY, EQUIPMENT }
   from '../web/assets/js/core/profile.js';
+import { DIETS } from '../web/assets/js/core/profile.js';
 import { buildWeek, buildSession, weeklyFrequency, templateFor, readinessFor, weekIntensity,
   TEMPLATES, MODES, modeFor, VOLUME, isDeloadWeek, trainingConsistency,
   consistencyBoost, goalShift } from '../web/assets/js/core/split.js';
@@ -557,4 +558,71 @@ test('consistency is measured against your own promise, not an absolute', () => 
     person({ daysPerWeek: 6 }), 4);
   assert.equal(four, 1, 'sixteen sessions is a perfect month at four a week');
   assert.ok(six < 1, 'the same sixteen is short of a promise of six a week');
+});
+
+/* ---------------------------------------------------------------- diets */
+
+test('every diet splits the same calories without inventing any', () => {
+  // The total is set by the season and the deficit; a diet only changes how
+  // it is divided. If the macros stop summing to the target, somebody is
+  // being told to eat a few hundred calories that are not in their budget.
+  const season = seasonById('ferox-recomp');
+  for (const d of DIETS) {
+    const t = targetsFor(person({ diet: d.id, weightKg: 80 }), season);
+    const fromMacros = t.protein * 4 + t.carbs * 4 + t.fat * 9;
+    assert.ok(Math.abs(fromMacros - t.kcal) <= 12,
+      `${d.label}: macros total ${fromMacros} against a ${t.kcal} kcal target`);
+    assert.ok(t.protein > 0 && t.fat > 0 && t.carbs >= 0, `${d.label}: a macro went negative`);
+  }
+});
+
+test('keto actually restricts carbohydrate, and the rest do not', () => {
+  const season = seasonById('ferox-recomp');
+  const keto = targetsFor(person({ diet: 'keto', weightKg: 80 }), season);
+  assert.ok(keto.carbs <= 35, `keto at ${keto.carbs} g of carbs is not keto`);
+  assert.ok(keto.fat * 9 / keto.kcal > 0.6, 'keto should be fat-dominant');
+
+  const balanced = targetsFor(person({ diet: 'balanced', weightKg: 80 }), season);
+  assert.ok(balanced.carbs > 150, 'balanced should not be low carb');
+
+  // A diet must never cut protein below what the season asked for, except
+  // keto, which caps it on purpose — too much protein is the classic way
+  // people fail to stay in ketosis.
+  const high = targetsFor(person({ diet: 'highprotein', weightKg: 80 }), season);
+  assert.ok(high.protein > balanced.protein);
+});
+
+test('keto survives an aggressive deficit without negative fat', () => {
+  // Protein plus a 30 g carb floor can exceed a small person's whole budget.
+  const tiny = targetsFor(person({ diet: 'keto', weightKg: 48, sex: 'female', age: 55, heightCm: 155 }),
+    seasonById('cut') ?? seasonById('ferox-recomp'));
+  assert.ok(tiny.fat >= 0, `fat came out at ${tiny.fat}`);
+  assert.ok(Number.isFinite(tiny.carbs) && tiny.carbs >= 0);
+});
+
+test('lean mass, when known, replaces the estimate rather than adjusting it', () => {
+  // Katch-McArdle beats Mifflin once body composition is known, and must not
+  // be applied to nonsense: lean mass above bodyweight is a typo, not a body.
+  const base = { sex: 'male', weightKg: 90, heightCm: 180, age: 30 };
+  const mifflin = bmr(base);
+  const katch = bmr({ ...base, leanKg: 72 });
+  assert.notEqual(Math.round(mifflin), Math.round(katch));
+  assert.ok(katch > 1200 && katch < 2600, `${katch} is not a plausible BMR`);
+
+  assert.equal(bmr({ ...base, leanKg: 120 }), mifflin, 'lean mass over bodyweight is ignored');
+  assert.equal(bmr({ ...base, leanKg: 0 }), mifflin);
+  assert.equal(bmr({ ...base, leanKg: null }), mifflin);
+});
+
+test('a session length is always a multiple of five, rounded up', () => {
+  // It is the number someone uses to decide if they have time. Told 40 and
+  // needing 43, you abandon it half done; told 45 and needing 43 costs
+  // nothing.
+  const p = person({ daysPerWeek: 5, equipment: 'gym' });
+  for (const sid of ['winter-fire', 'ferox-recomp', 'foundation']) {
+    for (const day of buildWeek(p, seasonById(sid), 7, 2).days) {
+      assert.equal(day.minutes % 5, 0, `${sid}: ${day.minutes} is not a multiple of five`);
+      assert.ok(day.minutes >= 5);
+    }
+  }
 });
