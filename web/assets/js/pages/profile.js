@@ -1,5 +1,6 @@
 /** Profile — account, goals, units, themes, weigh-in cadence and data control. */
 import { store, RESET_CLEARS, RESET_KEEPS } from '../core/store.js';
+import { weight as toDisplay, weightLabel } from '../core/units.js';
 import {
   bootPage, esc, num, toast, modal, confirmPhrase, avatarHtml, displayName, displayUser,
   applyMode, applyPalette, currentMode, currentPalette,
@@ -57,9 +58,10 @@ function render(el) {
           </div>
           <div class="grid grid-4" style="gap:12px;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
             ${mini('Sessions', num(s.sessions))}
-            ${mini('Volume', `${num(s.volume)} kg`)}
+            ${mini('Volume', `${num(toDisplay(s.volume, store.unit, { decimals: 0 }))} ${weightLabel(store.unit)}`)}
             ${mini('Medals', `${d.medals.length} / ${MEDALS.length}`)}
             ${mini('Best streak', `${s.bestStreak} d`)}
+            ${mini('Friends', num(d.friends.filter(f => f.uid).length))}
           </div>
         </div>
 
@@ -335,7 +337,12 @@ function render(el) {
       const { releaseHandle } = await import('../core/social.js');
       await releaseHandle(auth.uid, held);
     }
-    await store.reset();
+    // The handle has just been given back, so this is the one reset that must
+    // not carry it forward — keeping it would leave a name pointing at
+    // nothing and the athlete unable to claim it again.
+    await store.reset({ keepIdentity: false });
+    const { forgetKeys } = await import('../core/crypto.js');
+    await forgetKeys();            // the message key goes with the account
     toast('Erased');
     location.href = 'onboarding.html';
   });

@@ -93,9 +93,10 @@ function render(p, isMe) {
         ${tile('Sessions', num(p.sessions ?? 0), 'logged')}
         ${tile('Volume', num(toDisplay(p.volume ?? 0, U, { decimals: 0 })), `${weightLabel(U)} lifted`)}
         ${tile('Medals', num(p.medals ?? 0), 'earned')}
+        ${tile('Friends', num(p.friends ?? 0), p.friends === 1 ? 'athlete' : 'athletes')}
       </div>
       <p class="dim" style="font-size:.74rem">
-        Streak, sessions, volume and medals are the only things a profile shows.
+        Streak, sessions, volume, medals and a friend count are the only things a profile shows.
         Bodyweight, measurements and everything eaten stay private.</p>`)}
 
     ${isMe ? '' : card(`

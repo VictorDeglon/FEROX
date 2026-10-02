@@ -262,19 +262,27 @@ auth.onChange(async session => {
 
   await store.init({ uid: auth.uid });
 
-  // A verified account needs a handle before it can be found by anybody, and
-  // the moment just after signing in is the only one where asking is not an
-  // interruption. Skippable — it can be claimed later from the profile.
-  if (!store.data.profile.handle) {
+  /**
+   * Ask for a handle *after* the keep-or-start-fresh question, never before.
+   *
+   * Asking first looks friendlier and was wrong: "start fresh" runs
+   * `store.reset()`, which used to wipe the handle that had just been
+   * claimed. The athlete was then asked a second time and claimed another,
+   * holding two names and able to release neither.
+   */
+  const askHandle = async () => {
+    if (store.data.profile.handle) return;
     const { ensureHandle } = await import('./_handle.js');
     await ensureHandle().catch(() => {});
-  }
+  };
 
   if (!store.freshAccount) {
+    await askHandle();
     location.href = store.data.onboarded ? 'dashboard.html' : 'onboarding.html';
     return;
   }
   if (!deviceHadLog) {
+    await askHandle();
     location.href = 'onboarding.html';
     return;
   }
@@ -296,6 +304,7 @@ auth.onChange(async session => {
   if (keep === null) {
     await store.reset();
     store.clearLocal();     // or signing out would hand the log straight back
+    await askHandle();
     location.href = 'onboarding.html';
   } else {
     // Whatever they already chose wins. Google's display name is a *seed* for
@@ -306,6 +315,7 @@ auth.onChange(async session => {
       email: session.user.email ?? '',
       picture: store.data.profile.picture || session.user.picture || '',
     });
+    await askHandle();
     location.href = store.data.onboarded ? 'dashboard.html' : 'onboarding.html';
   }
 });
