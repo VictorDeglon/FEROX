@@ -35,6 +35,7 @@ async function decode(file) {
   }
 }
 
+const clamp01 = v => Math.min(1, Math.max(0, Number(v) || 0));
 const dims = src => ({
   w: src.width ?? src.naturalWidth,
   h: src.height ?? src.naturalHeight,
@@ -44,7 +45,7 @@ const dims = src => ({
  * Turn a user-selected file into a small square data URL.
  * @returns {Promise<{dataUrl:string, bytes:number, from:{w:number,h:number}}>}
  */
-export async function makeAvatar(file, size = AVATAR_PX) {
+export async function makeAvatar(file, size = AVATAR_PX, { focusY = null } = {}) {
   if (!file) throw new Error('No file chosen.');
   if (file.type && !ACCEPT.test(file.type)) {
     throw new Error('That is not an image FEROX can read. Try a PNG or JPEG.');
@@ -57,10 +58,24 @@ export async function makeAvatar(file, size = AVATAR_PX) {
   const { w, h } = dims(src);
   if (!w || !h) throw new Error('That image has no dimensions FEROX can use.');
 
-  // Centre-crop to a square so faces are not squashed by a non-square photo.
+  /*
+   * Crop to a square, biased upward on a portrait.
+   *
+   * A blind centre crop is what was here, and it cuts heads off. People
+   * photograph people vertically and put the face in the upper third, so on
+   * a 3:4 portrait the centre square starts 12.5% down and takes the chin
+   * and chest while losing the top of the head. Taking a quarter of the
+   * slack instead of half keeps the face.
+   *
+   * `focusY` lets the caller override it — 0 is the top of the image, 1 the
+   * bottom — because no heuristic is right for every photo and the person
+   * looking at it can see what it should be.
+   */
   const side = Math.min(w, h);
   const sx = (w - side) / 2;
-  const sy = (h - side) / 2;
+  const slack = h - side;
+  const bias = focusY == null ? (h > w ? 0.25 : 0.5) : clamp01(focusY);
+  const sy = slack * bias;
 
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;

@@ -62,12 +62,55 @@ export const LIMITS = [
 /* ------------------------------------------------------------ calculations */
 
 /** Mifflin–St Jeor. The most accurate of the simple equations. */
-export function bmr({ sex, weightKg, heightCm, age }) {
+/**
+ * Resting energy expenditure.
+ *
+ * Mifflin–St Jeor by default, and **Katch–McArdle when lean mass is known**,
+ * because once you have body composition it is the better equation: resting
+ * burn tracks lean tissue, and two people of the same weight and age with
+ * different body fat do not burn the same. Mifflin has to guess at that from
+ * height and sex; Katch–McArdle does not have to guess.
+ *
+ * On "metabolic age", which gets asked for a lot: it is a marketing number,
+ * not a clinical one — scales compute it by running their BMR estimate
+ * backwards to find the age that would produce it, which tells you nothing
+ * the BMR did not already. Age is in the equation here, directly, where it
+ * belongs. And `estimateMaintenance` in core/metabolism.js beats every
+ * equation anyway by measuring what actually happened to someone's weight
+ * against what they actually ate, which is the only honest answer.
+ */
+export function bmr({ sex, weightKg, heightCm, age, leanKg = null }) {
+  if (Number.isFinite(leanKg) && leanKg > 0 && leanKg < weightKg) {
+    // Katch–McArdle. No sex term: lean mass already carries that information,
+    // which is the point of it.
+    return 370 + 21.6 * leanKg;
+  }
   const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
   if (sex === 'male') return base + 5;
   if (sex === 'female') return base - 161;
   return base - 78;                       // midpoint when unstated
 }
+
+/**
+ * How the day's calories are split, beyond what the season already says.
+ *
+ * Protein is a floor in grams per kilo rather than a percentage, because
+ * that is how the evidence is expressed and because a percentage of a cut
+ * and a percentage of a bulk are very different amounts of actual protein.
+ * `fatPct` then claims its share and carbohydrate takes the remainder —
+ * except on keto, where carbohydrate is the thing being held down and fat
+ * takes the remainder instead.
+ */
+export const DIETS = [
+  { id: 'balanced', label: 'Balanced', fatPct: 0.27, hint: 'No restriction. The default.' },
+  { id: 'lowcarb', label: 'Lower carb', fatPct: 0.40, hint: 'Fewer carbs, more fat. Not keto.' },
+  { id: 'keto', label: 'Keto', carbCap: 30, proteinFloor: 1.6, proteinCap: 2.0,
+    hint: 'Carbs held near 30 g. Fat takes the rest.' },
+  { id: 'highcarb', label: 'Higher carb', fatPct: 0.20, hint: 'For heavy training weeks.' },
+  { id: 'highprotein', label: 'High protein', fatPct: 0.25, proteinFloor: 2.4,
+    hint: 'For a hard cut, or if you are always hungry.' },
+];
+export const dietById = id => DIETS.find(d => d.id === id) ?? DIETS[0];
 
 export const activityMultiplier = id => ACTIVITY.find(a => a.id === id)?.mult ?? 1.55;
 
@@ -89,10 +132,27 @@ export function targetsFor(p, season) {
   // expenditure, nor under the conventional 1,200/1,500 kcal floor.
   const floor = Math.max(Math.round(bmr(p)), p.sex === 'male' ? 1500 : 1200);
   const kcal = Math.max(floor, Math.round(maintenance * (1 + (season?.kcalShift ?? 0))));
-  const protein = Math.round(p.weightKg * (season?.proteinPerKg ?? 2.0));
-  const fat = Math.round((kcal * 0.25) / 9);
-  const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
-  return { kcal, protein, carbs, fat, maintenance, sessionsPerWeek: p.daysPerWeek };
+  const diet = dietById(p.diet);
+
+  // Protein first, in grams per kilo, bounded by whatever the diet asks for.
+  let perKg = season?.proteinPerKg ?? 2.0;
+  if (diet.proteinFloor) perKg = Math.max(perKg, diet.proteinFloor);
+  if (diet.proteinCap) perKg = Math.min(perKg, diet.proteinCap);
+  const protein = Math.round(p.weightKg * perKg);
+
+  let carbs, fat;
+  if (diet.carbCap != null) {
+    // Keto: carbohydrate is capped and fat absorbs whatever is left. Clamped
+    // at zero so an aggressive deficit cannot produce negative fat grams.
+    carbs = diet.carbCap;
+    fat = Math.max(0, Math.round((kcal - protein * 4 - carbs * 4) / 9));
+  } else {
+    fat = Math.round((kcal * (diet.fatPct ?? 0.25)) / 9);
+    carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
+  }
+
+  return { kcal, protein, carbs, fat, maintenance, diet: diet.id,
+           sessionsPerWeek: p.daysPerWeek };
 }
 
 /** A rough body-fat estimate from BMI, used only to phrase the summary. */

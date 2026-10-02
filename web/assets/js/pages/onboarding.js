@@ -281,7 +281,7 @@ function paint() {
       <div class="onb-foot">
         ${step > 0 ? `<button class="btn btn-ghost" id="back">Back</button>` : '<span></span>'}
         <button class="btn btn-primary grow ${last ? 'glow-cta' : ''}" id="next">
-          <span>${last ? 'Start training' : 'Continue'}</span>${icon(last ? 'bolt' : 'chevron')}
+          <span>${last ? 'Start training' : 'Continue'}</span>${icon(last ? 'play' : 'chevron')}
         </button>
       </div>
     </div>`;

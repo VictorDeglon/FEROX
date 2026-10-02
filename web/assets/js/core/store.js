@@ -31,6 +31,8 @@ export const DEFAULT_SETTINGS = {
   checkpointEvery: 14,
   /** Colour palette id — see core/themes.js. Unlocked ones only. */
   palette: 'ember',
+  /** Show the computed pacers on the leaderboard. See core/pacers.js. */
+  pacers: true,
   /** The last date the weigh-in prompt was shown, so it asks once a day at most. */
   lastWeighInPrompt: '',
 };
@@ -52,6 +54,8 @@ function emptyData() {
       region: '',
       /** This device's public messaging key (JWK). See core/crypto.js. */
       pk: '',
+      /** Macro split preset — see DIETS in core/profile.js. */
+      diet: 'balanced',
       goals: { kcal: 2200, protein: 150, carbs: 240, fat: 70, sessionsPerWeek: 4 },
     },
     onboarded: false,
@@ -705,6 +709,9 @@ class Store extends EventTarget {
     const d = this.#data;
     return {
       sessions: d.sessions.length,
+      // Four weeks back. Lifetime totals are the wrong comparison for
+      // somebody who started on Tuesday — see core/pacers.js.
+      last30: d.sessions.filter(s => s.date >= daysAgoISO(29)).length,
       volume: d.sessions.reduce((t, s) => t + this.sessionVolume(s), 0),
       streak: this.streak(),
       bestStreak: this.bestStreak(),

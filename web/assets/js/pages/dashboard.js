@@ -106,7 +106,7 @@ function render(el) {
             <span class="chip">${esc(suggestion.level)}</span>
             <span class="chip">${esc(suggestion.focus)}</span>
           </div>
-          <button class="btn btn-primary btn-block" data-routine="${suggestion.id}">${icon('bolt')}<span>Start this</span></button>
+          <button class="btn btn-primary btn-block" data-routine="${suggestion.id}">${icon('play')}<span>Start this</span></button>
         </div>
 
         <div class="card card-pad-lg">

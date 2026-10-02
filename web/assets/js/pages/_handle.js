@@ -36,6 +36,33 @@ export async function handleFlow({ first = false } = {}) {
   if (!uid) { toast('Sign in with Google to claim a handle', 'bad'); return null; }
 
   const p = store.data.profile;
+
+  /*
+   * The age gate lives here because this is the moment an account becomes
+   * *public* — before a handle exists nobody can find you, message you, or
+   * see anything. A terms page claiming a minimum age with nothing enforcing
+   * it is worse than no claim at all.
+   *
+   * `profile.age` is already collected in onboarding for the calorie maths,
+   * so nobody is asked twice, and a guest under 16 keeps the entire training
+   * app with nothing published.
+   */
+  if (Number.isFinite(p.age) && p.age > 0 && p.age < 16) {
+    await modal({
+      title: 'Handles start at 16',
+      submit: 'I understand',
+      cancel: 'Close',
+      body: `<p class="muted" style="font-size:var(--step--1)">
+          A handle makes you findable and lets other people message you, so it
+          has an age limit of 16.</p>
+        <p class="muted" style="font-size:var(--step--1);margin-top:10px">
+          Nothing else changes. Every exercise, the whole plan, nutrition,
+          charts and medals keep working exactly as they do now — your training
+          simply stays yours, on this device.</p>`,
+    });
+    return null;
+  }
+
   const current = p.handle ?? '';
   const picks = suggestHandles(p.email || auth.user?.email || '', p.name || auth.user?.name || '');
   const start = current || picks[0] || '';

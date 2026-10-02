@@ -172,5 +172,31 @@ function terms(pane) {
       ${p('Because your log lives in your browser, only you have a copy. Clearing site data, using private browsing or losing the device means losing the log. The export button exists for this reason — use it occasionally.')}`)}
 
     ${card(`${h3('Acceptable use')}
-      ${p('The source is public and MIT-licensed: fork it, change it, run your own. What you may not do is pass off a modified version as official FEROX, or use the name or mark to imply an endorsement that does not exist.')}`)}`;
+      ${p('The source is public and MIT-licensed: fork it, change it, run your own. What you may not do is pass off a modified version as official FEROX, or use the name or mark to imply an endorsement that does not exist.')}`)}
+
+    ${card(`${h3('You must be 16 or older')}
+      ${p('FEROX has accounts, public profiles and private messaging, so there is an age limit: <strong>you must be at least 16 to create an account</strong>. Under 16, use it as a guest — every training feature works, nothing is published, and no one can contact you.')}
+      ${p('If we learn an account belongs to someone under 16 it is deleted along with its messages. If you are a parent or guardian and believe your child has created one, use the contact address below and it will be removed.')}`)}
+
+    ${card(`${h3('How to behave towards other people')}
+      ${p('Messages are private between two people who have both agreed to connect, and they are encrypted so nobody at FEROX can read them. That is not a licence. Do not use FEROX to harass, threaten, bully or abuse anybody; to send sexual content, especially to or about a minor; to spam, scam or advertise; to impersonate another person; or to share anything unlawful.')}
+      ${p('<strong>You control who can reach you.</strong> Nobody can message you until you accept their request, and removing a friend ends the connection and the ability to message in both directions immediately. Blocking someone this way needs no permission and no explanation.')}
+      ${p('Accounts used for any of the above may be removed without notice. Because messages are end-to-end encrypted, FEROX cannot read a conversation to adjudicate a dispute — which means the remedy available to you is to disconnect, and, where a crime may have been committed, to contact the police rather than us.')}`)}
+
+    ${card(`${h3('What other people post')}
+      ${p('Handles, display names, pictures and messages are created by the people using FEROX, not by FEROX. We do not pre-screen them and are not responsible for them. A handle or display name that impersonates somebody, or that is offensive, may be reclaimed or removed.')}`)}
+
+    ${card(`${h3('If you pay for Pro')}
+      ${p('Pro is optional and everything described in these guides works without it. When it launches: it is billed as a recurring subscription until cancelled, you can cancel at any time and keep access until the end of the period already paid for, and prices may change with notice before your next renewal. Statutory cancellation rights are unaffected. Losing Pro never deletes your training log or locks you out of the free app.')}`)}
+
+    ${card(`${h3('Ending your account')}
+      ${p('You can erase everything from your profile at any time: it clears your log, releases your handle for somebody else to use and removes your public profile. We may suspend or remove an account that breaks these terms, is used to abuse other people, or is being used to attack the service.')}`)}
+
+    ${card(`${h3('Law, changes and complaints')}
+      ${p('These terms are governed by the law of England and Wales, and the courts there have jurisdiction — this does not remove any protection you have under the mandatory consumer law of the country you live in.')}
+      ${p('These terms may change. Material changes will be shown in the app before they take effect, and the date at the top of this page always says when it was last revised. Continuing to use FEROX after a change means accepting it.')}
+      ${p('Questions, complaints, data requests and anything concerning a child\'s account: <strong>victor.deglon@gmail.com</strong>.')}`)}
+
+    ${card(`${h3('A note on all of the above')}
+      ${p('FEROX is made by one person, not a legal department. These terms are written to be clear and fair rather than to be exhaustive, and they are not a substitute for advice from a solicitor in your jurisdiction.')}`)}`;
 }

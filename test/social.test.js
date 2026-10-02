@@ -197,3 +197,38 @@ test('a profile never publishes a handle it no longer owns', () => {
   // what stops a cleared account from writing an anonymous row.
   assert.equal(shouldPublish({ ...base, handle: '' }, null, now), false);
 });
+
+test('an uploaded avatar never reaches a public document', () => {
+  // Uploaded avatars are base64 data URLs in the private document, which is
+  // fine. Copying one into a public profile made it 23 KB, and into the
+  // handle row — the search index — made every result in a search drag down
+  // somebody's whole picture. It also broke: the rules cap `picture` at 500
+  // characters, so those profiles silently stopped being writable at all.
+  const big = 'data:image/webp;base64,' + 'A'.repeat(9000);
+  const pub = publicProfileFrom({ profile: { handle: 'v', picture: big }, medals: [] }, {}, 'u1');
+  assert.equal(pub.picture, '', 'a data: URL must not be published');
+  assert.ok(JSON.stringify(pub).length < 500, 'a public profile stays small');
+
+  // A Google-hosted URL is exactly what this is for.
+  const ok = publicProfileFrom(
+    { profile: { handle: 'v', picture: 'https://lh3.googleusercontent.com/a/abc123' }, medals: [] }, {}, 'u1');
+  assert.equal(ok.picture, 'https://lh3.googleusercontent.com/a/abc123');
+
+  // And nothing else gets through.
+  for (const bad of ['http://x.com/a.png', 'javascript:alert(1)', '//evil.com/a.png',
+    'https://x.com/' + 'a'.repeat(600)]) {
+    assert.equal(publicProfileFrom({ profile: { handle: 'v', picture: bad }, medals: [] }, {}, 'u1').picture,
+      '', `${bad.slice(0, 30)} must not be published`);
+  }
+});
+
+test('the public fields still carry nothing that identifies a minor', () => {
+  // The age gate is enforced in the handle flow, but the allow-list is the
+  // backstop: even for an account that somehow gets one, an exact age must
+  // never be published — only the band, which is coarse by design.
+  const pub = publicProfileFrom(
+    { profile: { handle: 'kid', age: 14, name: 'A', email: 'a@b.c' }, medals: [] }, {}, 'u1');
+  assert.ok(!('age' in pub));
+  assert.ok(!('email' in pub));
+  assert.equal(pub.band, 'u20', 'a band, never a number');
+});

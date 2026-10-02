@@ -7,6 +7,7 @@ import { searchPeople, profilesByUid, recommendPeople, publicProfileFrom,
   requestFriend, acceptFriend, removeFriendship, myFriendships,
   ensureMessagingKey } from '../core/social.js';
 import { openChat } from './_chat.js';
+import { pacersFor } from '../core/pacers.js';
 import { weight as toDisplay, weightLabel } from '../core/units.js';
 import { handleFlow } from './_handle.js';
 
@@ -50,7 +51,29 @@ function render(el) {
   };
 
   const m = METRICS[metric];
-  const board = [me, ...store.data.friends].sort((a, b) => (b[m.key] ?? 0) - (a[m.key] ?? 0));
+
+  /*
+   * Pacers sit on the board alongside real friends, badged as what they are.
+   *
+   * They are computed rather than stored (core/pacers.js), so they cost
+   * nothing and take no handles out of the real namespace — and they are
+   * labelled, because presenting invented accounts as people is both a
+   * misleading commercial practice and the sort of thing that costs more
+   * trust than the engagement is worth.
+   *
+   * Off in one tap for anybody who would rather only see real people.
+   */
+  const showPacers = store.data.settings?.pacers !== false;
+  const pacers = showPacers
+    ? pacersFor(s, 5).map(p => ({
+        id: p.uid, uid: null, pacer: true, handle: p.handle, name: p.nickname,
+        picture: '', accent: p.accent, place: p.place,
+        streak: p.streak, sessions: p.sessions, volume: p.volume, medals: p.medals,
+      }))
+    : [];
+
+  const board = [me, ...store.data.friends, ...pacers]
+    .sort((a, b) => (b[m.key] ?? 0) - (a[m.key] ?? 0));
   const myRank = board.findIndex(p => p.you) + 1;
 
   el.innerHTML = `
@@ -82,12 +105,13 @@ function render(el) {
                            <strong>${esc(p.name)}</strong></a>`
                       : `<strong>${esc(p.name)}</strong>`}
                     ${p.you ? ' <span class="chip chip-ember" style="padding:1px 7px;font-size:.64rem">You</span>' : ''}
+                    ${p.pacer ? ' <span class="chip chip-pacer" title="A FEROX pacer — a character to train against, not a real person">Pacer</span>' : ''}
                     <br><small class="dim">@${esc(p.handle ?? 'athlete')}</small>
                   </div>
                 </div>
               </td>
               <td style="text-align:right" class="num"><strong>${esc(m.fmt(p[m.key] ?? 0))}</strong></td>
-              <td style="text-align:right">${p.you ? '' : `
+              <td style="text-align:right">${p.you || p.pacer ? '' : `
                 ${p.uid ? `<button class="btn btn-ghost btn-sm" data-dm="${esc(p.uid)}"
                    aria-label="Message ${esc(p.name)}">${icon('link')}</button>` : ''}
                 <button class="btn btn-ghost btn-sm" data-rm="${p.id}" aria-label="Remove ${esc(p.name)}">${icon('trash')}</button>`}</td>
@@ -96,6 +120,17 @@ function render(el) {
       </div>
 
       <div class="stack" style="gap:16px">
+        <div class="card card-pad-lg">
+          <div class="row-between" style="gap:10px">
+            <div style="min-width:0">
+              <h3 style="font-size:var(--step-0)">Pacers</h3>
+              <p class="dim" style="font-size:.76rem;margin-top:3px">
+                Characters to train against, not real people. Their pace sits just ahead of yours.</p>
+            </div>
+            <button class="btn btn-sm" id="pacerToggle">${showPacers ? 'Hide' : 'Show'}</button>
+          </div>
+        </div>
+
         <div class="card card-pad-lg" id="reqCard" hidden>
           <div class="card-head"><h3>Requests</h3></div>
           <div class="stack" style="gap:8px;margin-top:10px" id="reqList"></div>
@@ -140,6 +175,13 @@ function render(el) {
 
   const sug = el.querySelector('#sugList');
   if (sug) renderSuggestions(sug).catch(() => { sug.innerHTML = ''; });
+
+  el.querySelector('#pacerToggle')?.addEventListener('click', async () => {
+    await store.commit(d => {
+      d.settings = { ...d.settings, pacers: d.settings?.pacers === false };
+    });
+    toast(store.data.settings.pacers === false ? 'Pacers hidden' : 'Pacers back on', 'ok');
+  });
 
   renderRequests(el).catch(() => {});
 

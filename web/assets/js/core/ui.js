@@ -77,19 +77,81 @@ export function syncThemeFromStore() {
 /* ------------------------------------------------------------------ toasts */
 
 let toastHost;
+/** How long a notification stays before the bar runs out. */
+const TOAST_MS = 3400;
+
+/**
+ * A notification, top right.
+ *
+ * Each one carries a themed bar that drains left to right; when it runs out
+ * the card is crushed towards the right edge and goes. The bar is doing a
+ * job rather than decorating: it says how long this will be on screen, so a
+ * message that matters can be read deliberately instead of guessed at, and
+ * nothing ever vanishes without having visibly announced that it would.
+ *
+ * Identical messages collapse into one with a count instead of stacking.
+ * Saving three things in a row used to produce three separate "Saved"
+ * cards sliding past each other, which is the sort of thing that reads as a
+ * glitch even though every part of it is working.
+ */
 export function toast(message, kind = '') {
-  toastHost ??= Object.assign(document.body.appendChild(document.createElement('div')), { className: 'toasts' });
+  toastHost ??= Object.assign(document.body.appendChild(document.createElement('div')),
+    { className: 'toasts', role: 'region', ariaLabel: 'Notifications' });
+
+  const text = String(message ?? '');
+
+  // Already on screen? Bump it rather than stacking a duplicate.
+  const twin = [...toastHost.children].find(c => c.dataset.msg === text && !c.dataset.going);
+  if (twin) {
+    const n = (+twin.dataset.n || 1) + 1;
+    twin.dataset.n = n;
+    twin.querySelector('.toast-count').textContent = `×${n}`;
+    twin.querySelector('.toast-count').hidden = false;
+    const bar = twin.querySelector('.toast-bar');
+    bar.style.animation = 'none';
+    void bar.offsetWidth;                       // restart the drain
+    bar.style.animation = '';
+    clearTimeout(+twin.dataset.timer);
+    twin.dataset.timer = setTimeout(() => dismissToast(twin), TOAST_MS);
+    return;
+  }
+
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
-  el.setAttribute('role', 'status');
-  el.innerHTML = `${kind === 'ok' ? icon('check') : kind === 'bad' ? icon('x') : icon('sparkle')}<span>${esc(message)}</span>`;
-  el.querySelector('svg').style.cssText = 'width:16px;height:16px;flex:none';
+  el.dataset.msg = text;
+  el.setAttribute('role', kind === 'bad' ? 'alert' : 'status');
+  el.innerHTML = `
+    <span class="toast-ico">${kind === 'ok' ? icon('check') : kind === 'bad' ? icon('x') : icon('sparkle')}</span>
+    <span class="toast-text">${esc(text)}</span>
+    <span class="toast-count" hidden></span>
+    <span class="toast-bar" style="animation-duration:${TOAST_MS}ms"></span>`;
+
+  // Hovering holds it. Reading a message should not be a race.
+  el.addEventListener('pointerenter', () => {
+    clearTimeout(+el.dataset.timer);
+    el.querySelector('.toast-bar').style.animationPlayState = 'paused';
+  });
+  el.addEventListener('pointerleave', () => {
+    el.querySelector('.toast-bar').style.animationPlayState = 'running';
+    el.dataset.timer = setTimeout(() => dismissToast(el), 900);
+  });
+  el.addEventListener('click', () => dismissToast(el));
+
   toastHost.append(el);
-  setTimeout(() => {
-    el.style.transition = 'opacity .25s, transform .25s';
-    el.style.opacity = '0'; el.style.transform = 'translateY(8px)';
-    setTimeout(() => el.remove(), 260);
-  }, 2600);
+  el.dataset.timer = setTimeout(() => dismissToast(el), TOAST_MS);
+}
+
+function dismissToast(el) {
+  if (!el.isConnected || el.dataset.going) return;
+  el.dataset.going = '1';
+  clearTimeout(+el.dataset.timer);
+  el.classList.add('crush');
+  // Fall back to a plain remove if the animation never fires — a reduced
+  // motion setting shortens it to nothing, and `animationend` on a 0.01ms
+  // animation is not something to stake a leaked DOM node on.
+  const done = () => el.remove();
+  el.addEventListener('animationend', done, { once: true });
+  setTimeout(done, 700);
 }
 
 /* ------------------------------------------------------------------ modals */
@@ -416,10 +478,31 @@ function moreSheet() {
  */
 export function safePicture(url) {
   const s = String(url ?? '').trim();
-  if (!s || s.length > 500) return '';
+  if (!s) return '';
+
+  /*
+   * An uploaded avatar is a `data:image/...` URL in this device's own store,
+   * and it has to render — this filter being https-only is what made a
+   * profile picture vanish and fall back to initials on every re-render,
+   * which looked like the theme switch eating it.
+   *
+   * Allowing it here is safe and is not the same decision as publishing it.
+   * A data URL in an `<img src>` cannot execute; the image types are named
+   * explicitly so `data:text/html` is not one of them; and the length is
+   * bounded because a local avatar is ~25 KB, not a video. Whether one is
+   * ever *published* is a separate question answered in core/social.js by
+   * `publicPicture`, which stays https-only.
+   */
+  if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s)) {
+    return s.length <= 200_000 ? s : '';
+  }
+
+  // Everything else must be absolute https. `javascript:` cannot run from an
+  // `<img src>`, but it has no business here and the next person to reuse
+  // this helper on an `<a href>` should not inherit the problem.
   try {
     const u = new URL(s);
-    return u.protocol === 'https:' ? u.href : '';
+    return u.protocol === 'https:' && s.length <= 500 ? u.href : '';
   } catch { return ''; }
 }
 

@@ -11,7 +11,7 @@ import { handleFlow } from './_handle.js';
 import { googleReady } from '../core/config.js';
 import { MEDALS } from '../core/seed.js';
 import { makeAvatar, formatBytes, AVATAR_PX } from '../core/image.js';
-import { LEVELS, GOALS, ACTIVITY, EQUIPMENT, targetsFor } from '../core/profile.js';
+import { LEVELS, GOALS, ACTIVITY, EQUIPMENT, DIETS, targetsFor } from '../core/profile.js';
 import { seasonById, currentSlot } from '../core/seasons.js';
 import { PALETTES, MODES, availablePalettes } from '../core/themes.js';
 import { unlockedEggs, EGG_COUNT } from '../core/eggs.js';
@@ -165,6 +165,22 @@ function render(el) {
           <div class="card-head"><h3>Preferences</h3></div>
           <div class="stack" style="gap:14px">
             <div class="field">
+              <label for="gym">Where you train</label>
+              <select class="select" id="gym">
+                ${EQUIPMENT.map(e => `<option value="${e.id}"${p.equipment === e.id ? ' selected' : ''}>${esc(e.label)} — ${esc(e.hint)}</option>`).join('')}
+              </select>
+              <p class="dim" style="font-size:.76rem;margin-top:5px">
+                Only exercises you can actually do are prescribed. Private — it is not on your public profile.</p>
+            </div>
+            <div class="field">
+              <label for="diet">Diet</label>
+              <select class="select" id="diet">
+                ${DIETS.map(x => `<option value="${x.id}"${(p.diet ?? 'balanced') === x.id ? ' selected' : ''}>${esc(x.label)} — ${esc(x.hint)}</option>`).join('')}
+              </select>
+              <p class="dim" style="font-size:.76rem;margin-top:5px">
+                Changes how your calories split into protein, carbs and fat. The total does not move.</p>
+            </div>
+            <div class="field">
               <label for="disc">Discoverable</label>
               <select class="select" id="disc">
                 <option value="1"${p.discoverable !== false ? ' selected' : ''}>Suggest me to other athletes</option>
@@ -239,9 +255,7 @@ function render(el) {
     avatarIn.value = '';
     if (!file) return;
     try {
-      const { dataUrl, bytes, from } = await makeAvatar(file);
-      await store.updateProfile({ picture: dataUrl });
-      toast(`Photo set — ${from.w}×${from.h} resized to ${AVATAR_PX}px, ${formatBytes(bytes)}`, 'ok');
+      await cropFlow(file);
     } catch (err) {
       toast(err.message, 'bad');
     }
@@ -250,6 +264,21 @@ function render(el) {
   el.querySelector('#editTraining').addEventListener('click', editTraining);
   el.querySelector('#editGoals').addEventListener('click', editGoals);
   el.querySelector('#signOut')?.addEventListener('click', async () => { await auth.signOut(); location.href = 'index.html'; });
+
+  el.querySelector('#gym')?.addEventListener('change', async e => {
+    await store.updateProfile({ equipment: e.target.value });
+    toast(`Training at: ${EQUIPMENT.find(x => x.id === e.target.value)?.label}`, 'ok');
+  });
+
+  el.querySelector('#diet')?.addEventListener('change', async e => {
+    // The targets are recomputed from the new split, not nudged, so this
+    // cannot drift away from what `targetsFor` would produce fresh.
+    const d = store.data.profile;
+    const season = seasonById(d.seasons?.[currentSlot(d.layout ?? 4).id]) ?? seasonById('ferox-recomp');
+    await store.updateProfile({ diet: e.target.value });
+    await store.updateProfile({ goals: targetsFor(store.data.profile, season) });
+    toast(`Macros set for ${DIETS.find(x => x.id === e.target.value)?.label}`, 'ok');
+  });
 
   el.querySelector('#disc')?.addEventListener('change', async e => {
     // Off blanks the matching fields in the public document rather than only
@@ -635,4 +664,63 @@ async function editGoals() {
     },
   });
   toast('Targets updated', 'ok');
+}
+
+/**
+ * Pick the square, then save it.
+ *
+ * The crop used to happen the instant a file was chosen, dead centre, and on
+ * a portrait photo that reliably took the chin and lost the top of the head.
+ * The default is smarter now (see core/image.js) but no rule is right for
+ * every photograph, so this shows the result and lets it be moved.
+ *
+ * A slider rather than a drag: it works with a thumb, a mouse and a keyboard
+ * without three separate code paths, and the whole interaction is one axis
+ * anyway — the horizontal centre is almost always correct.
+ */
+async function cropFlow(file) {
+  let focusY = null;                 // null = let the heuristic decide
+  let made = await makeAvatar(file, AVATAR_PX, { focusY });
+
+  const res = await modal({
+    title: 'Position your photo',
+    submit: 'Use this',
+    body: `
+      <div class="stack" style="gap:14px;justify-items:center">
+        <img id="cropPrev" class="avatar" src="${esc(made.dataUrl)}" alt=""
+          style="width:140px;height:140px">
+        <div class="field" style="width:100%">
+          <label for="cropY">Move up or down</label>
+          <input type="range" class="slider" id="cropY" min="0" max="100" value="25"
+            style="--pct:25%" aria-label="Vertical position of the crop">
+        </div>
+        <p class="dim" style="font-size:.76rem;text-align:center">
+          ${made.from.w}×${made.from.h}, squared to ${AVATAR_PX}px.
+          Stays on this device — other people see your initials unless you signed in with Google.</p>
+      </div>`,
+
+    onMount(dlg) {
+      const slider = dlg.querySelector('#cropY');
+      const prev = dlg.querySelector('#cropPrev');
+      let timer = null;
+
+      slider.addEventListener('input', () => {
+        slider.style.setProperty('--pct', `${slider.value}%`);
+        // Re-encoding on every pixel of slider movement is wasted work; a
+        // short debounce keeps it responsive without re-compressing 60×/sec.
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          focusY = +slider.value / 100;
+          try {
+            made = await makeAvatar(file, AVATAR_PX, { focusY });
+            prev.src = made.dataUrl;
+          } catch { /* keep the last good crop */ }
+        }, 90);
+      });
+    },
+  });
+
+  if (!res) return;
+  await store.updateProfile({ picture: made.dataUrl });
+  toast(`Photo set — ${formatBytes(made.bytes)}`, 'ok');
 }

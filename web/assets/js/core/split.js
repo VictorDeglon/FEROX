@@ -515,7 +515,18 @@ export function buildSession(day, p, season, readiness = 7, weekIndex = 0, data 
     readiness: r,
     weekIndex,
     mode,
-    minutes: Math.round(entries.reduce((t, e) => t + e.sets * (e.rest + 45) / 60, 0)),
+    /*
+     * Rounded **up** to the next five minutes.
+     *
+     * Up, not nearest, because this is the number somebody uses to decide
+     * whether they have time to train: being told 40 and needing 43 is how
+     * you end up abandoning a session half-finished, and being told 45 and
+     * needing 43 costs nothing. Fives because nobody plans a gym trip to the
+     * minute, and "47 minutes" reads as a precision this estimate does not
+     * have — it is sets times rest plus a guess at how long a set takes.
+     */
+    minutes: Math.max(5, Math.ceil(
+      entries.reduce((t, e) => t + e.sets * (e.rest + 45) / 60, 0) / 5) * 5),
     entries,
   };
 }

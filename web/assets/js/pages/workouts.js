@@ -144,7 +144,7 @@ function plan(pane, root) {
                     : `${e.rir} in reserve`}</small></td>
               </tr>`).join('')}</tbody>
           </table></div>
-          <button class="btn btn-primary btn-sm btn-block" data-start-day="${i}">${icon('bolt')}<span>Start this session</span></button>
+          <button class="btn btn-primary btn-sm btn-block" data-start-day="${i}">${icon('play')}<span>Start this session</span></button>
         </article>`).join('')}
     </div>
 
@@ -232,7 +232,7 @@ function routines(pane) {
         <span class="row" style="gap:5px">${icon('dumbbell')}${r.blocks.length} exercises</span>
         <span class="row" style="gap:5px">${icon('bolt')}${r.blocks.reduce((t, b) => t + b.sets, 0)} sets</span>
       </div>
-      <button class="btn btn-primary btn-sm btn-block" data-start="${r.id}">${icon('bolt')}<span>Start</span></button>
+      <button class="btn btn-primary btn-sm btn-block" data-start="${r.id}">${icon('play')}<span>Start</span></button>
     </article>`).join('');
 
   pane.querySelectorAll('svg').forEach(s => { if (s.closest('.row')) { s.style.width = '14px'; s.style.height = '14px'; } });
@@ -265,7 +265,7 @@ function routineDetail(r) {
           <td style="text-align:right" class="num">${b.sets} × ${b.reps}${ex.unit === 'sec' ? 's' : ex.unit === 'km' ? ' km' : ''}</td></tr>`;
       }).join('')}</tbody>
     </table></div>
-    <button class="btn btn-primary btn-block" data-go>${icon('bolt')}<span>Start this session</span></button>
+    <button class="btn btn-primary btn-block" data-go>${icon('play')}<span>Start this session</span></button>
   </div>`;
   const close = () => { dlg.close(); dlg.remove(); };
   dlg.querySelector('[data-close]').addEventListener('click', close);
