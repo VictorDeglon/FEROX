@@ -137,6 +137,9 @@ export async function handleAvailable(handle) {
  * @throws {Error} with `code` 'taken' | 'invalid' so callers can say something useful
  */
 export async function claimHandle(uid, raw, { nickname = '', picture = '', previous = '' } = {}) {
+  // The handle row is the search index and is read far more than it is
+  // written, so it never carries an uploaded avatar — see publicPicture.
+  picture = publicPicture(picture);
   const v = validateHandle(raw);
   if (!v.ok) { const e = new Error(v.why); e.code = 'invalid'; throw e; }
   const handle = v.handle;
@@ -245,6 +248,34 @@ export const PUBLIC_FIELDS = ['handle', 'nickname', 'picture', 'joined',
  */
 const stat = v => (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
 
+/**
+ * A picture fit to publish: an absolute https URL, and nothing else.
+ *
+ * Uploaded avatars are stored as `data:image/webp;base64,...` in the private
+ * document, which is the right place for them — it is the athlete's own
+ * device and their own data. Copying one into a *public* document is not:
+ *
+ *   it is 9–23 KB where the whole document should be a few hundred bytes,
+ *   and it lands in `handles` too, which is the search index — so every
+ *   result row in a search for "vic" dragged down somebody's entire avatar.
+ *   That is roughly seventy times the intended read, on the hottest path
+ *   there is.
+ *
+ * It also quietly broke: the rules cap `picture` at 500 characters, so once
+ * that cap existed those profiles could no longer be written at all and sat
+ * frozen while every publish failed.
+ *
+ * So the public copy carries the Google-hosted URL if there is one, and
+ * otherwise nothing — a viewer sees initials. A custom avatar stays on the
+ * device that uploaded it. Making it public would mean paying to store and
+ * serve files, which is the thing this design is built to avoid.
+ */
+const publicPicture = url => {
+  const v = String(url ?? '').trim();
+  if (!v || v.length > 500 || !v.startsWith('https://')) return '';
+  return v;
+};
+
 /** Build the public view of an athlete from their private document. */
 export function publicProfileFrom(data, stats, uid) {
   const p = data?.profile ?? {};
@@ -252,7 +283,7 @@ export function publicProfileFrom(data, stats, uid) {
     uid,
     handle: p.handle ?? '',
     nickname: (p.name ?? '').trim().slice(0, 40),
-    picture: p.picture ?? '',
+    picture: publicPicture(p.picture),
     joined: p.joined ?? '',
     streak: stat(stats?.streak),
     sessions: stat(stats?.sessions),
