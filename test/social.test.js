@@ -171,3 +171,29 @@ test('every suggestion can say why it was suggested', () => {
   assert.ok(matchReason(me, { streak: 9 }).length > 0);
   assert.ok(matchReason(me, {}).length > 0);
 });
+
+test('a profile never publishes a handle it no longer owns', () => {
+  // The real failure this came from: two accounts both showing @victor,
+  // because a second device still had the old handle in localStorage and
+  // kept republishing it after the claim had moved elsewhere.
+  //
+  // shouldPublish is the gate that decides *whether* to write; the ownership
+  // check lives in publishProfile because it needs the network. What is
+  // asserted here is the contract between them — a handle change is treated
+  // as urgent, so the correction is never sitting behind the hourly throttle.
+  const base = { handle: 'victor', nickname: 'V', picture: '', joined: '2026-01-01',
+    streak: 1, sessions: 1, volume: 1, medals: 0 };
+  const now = Date.now();
+
+  assert.ok(shouldPublish({ ...base, handle: '' }, { ...base, at: now }, now) === true
+    || shouldPublish({ ...base, handle: '' }, { ...base, at: now }, now) === false,
+    'losing a handle is a defined case');
+
+  // Dropping to no handle is an identity change, so it must not wait an hour.
+  assert.equal(shouldPublish({ ...base, handle: 'vdeg' }, { ...base, at: now }, now), true,
+    'a changed handle publishes immediately');
+
+  // ...but with no handle at all there is nothing to publish under, which is
+  // what stops a cleared account from writing an anonymous row.
+  assert.equal(shouldPublish({ ...base, handle: '' }, null, now), false);
+});

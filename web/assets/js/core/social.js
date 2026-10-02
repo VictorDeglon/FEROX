@@ -267,16 +267,41 @@ export async function publishProfile(uid, next, last, now = Date.now()) {
   if (!shouldPublish(next, last, now)) return null;
 
   const { db, fs } = await boot();
-  await fs.setDoc(fs.doc(db, 'profiles', uid),
-    { ...next, updatedAt: fs.serverTimestamp() }, { merge: true });
+
+  /*
+   * Confirm the handle is still ours before writing it anywhere.
+   *
+   * `next.handle` comes from the local store, and a second device can be
+   * carrying a handle this account gave up — the claim transaction updates
+   * the profile and the handle row, but it cannot reach into another
+   * browser's localStorage. Without this check that stale device republishes
+   * the old handle into its own profile and two profiles end up claiming the
+   * same name. It happened, on this project, to the two accounts that had
+   * signed in during testing.
+   *
+   * `handles/{handle}` is the only authority on who owns what, so it is asked.
+   * One read, and only on a write we were already going to make.
+   */
+  let handle = next.handle;
+  if (handle) {
+    const owner = await fs.getDoc(fs.doc(db, 'handles', handle));
+    if (!owner.exists() || owner.data().uid !== uid) {
+      // Not ours any more. Publish everything *except* the handle, and tell
+      // the caller so it can drop the stale one locally.
+      handle = '';
+    }
+  }
+
+  const doc = { ...next, handle, updatedAt: fs.serverTimestamp() };
+  await fs.setDoc(fs.doc(db, 'profiles', uid), doc, { merge: true });
 
   // The search index carries the three fields a result row shows, so finding
   // somebody never has to read their profile as well.
-  if (next.handle) {
-    await fs.setDoc(fs.doc(db, 'handles', next.handle),
+  if (handle) {
+    await fs.setDoc(fs.doc(db, 'handles', handle),
       { uid, nickname: next.nickname, picture: next.picture }, { merge: true });
   }
-  return { ...next, at: now };
+  return { ...next, handle, at: now, lostHandle: Boolean(next.handle) && !handle };
 }
 
 /* ---------------------------------------------------------------- search */
@@ -360,7 +385,18 @@ export async function syncPublicProfile(uid, data, stats) {
     const next = publicProfileFrom(data, stats, uid);
     if (!next.handle) return;                       // nothing claimed yet
     const sent = await publishProfile(uid, next, readLast(uid));
-    if (sent) writeLast(uid, sent);
+    if (!sent) return;
+    writeLast(uid, sent);
+
+    // The handle went while this device was not looking. Clearing it locally
+    // is what stops the next publish trying again, and puts the "claim a
+    // handle" prompt back in front of them rather than leaving them with a
+    // name that quietly belongs to somebody else.
+    if (sent.lostHandle) {
+      const { store } = await import('./store.js');
+      await store.updateProfile({ handle: '' });
+      console.info('[ferox] this handle is no longer yours — cleared locally.');
+    }
   } catch (err) {
     console.info('[ferox] public profile not updated:', err?.code ?? err?.message ?? err);
   }
