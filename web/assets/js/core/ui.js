@@ -478,10 +478,31 @@ function moreSheet() {
  */
 export function safePicture(url) {
   const s = String(url ?? '').trim();
-  if (!s || s.length > 500) return '';
+  if (!s) return '';
+
+  /*
+   * An uploaded avatar is a `data:image/...` URL in this device's own store,
+   * and it has to render — this filter being https-only is what made a
+   * profile picture vanish and fall back to initials on every re-render,
+   * which looked like the theme switch eating it.
+   *
+   * Allowing it here is safe and is not the same decision as publishing it.
+   * A data URL in an `<img src>` cannot execute; the image types are named
+   * explicitly so `data:text/html` is not one of them; and the length is
+   * bounded because a local avatar is ~25 KB, not a video. Whether one is
+   * ever *published* is a separate question answered in core/social.js by
+   * `publicPicture`, which stays https-only.
+   */
+  if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s)) {
+    return s.length <= 200_000 ? s : '';
+  }
+
+  // Everything else must be absolute https. `javascript:` cannot run from an
+  // `<img src>`, but it has no business here and the next person to reuse
+  // this helper on an `<a href>` should not inherit the problem.
   try {
     const u = new URL(s);
-    return u.protocol === 'https:' ? u.href : '';
+    return u.protocol === 'https:' && s.length <= 500 ? u.href : '';
   } catch { return ''; }
 }
 

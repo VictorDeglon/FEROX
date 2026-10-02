@@ -17,6 +17,7 @@ import { esc, num, avatarHtml, wireAvatarFallback } from '../core/ui.js';
 wireAvatarFallback();
 import { auth } from '../core/auth.js';
 import { profileByHandle, normaliseHandle } from '../core/social.js';
+import { pacerByHandle } from '../core/pacers.js';
 import { googleReady, CONFIG } from '../core/config.js';
 import { weight as toDisplay, weightLabel } from '../core/units.js';
 
@@ -79,7 +80,8 @@ function render(p, isMe) {
         <div class="grow" style="min-width:0">
           <h1 style="font-size:var(--step-1);overflow:hidden;text-overflow:ellipsis">
             ${esc(p.nickname || p.handle)}</h1>
-          <p class="dim" style="font-size:var(--step--1)">@${esc(p.handle)}</p>
+          <p class="dim" style="font-size:var(--step--1)">@${esc(p.handle)}${p.place ? ` · ${esc(p.place)}` : ''}</p>
+          ${p.pacer ? `<p class="chip chip-pacer" style="margin-top:6px">FEROX pacer</p>` : ''}
           ${joined ? `<p class="dim" style="font-size:.76rem;margin-top:2px">Training here since ${esc(joined)}</p>` : ''}
         </div>
         ${isMe
@@ -99,7 +101,15 @@ function render(p, isMe) {
         Streak, sessions, volume, medals and a friend count are the only things a profile shows.
         Bodyweight, measurements and everything eaten stay private.</p>`)}
 
-    ${isMe ? '' : card(`
+    ${p.pacer ? card(`
+      <p class="muted" style="font-size:var(--step--1)">${esc(p.bio)}</p>
+      <p class="dim" style="font-size:.8rem">${esc(p.style)}</p>
+      <p class="dim" style="font-size:.74rem;border-top:1px solid var(--line);padding-top:10px">
+        <strong>${esc(p.nickname)} is a pacer, not a person.</strong> A character to train
+        against, with a pace that is deliberately just ahead of yours. Nobody is behind the
+        account, it cannot be messaged, and you can switch pacers off on the Friends page.</p>`) : ''}
+
+    ${isMe || p.pacer ? '' : card(`
       <p class="muted" style="font-size:var(--step--1)">
         Track your own training the same way — free, no account needed to start.</p>
       <a class="btn btn-primary" style="justify-self:start" href="./">Open FEROX</a>`)}`;
@@ -111,6 +121,11 @@ if (!wanted) {
   message('No athlete named', 'This link is missing a handle. Profiles look like /u.html?h=victor.');
 } else if (!googleReady()) {
   message('Profiles are not switched on', 'This deployment has no Firebase project behind it, so there is nobody to look up.');
+} else if (pacerByHandle(wanted)) {
+  // Pacers are computed, not stored, so their page needs no account and no
+  // read — and it says plainly what they are rather than leaving somebody to
+  // work out why this athlete never replies.
+  render(pacerByHandle(wanted), false);
 } else {
   // A profile is readable by signed-in people only, which is also what stops
   // the whole directory being scraped. Restore first so a returning visitor

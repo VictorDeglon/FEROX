@@ -1464,3 +1464,11 @@ code.phrase {
   background: var(--ember); border-color: transparent; color: #fff;
 }
 .chat-time { font-size: .64rem; padding: 0 4px; }
+
+/* Pacers — visibly not people. The badge is the whole point of them. */
+.chip-pacer {
+  border-color: color-mix(in srgb, var(--ember) 45%, transparent);
+  color: var(--ember-hi);
+  background: color-mix(in srgb, var(--ember) 10%, transparent);
+  padding: 1px 8px; font-size: .64rem; letter-spacing: .04em; text-transform: uppercase;
+}

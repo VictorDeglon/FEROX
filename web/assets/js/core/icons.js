@@ -11,6 +11,8 @@ const P = {
   users:    '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16.5 5.6a3.2 3.2 0 0 1 0 6.1M17 14.4a6 6 0 0 1 4 5.6"/>',
   flame:    '<path d="M12 22c3.9 0 6.5-2.5 6.5-6 0-4.5-4-6-4.5-10-2.5 1.5-3 4-3 5.5C11 9 9.5 8 9 6.5 6.9 8.4 5.5 10.9 5.5 14c0 3.5 2.6 8 6.5 8Z"/>',
   user:     '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
+  /* A plain play triangle. "Begin" needs no lightning. */
+  play: '<path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" stroke="none"/>',
   bolt:     '<path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/>',
   plus:     '<path d="M12 5v14M5 12h14"/>',
   check:    '<path d="m4.5 12.5 5 5 10-11"/>',
